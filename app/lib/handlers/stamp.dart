@@ -90,22 +90,22 @@ class StampHandler extends PastingHandler<StampTool> {
       return Offset(relative.dx * scaleX, relative.dy * scaleY) + rect.topLeft;
     }
 
-    return elements
-        .map((renderer) {
-          // Map every element's pivot through the same group transform. Stroke
-          // padding and existing rotation must not shift individual elements.
-          final center = (renderer.rect ?? Rect.zero).center;
-          return renderer
-                  .transform(
-                    center: applyScaleAndTranslate(center),
-                    scaleX: scaleX,
-                    scaleY: scaleY,
-                    relative: true,
-                  )
-                  ?.element ??
-              renderer.element;
-        })
-        .map((element) => element.copyWith(id: createUniqueId()))
-        .toList();
+    return regenerateElementIds(
+      elements.map((renderer) {
+        // Map every element's pivot through the same group transform. Stroke
+        // padding and existing rotation must not shift individual elements.
+        final center = (renderer.rect ?? Rect.zero).center;
+        return renderer
+                .transform(
+                  center: applyScaleAndTranslate(center),
+                  scaleX: scaleX,
+                  scaleY: scaleY,
+                  relative: true,
+                )
+                ?.element ??
+            renderer.element;
+      }),
+      createUniqueId,
+    );
   }
 }

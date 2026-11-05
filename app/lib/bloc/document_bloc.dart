@@ -464,12 +464,7 @@ class DocumentBloc extends ReplayBloc<DocumentEvent, DocumentState> {
         assets: event.assets,
       );
       if (elements.isEmpty) return;
-      final routed = rerouteConnectors(current.page.content, {
-        for (final element in elements) element.id!: [element],
-      });
-      if (routed.isNotEmpty) {
-        elements = elements.map((e) => routed[e.id] ?? e).toList();
-      }
+      elements = prepareCreatedElements(current.page.content, elements);
       final layer = event.layer ?? current.currentLayer;
       final renderers = isOffscreen
           ? <Renderer<PadElement>>[]
@@ -521,12 +516,21 @@ class DocumentBloc extends ReplayBloc<DocumentEvent, DocumentState> {
         );
         elements[entry.key] = importedElements;
       }
-      // Keep connectors attached to their shapes within the same state change
-      // so a move/resize is a single undo step.
+      // Keep connectors consistent within the same state change so a
+      // move/resize/conversion is a single undo step: connectors whose
+      // endpoint was removed or became unsupported are removed, the others
+      // are re-routed.
+      for (final id in invalidatedConnectors(
+        current.page.content,
+        applyElementChanges(current.page.content, elements),
+      )) {
+        elements[id] = const [];
+      }
       for (final MapEntry(key: id, value: connector) in rerouteConnectors(
         current.page.content,
         elements,
       ).entries) {
+        if (elements[id]?.isEmpty ?? false) continue;
         elements[id] = [connector];
       }
       final replacedRenderers =
@@ -536,6 +540,7 @@ class DocumentBloc extends ReplayBloc<DocumentEvent, DocumentState> {
         final updated = elements[id];
         if (updated != null) {
           renderer.dispose();
+          if (updated.isEmpty) selected?.remove(renderer);
           final updatedRenderers = <Renderer<PadElement>>[];
           for (var element in updated) {
             final newRenderer = Renderer.fromInstance(element, renderer.layer);
@@ -1092,16 +1097,20 @@ class DocumentBloc extends ReplayBloc<DocumentEvent, DocumentState> {
       final current = _getPageState(event.pageName);
       if (current is! DocumentLoadSuccess) return;
       if (!(embedding?.editable ?? true)) return;
+      final (page, _) = pruneInvalidatedConnectors(
+        current.page,
+        current.page.mapLayers(
+          (e) => e.copyWith(
+            content: List<PadElement>.from(e.content)
+                .where((e) => e.collection != event.name)
+                .toList(),
+          ),
+        ),
+      );
       _savePageState(
         emit,
         state: current.copyWith(
-          page: current.page.mapLayers(
-            (e) => e.copyWith(
-              content: List<PadElement>.from(e.content)
-                  .where((e) => e.collection != event.name)
-                  .toList(),
-            ),
-          ),
+          page: page,
           currentCollection: current.currentCollection == event.name
               ? ''
               : current.currentCollection,
@@ -1192,13 +1201,17 @@ class DocumentBloc extends ReplayBloc<DocumentEvent, DocumentState> {
       final current = _getPageState(event.pageName);
       if (current is! DocumentLoadSuccess) return;
       if (!(embedding?.editable ?? true)) return;
+      // Connectors in other layers cannot outlive their endpoints.
+      final (page, prunedConnectors) = pruneInvalidatedConnectors(
+        current.page,
+        current.page.copyWith(
+          layers: current.page.layers.where((e) => e.id != event.id).toList(),
+        ),
+      );
       return _savePageState(
         emit,
-        state: current.copyWith(
-          page: current.page.copyWith(
-            layers: current.page.layers.where((e) => e.id != event.id).toList(),
-          ),
-        ),
+        state: current.copyWith(page: page),
+        reset: prunedConnectors.isNotEmpty,
       );
     }, transformer: sequential());
 
@@ -1213,14 +1226,26 @@ class DocumentBloc extends ReplayBloc<DocumentEvent, DocumentState> {
         final duplicatedIds = <String, String>{};
         final newLayers = <DocumentLayer>[];
         final addedRenderers = <Renderer<PadElement>>[];
+        // One mapping for every duplicated layer so connectors between
+        // duplicated layers are remapped to the clones; connectors to shapes
+        // outside the duplicated layers are detached.
+        final (elementIds, ambiguousIds) = createIdMapping(
+          layers
+              .where((e) => e.id != null && ids.contains(e.id))
+              .expand((e) => e.content),
+          createUniqueId,
+        );
         for (final layer in layers) {
           newLayers.add(layer);
           final id = layer.id;
           if (id == null || !ids.contains(id)) continue;
           final newId = createUniqueId();
-          final content = layer.content
-              .map((element) => element.copyWith(id: createUniqueId()))
-              .toList();
+          final content = remapElementIds(
+            layer.content,
+            elementIds,
+            createUniqueId,
+            ambiguousIds: ambiguousIds,
+          );
           duplicatedIds[id] = newId;
           newLayers.add(layer.copyWith(id: newId, content: content));
           if (!isOffscreen) {

@@ -110,10 +110,14 @@ ContextMenuBuilder buildElementsContextMenu(
           ContextMenuItem(
             onPressed: () {
               Navigator.of(context).pop(true);
+              final current = bloc.state;
+              if (current is! DocumentLoadSuccess) return;
+              // Refuses unsupported, missing or ambiguous endpoints.
               final connector = createConnector(
                 from,
                 to,
                 collection: from.collection,
+                content: current.page.content,
               );
               if (connector == null) return;
               bloc.add(
