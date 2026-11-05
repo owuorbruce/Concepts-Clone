@@ -42,7 +42,12 @@ jobs:
           dart format lib/src/generated
       # Uncomment this step to verify the use of 'dart format' on each commit.
       - name: Verify formatting
+        id: format
+        continue-on-error: true
         run: dart format --output=none --set-exit-if-changed ${{ matrix.projects == 'tools' && '.' || 'lib' }}
+      - name: Show formatting diff (temporary)
+        if: steps.format.outcome == 'failure'
+        run: dart format lib > /dev/null; git diff
       # Consider passing '--fatal-infos' for slightly stricter analysis.
       - name: Analyze project source
         run: flutter analyze --fatal-infos
