@@ -531,10 +531,10 @@ class ImportService(
         .map((e) => e.copyWith(position: e.position + firstPos.toPoint()))
         .toList();
 
-    final renderers = page.content
-        .map((e) => e.copyWith(id: createUniqueId()))
-        .map((e) => Renderer.fromInstance(e))
-        .toList();
+    final renderers = regenerateElementIds(
+      page.content,
+      createUniqueId,
+    ).map((e) => Renderer.fromInstance(e)).toList();
     final transformCubit = TransformCubit(1, position);
     final assetService = AssetService();
     await Future.wait(
