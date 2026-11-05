@@ -1107,10 +1107,14 @@ class _MainBody extends StatelessWidget {
   }) {
     final showChrome =
         state is DocumentLoadSuccess && inputState.hideUi == .visible;
+    // The tool wheel starts at the bottom, so the zoom controls go up top.
+    final shellSettings = settings.copyWith(
+      zoomPosition: ZoomPosition.topRight,
+    );
     return AmazeEditorLayout(
       viewport: MainViewViewport(key: viewportKey),
       selectionListener: _buildSelectionListener(context, toolState),
-      zoom: _buildZoomAndTools(context, settings, isMobile, inputState),
+      zoom: _buildZoomAndTools(context, shellSettings, isMobile, inputState),
       property: Align(
         alignment: switch (settings.propertyPosition) {
           .topRight => Alignment.topRight,
