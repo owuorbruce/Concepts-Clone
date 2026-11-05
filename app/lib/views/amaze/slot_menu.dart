@@ -34,9 +34,7 @@ Future<ToolSlotAction?> showToolSlotMenu(
             const Divider(height: 1),
             ListTile(
               key: const ValueKey('amaze-slot-configure'),
-              leading: const PhosphorIcon(
-                PhosphorIconsLight.slidersHorizontal,
-              ),
+              leading: const PhosphorIcon(PhosphorIconsLight.slidersHorizontal),
               title: Text(loc.toolSettings),
               onTap: () => pick(ToolSlotAction.configure),
             ),
