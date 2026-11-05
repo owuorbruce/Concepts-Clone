@@ -455,7 +455,7 @@ class DocumentBloc extends ReplayBloc<DocumentEvent, DocumentState> {
       final isOffscreen = current.pageName != state.pageName;
       if (!(embedding?.editable ?? true)) return;
       final assetService = current.assetService;
-      final (data, elements) = await importAssetsAsync(
+      var (data, elements) = await importAssetsAsync(
         current.data,
         event.elements
             .map((e) => e.copyWith(id: e.id ?? createUniqueId()))
@@ -464,6 +464,12 @@ class DocumentBloc extends ReplayBloc<DocumentEvent, DocumentState> {
         assets: event.assets,
       );
       if (elements.isEmpty) return;
+      final routed = rerouteConnectors(current.page.content, {
+        for (final element in elements) element.id!: [element],
+      });
+      if (routed.isNotEmpty) {
+        elements = elements.map((e) => routed[e.id] ?? e).toList();
+      }
       final layer = event.layer ?? current.currentLayer;
       final renderers = isOffscreen
           ? <Renderer<PadElement>>[]
@@ -514,6 +520,14 @@ class DocumentBloc extends ReplayBloc<DocumentEvent, DocumentState> {
           onInvalidate: current.assetService.invalidate,
         );
         elements[entry.key] = importedElements;
+      }
+      // Keep connectors attached to their shapes within the same state change
+      // so a move/resize is a single undo step.
+      for (final MapEntry(key: id, value: connector) in rerouteConnectors(
+        current.page.content,
+        elements,
+      ).entries) {
+        elements[id] = [connector];
       }
       final replacedRenderers =
           <Renderer<PadElement>, List<Renderer<PadElement>>>{};
@@ -708,25 +722,30 @@ class DocumentBloc extends ReplayBloc<DocumentEvent, DocumentState> {
       final isOffscreen = current.pageName != state.pageName;
       if (!(embedding?.editable ?? true)) return;
       if (event.elements.isEmpty) return;
+      // Connectors cannot exist without both of their shapes.
+      final removed = {
+        ...event.elements,
+        ...danglingConnectors(current.page.content, event.elements),
+      };
       final newPage = current.page.mapLayers(
         (e) => e.copyWith(
           content: e.content
-              .where((element) => !event.elements.contains(element.id))
+              .where((element) => !removed.contains(element.id))
               .toList(),
         ),
       );
       if (!isOffscreen) {
-        editorController.toolCubit.removeSelection(event.elements);
+        editorController.toolCubit.removeSelection(removed.toList());
       }
       final unusedAssets = <String>{};
       final removedRenderers =
           (isOffscreen
                   ? <Renderer<PadElement>>[]
                   : editorController.rendererCubit.renderers)
-              .where((e) => event.elements.contains(e.element.id))
+              .where((e) => removed.contains(e.element.id))
               .toList();
       for (final element in current.page.content.where(
-        (element) => event.elements.contains(element.id),
+        (element) => removed.contains(element.id),
       )) {
         for (final source in element.sources) {
           final uri = Uri.tryParse(source);
@@ -748,7 +767,7 @@ class DocumentBloc extends ReplayBloc<DocumentEvent, DocumentState> {
             (isOffscreen
                     ? <Renderer<PadElement>>[]
                     : editorController.rendererCubit.renderers)
-                .where((e) => !event.elements.contains(e.element.id))
+                .where((e) => !removed.contains(e.element.id))
                 .toList(),
         resetAllLayers: removedRenderers.any(
           (renderer) => renderer.layer != current.currentLayer,
