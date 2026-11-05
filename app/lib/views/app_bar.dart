@@ -13,6 +13,7 @@ import 'package:butterfly/dialogs/collaboration/dialog.dart';
 import 'package:butterfly/main.dart';
 import 'package:butterfly/services/import.dart';
 import 'package:butterfly/services/network.dart';
+import 'package:butterfly/views/amaze/shell.dart';
 import 'package:butterfly/views/edit.dart';
 import 'package:butterfly/visualizer/asset.dart';
 import 'package:butterfly/widgets/search.dart';
@@ -435,14 +436,16 @@ class _AppBarTitleState extends State<_AppBarTitle> {
                             buildWhen: (previous, current) =>
                                 previous.toolbarPosition !=
                                     current.toolbarPosition ||
-                                previous.toolbarRows != current.toolbarRows,
+                                previous.toolbarRows != current.toolbarRows ||
+                                previous.usesAmazeShell !=
+                                    current.usesAmazeShell,
                             builder: (context, settings) => Stack(
                               children: [
                                 const WindowFreeSpace<
                                   SettingsCubit,
                                   ButterflySettings
                                 >(),
-                                settings.isInline &&
+                                settings.usesInlineTools &&
                                         (!widget.floating || widget.showTools)
                                     ? Align(
                                         alignment: widget.floating

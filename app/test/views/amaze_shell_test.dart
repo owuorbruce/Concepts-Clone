@@ -465,25 +465,45 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('changes still autosave in the aMaze shell', (tester) async {
+  testWidgets('changes still save in the aMaze shell', (tester) async {
+    when(() => settingsCubit.state).thenReturn(
+      const ButterflySettings(
+        defaultTemplate: 'default',
+        autosaveDelaySeconds: 1800,
+        flags: [kAmazeShellFlag],
+      ),
+    );
     setScreen(tester, const Size(1280, 800));
     await openEditor(tester);
     final bloc = observer.lastDocumentBloc!;
+    final saveCubit = bloc.editorController.saveCubit;
 
     bloc.add(const DocumentDescriptionChanged(name: 'Saved in aMaze'));
-    NoteData? stored;
-    for (var i = 0; i < 120 && stored?.name != 'Saved in aMaze'; i++) {
-      await tester.pump(const Duration(milliseconds: 50));
-      stored = await tester.runAsync<NoteData?>(() async {
-        final location = bloc.editorController.saveCubit.state.location;
-        final system = fileSystem.buildDocumentSystem();
-        final asset = await system.getAsset(location.path);
-        if (asset is! FileSystemFile<NoteFile>) return null;
-        return asset.data?.load();
-      });
-    }
-    expect(stored?.name, 'Saved in aMaze');
+    await pumpUntil(
+      tester,
+      () => saveCubit.state.isSaveDelayed,
+      'delayed autosave',
+    );
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await pumpUntil(
+      tester,
+      () => saveCubit.state.saved == SaveState.saved,
+      'save',
+    );
+
+    final system = fileSystem.buildDocumentSystem();
+    final saved = await system.getAsset('amaze.bfly');
+    expect(saved, isA<FileSystemFile<NoteFile>>());
+    final file = saved as FileSystemFile<NoteFile>;
+    expect(file.data?.display()?.getMetadata()?.name, 'Saved in aMaze');
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(minutes: 30));
   });
 }
 
