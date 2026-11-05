@@ -1115,14 +1115,10 @@ class _MainBody extends StatelessWidget {
       viewport: MainViewViewport(key: viewportKey),
       selectionListener: _buildSelectionListener(context, toolState),
       zoom: _buildZoomAndTools(context, shellSettings, isMobile, inputState),
-      property: Align(
-        alignment: switch (settings.propertyPosition) {
-          .topRight => Alignment.topRight,
-          .topLeft => Alignment.topLeft,
-          .bottomRight => Alignment.bottomRight,
-          .bottomLeft => Alignment.bottomLeft,
-        },
-        child: PropertyView(position: settings.propertyPosition),
+      // Properties open next to the dock, away from the tool wheel's corner.
+      property: const Align(
+        alignment: Alignment.topLeft,
+        child: PropertyView(position: ZoomPosition.topLeft),
       ),
       showChrome: showChrome,
       editable: saveState.embedding?.editable != false,

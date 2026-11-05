@@ -442,7 +442,7 @@ class _AdjustmentButton extends StatelessWidget {
                 ),
                 Text(
                   formatAdjustment(adjustment, value),
-                  style: textTheme.labelMedium?.copyWith(
+                  style: textTheme.labelLarge?.copyWith(
                     color: color,
                     fontWeight: FontWeight.w700,
                   ),
@@ -734,7 +734,7 @@ class AmazeToolBar extends StatelessWidget {
     final style = AmazeStyle.of(context);
     final loc = AppLocalizations.of(context);
     final adjustments = controls.adjustments;
-    const divider = SizedBox(height: 32, child: VerticalDivider(width: 12));
+    const divider = SizedBox(height: 32, child: VerticalDivider(width: 8));
     return Padding(
       key: const ValueKey('amaze-tool-bar'),
       padding: const EdgeInsets.all(8),
@@ -746,12 +746,17 @@ class AmazeToolBar extends StatelessWidget {
             scrollDirection: .horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
-              spacing: 6,
+              spacing: 3,
               children: [
                 IconButton(
                   key: const ValueKey('amaze-bar-show-wheel'),
                   tooltip: loc.showToolWheel,
                   onPressed: onShowWheel,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 40,
+                    height: 40,
+                  ),
+                  padding: EdgeInsets.zero,
                   icon: const PhosphorIcon(PhosphorIconsLight.circle),
                 ),
                 divider,
@@ -760,11 +765,11 @@ class AmazeToolBar extends StatelessWidget {
                     slot: slot,
                     controls: controls,
                     style: style,
-                    size: 44,
+                    size: 40,
                   ),
                 divider,
-                _HistoryButton(redo: false, style: style, size: 40),
-                _HistoryButton(redo: true, style: style, size: 40),
+                _HistoryButton(redo: false, style: style, size: 38),
+                _HistoryButton(redo: true, style: style, size: 38),
                 if (adjustments.isNotEmpty) divider,
                 for (final adjustment in adjustments)
                   _AdjustmentButton(
@@ -772,12 +777,12 @@ class AmazeToolBar extends StatelessWidget {
                     controls: controls,
                     style: style,
                     open: openAdjustment == adjustment,
-                    size: const Size(60, 48),
+                    size: const Size(52, 46),
                     onTap: () => onAdjustmentTap?.call(adjustment),
                   ),
                 if (controls.color != null) ...[
                   divider,
-                  _ColorButton(controls: controls, style: style, diameter: 40),
+                  _ColorButton(controls: controls, style: style, diameter: 38),
                 ],
               ],
             ),
