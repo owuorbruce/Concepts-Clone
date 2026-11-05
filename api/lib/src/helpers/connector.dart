@@ -21,6 +21,10 @@ import '../models/property.dart';
 ///   detach partially copied connectors.
 /// * [invalidatedConnectors] / [pruneInvalidatedConnectors] find connectors
 ///   whose endpoints were removed or became unsupported by an operation.
+/// * [completeConnectorChanges] keeps connectors consistent when elements
+///   change and reports which connectors it touched.
+/// * [resolveCreatedIdCollisions] renames created elements whose ids are
+///   already in use, so creation never makes a reference ambiguous.
 ///
 /// None of these are applied while loading a file, so existing documents are
 /// never modified just by opening them.
@@ -472,6 +476,112 @@ Map<String, ShapeElement> rerouteConnectors(
     if (routed != connector || selfChanged) result[id] = routed;
   }
   return result;
+}
+
+/// Completes `ElementsChanged`-style [changes] so that connectors stay
+/// consistent within the same state change (one undo step): connectors whose
+/// endpoint was removed, became ambiguous or became unsupported are removed
+/// (mapped to an empty list) and connectors attached to changed shapes are
+/// re-routed.
+///
+/// Returns the completed changes and the ids of the connectors this function
+/// added or replaced, so callers can find out which layers it touched (see
+/// [layersContaining]).
+(Map<String, List<PadElement>>, Set<String>) completeConnectorChanges(
+  Iterable<PadElement> content,
+  Map<String, List<PadElement>> changes,
+) {
+  final list = content.toList();
+  final result = Map<String, List<PadElement>>.of(changes);
+  final generated = <String>{};
+  for (final id in invalidatedConnectors(
+    list,
+    applyElementChanges(list, result),
+  )) {
+    result[id] = const [];
+    generated.add(id);
+  }
+  for (final MapEntry(key: id, value: connector) in rerouteConnectors(
+    list,
+    result,
+  ).entries) {
+    if (result[id]?.isEmpty ?? false) continue;
+    result[id] = [connector];
+    generated.add(id);
+  }
+  return (result, generated);
+}
+
+/// Ids of the layers of [page] that contain an element with one of [ids].
+Set<String?> layersContaining(DocumentPage page, Set<String> ids) => {
+  for (final layer in page.layers)
+    if (layer.content.any((e) => ids.contains(e.id))) layer.id,
+};
+
+/// Ids that newly created elements must not reuse on a page with [content]:
+/// every element id and every id an existing connector refers to, even if
+/// that reference does not resolve right now.
+///
+/// Reusing one of them would let an existing connector resolve to a
+/// different shape later, for example once the original shape is removed and
+/// the newcomer is no longer ambiguous.
+Set<String> reservedElementIds(Iterable<PadElement> content) {
+  final reserved = <String>{};
+  for (final element in content) {
+    final id = element.id;
+    if (id != null) reserved.add(id);
+    final reference = element.connector;
+    if (reference != null) reserved.addAll([reference.from, reference.to]);
+  }
+  return reserved;
+}
+
+/// Renames [created] elements whose id is reserved on the page (see
+/// [reservedElementIds]) or repeated within the batch, so that creating
+/// elements can never make an id ambiguous or capture an existing connector.
+///
+/// New ids are derived deterministically (`<id>~<n>`) so every collaborator
+/// applying the same event to the same page gets the same result. Connectors
+/// in the batch that refer to a renamed or repeated id are detached, because
+/// it is unclear whether they meant the existing element or the new one.
+/// Elements already in [content] are never modified.
+List<PadElement> resolveCreatedIdCollisions(
+  Iterable<PadElement> content,
+  List<PadElement> created,
+) {
+  final reserved = reservedElementIds(content);
+  final used = {...reserved, ...created.map((e) => e.id).nonNulls};
+  final seen = <String>{};
+  final conflicting = <String>{};
+  String freshId(String base) {
+    var n = 1;
+    while (used.contains('$base~$n')) {
+      n++;
+    }
+    final id = '$base~$n';
+    used.add(id);
+    return id;
+  }
+
+  final renamed = created.map((element) {
+    final id = element.id;
+    if (id == null) return element;
+    if (reserved.contains(id) || !seen.add(id)) {
+      conflicting.add(id);
+      return element.copyWith(id: freshId(id));
+    }
+    return element;
+  }).toList();
+  if (conflicting.isEmpty) return created;
+  return renamed.map((element) {
+    final reference = element.connector;
+    if (reference == null || element is! ShapeElement) return element;
+    if (conflicting.contains(reference.from) ||
+        conflicting.contains(reference.to)) {
+      return element.withConnector(null);
+    }
+    return element;
+  }).toList();
 }
 
 /// Gives [elements] new ids using [idMap] (old id to new id; elements whose id

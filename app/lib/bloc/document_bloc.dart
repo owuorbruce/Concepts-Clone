@@ -464,7 +464,12 @@ class DocumentBloc extends ReplayBloc<DocumentEvent, DocumentState> {
         assets: event.assets,
       );
       if (elements.isEmpty) return;
-      elements = prepareCreatedElements(current.page.content, elements);
+      // Rename colliding ids first so creating elements can never make an
+      // existing connector ambiguous or let it later resolve to a newcomer.
+      elements = prepareCreatedElements(
+        current.page.content,
+        resolveCreatedIdCollisions(current.page.content, elements),
+      );
       final layer = event.layer ?? current.currentLayer;
       final renderers = isOffscreen
           ? <Renderer<PadElement>>[]
@@ -520,19 +525,15 @@ class DocumentBloc extends ReplayBloc<DocumentEvent, DocumentState> {
       // move/resize/conversion is a single undo step: connectors whose
       // endpoint was removed or became unsupported are removed, the others
       // are re-routed.
-      for (final id in invalidatedConnectors(
-        current.page.content,
-        applyElementChanges(current.page.content, elements),
-      )) {
-        elements[id] = const [];
-      }
-      for (final MapEntry(key: id, value: connector) in rerouteConnectors(
+      final (completed, connectorIds) = completeConnectorChanges(
         current.page.content,
         elements,
-      ).entries) {
-        if (elements[id]?.isEmpty ?? false) continue;
-        elements[id] = [connector];
-      }
+      );
+      elements.addAll(completed);
+      // A generated connector change in another layer is not covered by the
+      // replaced renderers alone: that layer's cached image must be rebaked.
+      final connectorLayers = layersContaining(current.page, connectorIds);
+      connectorLayers.remove(current.currentLayer);
       final replacedRenderers =
           <Renderer<PadElement>, List<Renderer<PadElement>>>{};
       for (final renderer in oldRenderers) {
@@ -593,6 +594,7 @@ class DocumentBloc extends ReplayBloc<DocumentEvent, DocumentState> {
         emit,
         state: current.copyWith(page: newPage, data: data),
         replacedElements: orderRenderersByPage(newPage, renderers),
+        resetAllLayers: !isOffscreen && connectorLayers.isNotEmpty,
         shouldRefresh: () => replacedRenderers.entries
             .map(
               (element) => cubit.toolCubit

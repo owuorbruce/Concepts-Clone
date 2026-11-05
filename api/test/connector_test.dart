@@ -612,4 +612,134 @@ void main() {
       expect(identical(prepareCreatedElements([a], created), created), isTrue);
     });
   });
+
+  group('cross-layer connector changes', () {
+    final connector = createConnector(a, b, id: 'c')!;
+    final page = DocumentPage(
+      layers: [
+        DocumentLayer(id: 'shapes', content: [a, b]),
+        DocumentLayer(id: 'connectors', content: [connector]),
+      ],
+    );
+
+    test('re-routing reports the connector and its layer', () {
+      final moved = b.copyWith(
+        firstPosition: const Point(300, 300),
+        secondPosition: const Point(400, 400),
+      );
+      final (changes, generated) = completeConnectorChanges(page.content, {
+        'b': [moved],
+      });
+      expect(generated, {'c'});
+      expect(changes['b'], [moved]);
+      _expectPoint(
+        (changes['c']!.single as ShapeElement).secondPosition,
+        connectorEndpoints(a, moved)!.$2,
+      );
+      expect(layersContaining(page, generated), {'connectors'});
+    });
+
+    test('removal by endpoint conversion reports the connector', () {
+      final line = a.copyWith(
+        property: a.property.copyWith(shape: const LineShape()),
+      );
+      final (changes, generated) = completeConnectorChanges(page.content, {
+        'a': [line],
+      });
+      expect(changes['c'], isEmpty);
+      expect(generated, {'c'});
+      expect(layersContaining(page, generated), {'connectors'});
+    });
+
+    test('changes that do not affect connectors report nothing', () {
+      final other = _shape('z', 900, 900);
+      final content = [...page.content, other];
+      final moved = other.copyWith(firstPosition: const Point(950, 950));
+      final (changes, generated) = completeConnectorChanges(content, {
+        'z': [moved],
+      });
+      expect(generated, isEmpty);
+      expect(changes.keys, ['z']);
+    });
+  });
+
+  group('created id collisions', () {
+    final connector = createConnector(a, b, id: 'c')!;
+
+    test('a created duplicate never captures an existing connector', () {
+      // Codex review scenario: create another `a` in a different layer,
+      // remove the original's layer, then move the newcomer.
+      final page = DocumentPage(
+        layers: [
+          DocumentLayer(id: 'layer-a', content: [a]),
+          DocumentLayer(id: 'layer-b', content: [b, connector]),
+        ],
+      );
+      final duplicate = _shape('a', 0, 600);
+      final [created] = resolveCreatedIdCollisions(page.content, [duplicate]);
+      expect(created.id, isNot('a'));
+      final withCreated = page.mapLayer(
+        'layer-b',
+        (l) => l.copyWith(content: [...l.content, created]),
+      );
+      final index = ConnectorIndex(withCreated.content);
+      expect(index.ambiguousIds, isEmpty);
+      expect(index.isValid(connector), isTrue);
+
+      final removed = withCreated.copyWith(
+        layers: withCreated.layers.where((l) => l.id != 'layer-a').toList(),
+      );
+      final (after, pruned) = pruneInvalidatedConnectors(withCreated, removed);
+      expect(pruned, {'c'});
+      expect(after.content.map((e) => e.id), ['b', created.id]);
+
+      final moved = (created as ShapeElement).copyWith(
+        firstPosition: const Point(0, 900),
+      );
+      final rerouted = rerouteConnectors(after.content, {
+        created.id!: [moved],
+      });
+      expect(rerouted, isEmpty);
+    });
+
+    test('ids referenced by dangling connectors are reserved', () {
+      final dangling = createConnector(a, b, id: 'd')!;
+      // Only `b` is on the page, so `d` does not resolve right now.
+      final duplicate = _shape('a', 0, 600);
+      final [created] = resolveCreatedIdCollisions([b, dangling], [duplicate]);
+      expect(created.id, isNot('a'));
+      expect(ConnectorIndex([b, dangling, created]).isValid(dangling), isFalse);
+    });
+
+    test('renamed ids are deterministic and avoid existing ids', () {
+      final content = [a, b, _shape('a~1', 900, 0)];
+      final created = [_shape('a', 0, 600), _shape('a', 0, 900)];
+      final first = resolveCreatedIdCollisions(content, created);
+      final second = resolveCreatedIdCollisions(content, created);
+      expect(first.map((e) => e.id), ['a~2', 'a~3']);
+      expect(second.map((e) => e.id), first.map((e) => e.id));
+    });
+
+    test('repeated ids within a batch are renamed and detach references', () {
+      final x1 = _shape('x', 0, 600);
+      final x2 = _shape('x', 300, 600);
+      final y = _shape('y', 600, 600);
+      final toX = createConnector(x1, y, id: 'k')!;
+      final result = resolveCreatedIdCollisions([a, b], [x1, x2, y, toX]);
+      expect(result.map((e) => e.id), ['x', 'x~1', 'y', 'k']);
+      expect(result.last.isConnector, isFalse);
+    });
+
+    test('connectors between existing shapes stay attached', () {
+      final created = resolveCreatedIdCollisions([a, b], [connector]);
+      expect(identical(created.single, connector), isTrue);
+      expect(prepareCreatedElements([a, b], created).single.isConnector, true);
+    });
+
+    test('batches without collisions are returned unchanged', () {
+      final created = [_shape('z', 0, 0), _shape('w', 300, 0)];
+      final result = resolveCreatedIdCollisions([a, b, connector], created);
+      expect(identical(result, created), isTrue);
+    });
+  });
 }
