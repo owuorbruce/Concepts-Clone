@@ -1064,10 +1064,12 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
 
   List<Widget> _buildWheel() {
     final position = _position;
-    final children = <Widget>[if (_dragging) _buildDockTarget()];
+    // Keys keep the wheel's gesture state when the dock target appears.
+    final children = <Widget>[];
     if (_layout.collapsed) {
       children.add(
         Positioned(
+          key: const ValueKey('amaze-wheel-position'),
           left: position.dx,
           top: position.dy,
           child: ToolWheelPuck(
@@ -1080,6 +1082,7 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
     }
     children.add(
       Positioned(
+        key: const ValueKey('amaze-wheel-position'),
         left: position.dx,
         top: position.dy,
         child: ToolWheel(
@@ -1098,6 +1101,7 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
       final anchor = position & _wheelSize;
       children.add(_buildPanel(adjustment, anchor));
     }
+    if (_dragging) children.add(_buildDockTarget());
     return children;
   }
 

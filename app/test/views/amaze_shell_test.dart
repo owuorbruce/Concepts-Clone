@@ -452,6 +452,7 @@ void main() {
     );
     expect(slotTool(empty), isA<LaserTool>());
     expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(minutes: 1));
   });
 
   testWidgets('a slot menu replaces and moves tools', (tester) async {
@@ -476,6 +477,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('amaze-slot-later')));
     await pumpUntil(tester, () => slotTool(1).id == first, 'moved');
     expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(minutes: 1));
   });
 
   testWidgets('middle ring adjustments change the active pen', (tester) async {
@@ -512,6 +514,7 @@ void main() {
     expect(stored.property.smoothing, 0.8);
     expect(find.text('12'), findsWidgets);
     expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(minutes: 1));
   });
 
   testWidgets('the eraser shows its size and both erasing behaviours', (
@@ -546,6 +549,7 @@ void main() {
       'eraser mode',
     );
     expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(minutes: 1));
   });
 
   testWidgets('the center opens the color picker', (tester) async {
