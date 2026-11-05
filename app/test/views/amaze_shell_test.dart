@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math' show Point;
+import 'dart:math' show Point, min;
 import 'dart:ui' as ui;
 
 import 'package:butterfly/actions/shortcuts.dart';
@@ -56,6 +56,18 @@ Future<void> _loadFonts() async {
     }
     await loader.load();
   }
+}
+
+/// Temporary: prints screenshots to the CI log so they can be reviewed
+/// where artifact downloads are blocked.
+void _printForReview(String name, List<int> bytes) {
+  if (Platform.environment['GITHUB_ACTIONS'] != 'true') return;
+  final encoded = base64Encode(bytes);
+  stdout.writeln('AMAZE-SHOT-BEGIN $name');
+  for (var i = 0; i < encoded.length; i += 4000) {
+    stdout.writeln(encoded.substring(i, min(encoded.length, i + 4000)));
+  }
+  stdout.writeln('AMAZE-SHOT-END $name');
 }
 
 NoteData _sampleDocument() {
@@ -261,9 +273,11 @@ void main() {
       final image = await boundary.toImage(pixelRatio: 2);
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
       image.dispose();
+      final bytes = data!.buffer.asUint8List();
       final file = File('build/amaze_screenshots/$name.png');
       await file.create(recursive: true);
-      await file.writeAsBytes(data!.buffer.asUint8List());
+      await file.writeAsBytes(bytes);
+      _printForReview(name, bytes);
     });
   }
 
