@@ -1704,5 +1704,30 @@
   "amazeEditor": "aMaze editor",
   "amazeEditorDescription": "Uses the aMaze editor with the tool wheel and dock. Turn off to use the classic layout.",
   "toolWheel": "Tool wheel",
-  "allTools": "All tools"
+  "allTools": "All tools",
+  "opacity": "Opacity",
+  "toolColor": "Color",
+  "toolSlot": "Slot {index}",
+  "@toolSlot": {
+    "placeholders": {
+      "index": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "toolSettings": "Tool settings",
+  "replaceTool": "Replace tool",
+  "moveToPreviousSlot": "Move to previous slot",
+  "moveToNextSlot": "Move to next slot",
+  "removeTool": "Remove tool",
+  "chooseTool": "Choose a tool",
+  "emptySlot": "Empty slot",
+  "dropForToolbar": "Drop here for a tool bar",
+  "showToolWheel": "Show tool wheel",
+  "eraserModeStroke": "Cut strokes",
+  "eraserModeStrokeDescription": "Erases only the parts of pen strokes that the eraser touches.",
+  "eraserModePath": "Whole elements",
+  "eraserModePathDescription": "Removes each stroke that the eraser touches as a whole.",
+  "eraseAllElementsDescription": "Also erases shapes, images, text and other elements that are not pen strokes."
 }

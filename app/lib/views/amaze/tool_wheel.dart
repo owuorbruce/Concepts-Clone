@@ -2,7 +2,9 @@ import 'dart:math';
 
 import 'package:butterfly/bloc/document_bloc.dart';
 import 'package:butterfly/cubits/editor_controller.dart';
+import 'package:butterfly/cubits/settings.dart';
 import 'package:butterfly/handlers/handler.dart';
+import 'package:butterfly/helpers/color.dart';
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly/visualizer/tool.dart';
 import 'package:butterfly_api/butterfly_api.dart';
@@ -11,56 +13,80 @@ import 'package:material_leap/material_leap.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import 'slot_menu.dart';
 import 'style.dart';
-
-/// Number of tool slots on one page of the wheel.
-const kToolWheelSlots = 8;
+import 'tool_slots.dart';
+import 'wheel_prefs.dart';
 
 /// Diameter of the collapsed wheel.
 const kToolWheelPuckSize = 64.0;
 
-/// Layout math for the tool wheel.
-class ToolWheelGeometry {
-  const ToolWheelGeometry({this.diameter = 248});
+/// Height of the tool bar.
+const kToolBarHeight = 64.0;
 
-  /// Outer diameter of the open wheel.
+/// Layout math for the three-ring tool wheel.
+///
+/// The outer ring has ten positions: the eight tool slots and, at the
+/// bottom, undo and redo. The middle ring holds the adjustments and the
+/// center shows the active color.
+class ToolWheelGeometry {
+  const ToolWheelGeometry({this.diameter = 320});
+
+  /// Outer diameter of the wheel.
   final double diameter;
 
   double get radius => diameter / 2;
 
-  /// Diameter of one tool slot.
-  double get slotSize => 50;
+  /// Diameter of a tool slot.
+  double get slotSize => 46;
 
-  /// Distance from the wheel center to the center of each slot.
-  double get slotDistance => radius - slotSize / 2 - 8;
+  /// Diameter of the undo and redo buttons.
+  double get historySize => 40;
 
-  /// Radius of the center hub.
-  double get hubRadius => 60;
+  /// Distance from the center to the slots, undo and redo.
+  double get slotDistance => radius - 30;
 
-  /// Offset of [slot] from the wheel center. Slot 0 is at the top and the
-  /// slots continue clockwise.
-  Offset slotCenter(int slot) {
-    final angle = -pi / 2 + 2 * pi * slot / kToolWheelSlots;
-    return Offset(cos(angle), sin(angle)) * slotDistance;
+  /// Outer radius of the middle ring.
+  double get middleRadius => radius - 56;
+
+  /// Radius of the color disc in the center.
+  double get centerRadius => 30;
+
+  /// Distance from the center to the adjustment buttons.
+  double get adjustmentDistance => 68;
+
+  /// Size of an adjustment button.
+  Size get adjustmentSize => const Size(60, 40);
+
+  /// Angle of outer ring position [index] (0 to 9) in radians. Position 0 is
+  /// at the bottom left and the positions continue clockwise.
+  double ringAngle(int index) {
+    return (108 + 36 * index) * pi / 180;
+  }
+
+  /// Offset of [slot] (0 to 7) from the center.
+  Offset slotCenter(int slot) => _polar(ringAngle(slot + 1), slotDistance);
+
+  /// Offset of the undo button from the center.
+  Offset get undoCenter => _polar(ringAngle(0), slotDistance);
+
+  /// Offset of the redo button from the center.
+  Offset get redoCenter => _polar(ringAngle(9), slotDistance);
+
+  /// Angle of the middle ring segment of [adjustment] in radians.
+  double adjustmentAngle(ToolAdjustment adjustment) {
+    return (-90 + 120 * adjustment.index) * pi / 180;
+  }
+
+  /// Offset of the [adjustment] button from the center.
+  Offset adjustmentCenter(ToolAdjustment adjustment) {
+    return _polar(adjustmentAngle(adjustment), adjustmentDistance);
   }
 }
 
-/// Number of wheel pages needed for [toolCount] tools.
-int toolWheelPageCount(int toolCount) {
-  final pages = (toolCount + kToolWheelSlots - 1) ~/ kToolWheelSlots;
-  return max(1, pages);
+Offset _polar(double angle, double distance) {
+  return Offset(cos(angle), sin(angle)) * distance;
 }
-
-/// Tool indices shown on [page], which is clamped to the available pages.
-List<int> toolWheelPage(int toolCount, int page) {
-  final last = toolWheelPageCount(toolCount) - 1;
-  final start = page.clamp(0, last) * kToolWheelSlots;
-  final end = min(toolCount, start + kToolWheelSlots);
-  return [for (var i = start; i < end; i++) i];
-}
-
-/// Page of the wheel that shows the tool at [index].
-int toolWheelPageOf(int index) => max(0, index) ~/ kToolWheelSlots;
 
 /// Keeps a box of [size] at [position] fully inside [bounds].
 Offset clampToolWheelPosition(Offset position, Size size, Size bounds) {
@@ -69,30 +95,177 @@ Offset clampToolWheelPosition(Offset position, Size size, Size bounds) {
   return Offset(position.dx.clamp(0.0, maxX), position.dy.clamp(0.0, maxY));
 }
 
-Color? _handlerColor(Handler handler) {
-  if (handler is ColoredHandler) return handler.getColor().toColor();
-  return null;
+/// The tool the wheel controls: the selected document tool, or the current
+/// handler's tool.
+Tool? activeWheelTool(DocumentLoadSuccess state, ToolRuntimeState toolState) {
+  final index = toolState.index;
+  final tools = state.info.tools;
+  if (index != null && index >= 0 && index < tools.length) return tools[index];
+  final data = toolState.handler.data;
+  return data is Tool ? data : null;
 }
 
-/// Radial tool picker bound to the document's tools.
-///
-/// The ring selects tools, the hub shows the current tool and holds undo and
-/// redo. Dragging the hub reports the movement through [onDrag].
-class ToolWheel extends StatelessWidget {
-  const ToolWheel({
-    super.key,
-    this.geometry = const ToolWheelGeometry(),
-    this.page = 0,
-    this.onPageChanged,
-    this.onCollapse,
-    this.onDrag,
-  });
+String _adjustmentName(AppLocalizations loc, ToolAdjustment adjustment) {
+  return switch (adjustment) {
+    ToolAdjustment.size => loc.size,
+    ToolAdjustment.opacity => loc.opacity,
+    ToolAdjustment.smoothing => loc.smoothing,
+  };
+}
 
-  final ToolWheelGeometry geometry;
-  final int page;
-  final ValueChanged<int>? onPageChanged;
-  final VoidCallback? onCollapse;
-  final ValueChanged<Offset>? onDrag;
+PhosphorIconData _adjustmentIcon(ToolAdjustment adjustment) {
+  return switch (adjustment) {
+    ToolAdjustment.size => PhosphorIconsLight.arrowsOutSimple,
+    ToolAdjustment.opacity => PhosphorIconsLight.drop,
+    ToolAdjustment.smoothing => PhosphorIconsLight.path,
+  };
+}
+
+Future<void> _onSlotTap(BuildContext context, int slot) async {
+  final bloc = context.read<DocumentBloc>();
+  final state = bloc.state;
+  if (state is! DocumentLoadSuccess) return;
+  final indices = slotToolIndices(state.info.tools);
+  if (slot >= indices.length) return _assignSlot(context, slot);
+  final controller = context.read<EditorController>();
+  final cubit = controller.toolCubit;
+  final index = indices[slot];
+  final toolState = cubit.state;
+  if (index != toolState.index || toolState.temporaryHandler != null) {
+    cubit.resetSelection();
+    await cubit.changeTool(controller, bloc, index: index, context: context);
+    return;
+  }
+  cubit.changeSelection(state.info.tools[index], true);
+}
+
+/// Puts a tool chosen from the catalog into [slot], replacing the tool that
+/// is there. The replacement keeps the slot's tool id.
+Future<void> _assignSlot(BuildContext context, int slot) async {
+  final bloc = context.read<DocumentBloc>();
+  final controller = context.read<EditorController>();
+  final picked = await showToolSlotCatalog(context);
+  final state = bloc.state;
+  if (picked == null || state is! DocumentLoadSuccess) return;
+  final background = state.page.backgrounds.firstOrNull?.defaultColor;
+  final tool = updateToolDefaultColor(picked, background ?? SRGBColor.white);
+  final tools = state.info.tools;
+  final indices = slotToolIndices(tools);
+  if (slot < indices.length) {
+    bloc.add(ToolsChanged([tool.copyWith(id: tools[indices[slot]].id)]));
+    return;
+  }
+  final created = tool.copyWith(id: createUniqueId());
+  bloc.add(ToolCreated(created));
+  if (created.isAction()) return;
+  if (!context.mounted) return;
+  await controller.toolCubit.changeTool(
+    controller,
+    bloc,
+    index: tools.length,
+    context: context,
+    handler: Handler.fromTool(created),
+  );
+}
+
+Future<void> _onSlotLongPress(BuildContext context, int slot) async {
+  final bloc = context.read<DocumentBloc>();
+  final cubit = context.read<ToolCubit>();
+  final state = bloc.state;
+  if (state is! DocumentLoadSuccess) return;
+  final tools = state.info.tools;
+  final indices = slotToolIndices(tools);
+  if (slot >= indices.length) return _assignSlot(context, slot);
+  final tool = tools[indices[slot]];
+  final action = await showToolSlotMenu(
+    context,
+    tool: tool,
+    slot: slot,
+    filledSlots: indices.length,
+  );
+  if (action == null) return;
+  if (!context.mounted) return;
+  switch (action) {
+    case ToolSlotAction.configure:
+      cubit.changeSelection(tool, true);
+    case ToolSlotAction.replace:
+      await _assignSlot(context, slot);
+    case ToolSlotAction.moveEarlier:
+      _moveSlot(bloc, slot, slot - 1);
+    case ToolSlotAction.moveLater:
+      _moveSlot(bloc, slot, slot + 1);
+    case ToolSlotAction.remove:
+      final id = tool.id;
+      if (id != null) bloc.add(ToolsRemoved([id]));
+  }
+}
+
+void _moveSlot(DocumentBloc bloc, int from, int to) {
+  final state = bloc.state;
+  if (state is! DocumentLoadSuccess) return;
+  final target = slotMoveTarget(state.info.tools, from, to);
+  if (target == null) return;
+  bloc.add(ToolReordered(target.$1, target.$2));
+}
+
+Future<void> _openColorPicker(BuildContext context) async {
+  final bloc = context.read<DocumentBloc>();
+  final settings = context.read<SettingsCubit>();
+  final handler = context.read<ToolCubit>().state.handler;
+  if (handler is! ColoredHandler) return;
+  final response = await showDialog<ColorPickerResponse>(
+    context: context,
+    builder: (context) => ColorPicker(
+      value: handler.getColor(),
+      suggested: settings.state.recentColors,
+    ),
+  );
+  if (response == null) return;
+  final color = response.toSRGB();
+  handler.changeToolColor(bloc, color);
+  settings.addRecentColors(color);
+}
+
+void _applyAdjustment(
+  BuildContext context,
+  ToolAdjustment adjustment,
+  double value,
+) {
+  final bloc = context.read<DocumentBloc>();
+  final state = bloc.state;
+  if (state is! DocumentLoadSuccess) return;
+  final tool = activeWheelTool(state, context.read<ToolCubit>().state);
+  if (tool == null || tool.readAdjustment(adjustment) == null) return;
+  bloc.add(ToolsChanged([tool.writeAdjustment(adjustment, value)]));
+}
+
+/// Document and tool state shared by the wheel and the bar.
+class _ToolControls {
+  _ToolControls(this.state, this.toolState);
+
+  final DocumentLoadSuccess state;
+  final ToolRuntimeState toolState;
+
+  List<Tool> get tools => state.info.tools;
+
+  late final List<int> slots = slotToolIndices(tools);
+
+  late final Tool? active = activeWheelTool(state, toolState);
+
+  /// Color of the active tool, or null if it has none.
+  Color? get color {
+    final handler = toolState.handler;
+    if (handler is! ColoredHandler) return null;
+    return handler.getColor().toColor();
+  }
+
+  List<ToolAdjustment> get adjustments => active?.adjustments ?? const [];
+}
+
+class _ToolControlsBuilder extends StatelessWidget {
+  const _ToolControlsBuilder({required this.builder});
+
+  final Widget Function(BuildContext context, _ToolControls controls) builder;
 
   @override
   Widget build(BuildContext context) {
@@ -101,62 +274,365 @@ class ToolWheel extends StatelessWidget {
         if (state is! DocumentLoadSuccess) return const SizedBox.shrink();
         return BlocBuilder<ToolCubit, ToolRuntimeState>(
           builder: (context, toolState) {
-            return _buildWheel(context, state, toolState);
+            return builder(context, _ToolControls(state, toolState));
           },
         );
       },
     );
   }
+}
 
-  Widget _buildWheel(
-    BuildContext context,
-    DocumentLoadSuccess state,
-    ToolRuntimeState toolState,
-  ) {
-    final style = AmazeStyle.of(context);
-    final tools = state.info.tools;
-    final pages = toolWheelPageCount(tools.length);
-    final current = page.clamp(0, pages - 1);
-    final indices = toolWheelPage(tools.length, current);
-    final center = Offset(geometry.radius, geometry.radius);
-    final half = geometry.slotSize / 2;
-    final slots = <Widget>[];
-    for (var slot = 0; slot < indices.length; slot++) {
-      final index = indices[slot];
-      final offset = center + geometry.slotCenter(slot);
-      slots.add(
-        Positioned(
-          left: offset.dx - half,
-          top: offset.dy - half,
-          width: geometry.slotSize,
-          height: geometry.slotSize,
-          child: _ToolSlot(
-            index: index,
-            tool: tools[index],
-            toolState: toolState,
-            style: style,
+class _SlotButton extends StatelessWidget {
+  const _SlotButton({
+    required this.slot,
+    required this.controls,
+    required this.style,
+    required this.size,
+  });
+
+  final int slot;
+  final _ToolControls controls;
+  final AmazeStyle style;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final slots = controls.slots;
+    if (slot >= slots.length) return _buildEmpty(context);
+    final index = slots[slot];
+    final tool = controls.tools[index];
+    final toolState = controls.toolState;
+    final toggled = toolState.toggleableHandlers.containsKey(index);
+    final selected = index == toolState.index || toggled;
+    final foreground = selected ? style.onAccent : style.onSurface;
+    // Long press opens the slot menu, so the tooltip only shows on hover.
+    return Tooltip(
+      message: tool.getDisplay(context),
+      triggerMode: TooltipTriggerMode.manual,
+      child: SizedBox.square(
+        dimension: size,
+        child: Material(
+          key: ValueKey(('amaze-slot', slot)),
+          color: selected ? style.accent : style.surfaceVariant,
+          shape: const CircleBorder(),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () => _onSlotTap(context, slot),
+            onLongPress: () => _onSlotLongPress(context, slot),
+            child: Center(
+              child: PhosphorIcon(
+                tool.icon(filled: selected),
+                size: 22,
+                color: foreground,
+              ),
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmpty(BuildContext context) {
+    final border = BorderSide(color: style.outline, width: 1.5);
+    return Tooltip(
+      message: AppLocalizations.of(context).emptySlot,
+      triggerMode: TooltipTriggerMode.manual,
+      child: SizedBox.square(
+        dimension: size,
+        child: Material(
+          key: ValueKey(('amaze-slot', slot)),
+          color: Colors.transparent,
+          shape: CircleBorder(side: border),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: () => _assignSlot(context, slot),
+            child: Center(
+              child: PhosphorIcon(
+                PhosphorIconsLight.plus,
+                size: 18,
+                color: style.muted,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HistoryButton extends StatelessWidget {
+  const _HistoryButton({
+    required this.redo,
+    required this.style,
+    required this.size,
+  });
+
+  final bool redo;
+  final AmazeStyle style;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final bloc = context.read<DocumentBloc>();
+    final loc = AppLocalizations.of(context);
+    final enabled = redo ? bloc.canSendRedo : bloc.canSendUndo;
+    return IconButton(
+      key: ValueKey(redo ? 'amaze-redo' : 'amaze-undo'),
+      tooltip: redo ? loc.redo : loc.undo,
+      onPressed: enabled ? (redo ? bloc.sendRedo : bloc.sendUndo) : null,
+      style: IconButton.styleFrom(
+        backgroundColor: style.surfaceVariant,
+        foregroundColor: style.onSurface,
+        fixedSize: Size.square(size),
+        minimumSize: Size.square(size),
+        padding: EdgeInsets.zero,
+      ),
+      iconSize: 20,
+      icon: PhosphorIcon(
+        redo
+            ? PhosphorIconsLight.arrowClockwise
+            : PhosphorIconsLight.arrowCounterClockwise,
+      ),
+    );
+  }
+}
+
+class _AdjustmentButton extends StatelessWidget {
+  const _AdjustmentButton({
+    required this.adjustment,
+    required this.controls,
+    required this.style,
+    required this.open,
+    required this.size,
+    this.onTap,
+  });
+
+  final ToolAdjustment adjustment;
+  final _ToolControls controls;
+  final AmazeStyle style;
+  final bool open;
+  final Size size;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = controls.active?.readAdjustment(adjustment);
+    if (value == null) return SizedBox.fromSize(size: size);
+    final loc = AppLocalizations.of(context);
+    final textTheme = Theme.of(context).textTheme;
+    final color = open ? style.onAccent : style.onSurface;
+    return Tooltip(
+      message: _adjustmentName(loc, adjustment),
+      child: SizedBox.fromSize(
+        size: size,
+        child: Material(
+          key: ValueKey(('amaze-adjust', adjustment.name)),
+          color: open ? style.accent : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: onTap,
+            child: Column(
+              mainAxisAlignment: .center,
+              children: [
+                PhosphorIcon(
+                  _adjustmentIcon(adjustment),
+                  size: 15,
+                  color: color,
+                ),
+                Text(
+                  formatAdjustment(adjustment, value),
+                  style: textTheme.labelMedium?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ColorButton extends StatelessWidget {
+  const _ColorButton({
+    required this.controls,
+    required this.style,
+    required this.diameter,
+    this.onLongPress,
+  });
+
+  final _ToolControls controls;
+  final AmazeStyle style;
+  final double diameter;
+  final VoidCallback? onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = controls.color;
+    final tool = controls.active;
+    final loc = AppLocalizations.of(context);
+    final Widget content;
+    if (color != null) {
+      content = DecoratedBox(
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(color: style.surface, width: 3),
+        ),
+      );
+    } else {
+      content = Center(
+        child: PhosphorIcon(
+          tool?.icon(filled: true) ?? PhosphorIconsLight.hand,
+          color: style.muted,
         ),
       );
     }
+    final name = tool?.getDisplay(context) ?? '';
+    return Tooltip(
+      message: color == null ? name : loc.toolColor,
+      triggerMode: TooltipTriggerMode.manual,
+      child: SizedBox.square(
+        dimension: diameter,
+        child: Material(
+          key: const ValueKey('amaze-color'),
+          color: style.surfaceVariant,
+          shape: CircleBorder(side: BorderSide(color: style.outline)),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: color == null ? null : () => _openColorPicker(context),
+            onLongPress: onLongPress,
+            child: content,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The three-ring tool wheel.
+///
+/// The outer ring holds eight tool slots plus undo and redo, the middle
+/// ring the size, opacity and smoothing of the active tool, and the center
+/// its color. Long-pressing the ring outside the buttons and dragging moves
+/// the wheel through the ring callbacks.
+class ToolWheel extends StatelessWidget {
+  const ToolWheel({
+    super.key,
+    this.geometry = const ToolWheelGeometry(),
+    this.openAdjustment,
+    this.onAdjustmentTap,
+    this.onCollapse,
+    this.onRingLongPressStart,
+    this.onRingLongPressMove,
+    this.onRingLongPressEnd,
+  });
+
+  final ToolWheelGeometry geometry;
+  final ToolAdjustment? openAdjustment;
+  final ValueChanged<ToolAdjustment>? onAdjustmentTap;
+  final VoidCallback? onCollapse;
+  final GestureLongPressStartCallback? onRingLongPressStart;
+  final GestureLongPressMoveUpdateCallback? onRingLongPressMove;
+  final GestureLongPressEndCallback? onRingLongPressEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    return _ToolControlsBuilder(builder: _buildWheel);
+  }
+
+  Widget _buildWheel(BuildContext context, _ToolControls controls) {
+    final style = AmazeStyle.of(context);
+    final center = Offset(geometry.radius, geometry.radius);
+    final supported = controls.adjustments.toSet();
+    Widget place(Offset offset, Size size, Widget child) {
+      final topLeft = center + offset - size.center(Offset.zero);
+      return Positioned(
+        left: topLeft.dx,
+        top: topLeft.dy,
+        width: size.width,
+        height: size.height,
+        child: child,
+      );
+    }
+
+    final slotSize = Size.square(geometry.slotSize);
+    final historySize = Size.square(geometry.historySize);
     return SizedBox.square(
       key: const ValueKey('amaze-tool-wheel'),
       dimension: geometry.diameter,
       child: Stack(
         children: [
-          Positioned.fill(child: _WheelBackground(style: style)),
-          ...slots,
-          Center(
-            child: _WheelHub(
-              geometry: geometry,
+          Positioned.fill(
+            child: ClipOval(
+              child: GestureDetector(
+                key: const ValueKey('amaze-wheel-ring'),
+                behavior: HitTestBehavior.opaque,
+                onLongPressStart: onRingLongPressStart,
+                onLongPressMoveUpdate: onRingLongPressMove,
+                onLongPressEnd: onRingLongPressEnd,
+                child: CustomPaint(
+                  painter: _WheelPainter(
+                    style: style,
+                    geometry: geometry,
+                    supported: supported,
+                    open: openAdjustment,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          for (var slot = 0; slot < kToolSlotCount; slot++)
+            place(
+              geometry.slotCenter(slot),
+              slotSize,
+              _SlotButton(
+                slot: slot,
+                controls: controls,
+                style: style,
+                size: geometry.slotSize,
+              ),
+            ),
+          place(
+            geometry.undoCenter,
+            historySize,
+            _HistoryButton(
+              redo: false,
               style: style,
-              toolState: toolState,
-              tools: tools,
-              page: current,
-              pages: pages,
-              onPageChanged: onPageChanged,
-              onCollapse: onCollapse,
-              onDrag: onDrag,
+              size: geometry.historySize,
+            ),
+          ),
+          place(
+            geometry.redoCenter,
+            historySize,
+            _HistoryButton(
+              redo: true,
+              style: style,
+              size: geometry.historySize,
+            ),
+          ),
+          for (final adjustment in ToolAdjustment.values)
+            place(
+              geometry.adjustmentCenter(adjustment),
+              geometry.adjustmentSize,
+              _AdjustmentButton(
+                adjustment: adjustment,
+                controls: controls,
+                style: style,
+                open: openAdjustment == adjustment,
+                size: geometry.adjustmentSize,
+                onTap: () => onAdjustmentTap?.call(adjustment),
+              ),
+            ),
+          Center(
+            child: _ColorButton(
+              controls: controls,
+              style: style,
+              diameter: geometry.centerRadius * 2,
+              onLongPress: onCollapse,
             ),
           ),
         ],
@@ -165,262 +641,232 @@ class ToolWheel extends StatelessWidget {
   }
 }
 
-class _ToolSlot extends StatelessWidget {
-  const _ToolSlot({
-    required this.index,
-    required this.tool,
-    required this.toolState,
+/// Paints the wheel: the outer disc with a broken maze rim, and the middle
+/// ring split into one segment per adjustment.
+class _WheelPainter extends CustomPainter {
+  const _WheelPainter({
     required this.style,
+    required this.geometry,
+    required this.supported,
+    required this.open,
   });
 
-  final int index;
-  final Tool tool;
-  final ToolRuntimeState toolState;
   final AmazeStyle style;
+  final ToolWheelGeometry geometry;
+  final Set<ToolAdjustment> supported;
+  final ToolAdjustment? open;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final outer = Rect.fromCircle(center: center, radius: geometry.radius);
+    canvas.drawOval(outer, Paint()..color = style.surface);
+    canvas.drawOval(
+      outer.deflate(0.5),
+      Paint()
+        ..color = style.outline
+        ..style = PaintingStyle.stroke,
+    );
+    final rim = Paint()
+      ..color = style.outline
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    final rimRect = outer.deflate(5);
+    for (var i = 0; i < 10; i++) {
+      final start = geometry.ringAngle(i) + pi / 10;
+      canvas.drawArc(rimRect, start + 0.1, pi / 5 - 0.2, false, rim);
+    }
+    final band = geometry.middleRadius - geometry.centerRadius - 6;
+    final middle = Rect.fromCircle(
+      center: center,
+      radius: geometry.middleRadius - band / 2,
+    );
+    for (final adjustment in ToolAdjustment.values) {
+      final active = supported.contains(adjustment);
+      final color = adjustment == open
+          ? style.accent.withValues(alpha: 0.25)
+          : style.surfaceVariant.withValues(alpha: active ? 1 : 0.4);
+      final start = geometry.adjustmentAngle(adjustment) - pi / 3;
+      canvas.drawArc(
+        middle,
+        start + 0.04,
+        2 * pi / 3 - 0.08,
+        false,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = band,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WheelPainter oldDelegate) {
+    return oldDelegate.style.accent != style.accent ||
+        oldDelegate.style.surface != style.surface ||
+        oldDelegate.open != open ||
+        oldDelegate.supported.length != supported.length ||
+        !oldDelegate.supported.containsAll(supported);
+  }
+}
+
+/// The tool controls as a straight bar: the same slots, undo and redo,
+/// adjustments and color as the wheel.
+class AmazeToolBar extends StatelessWidget {
+  const AmazeToolBar({
+    super.key,
+    required this.onShowWheel,
+    this.openAdjustment,
+    this.onAdjustmentTap,
+  });
+
+  final VoidCallback onShowWheel;
+  final ToolAdjustment? openAdjustment;
+  final ValueChanged<ToolAdjustment>? onAdjustmentTap;
 
   @override
   Widget build(BuildContext context) {
-    final controller = context.read<EditorController>();
-    final bloc = context.read<DocumentBloc>();
-    final editable = controller.saveCubit.state.embedding?.editable != false;
-    return controller.toolCubit.useHandler(
-      bloc,
-      index,
-      (handler) => _buildButton(context, handler, bloc),
-      editable: editable,
-    );
+    return _ToolControlsBuilder(builder: _buildBar);
   }
 
-  Widget _buildButton(
-    BuildContext context,
-    Handler<Tool> handler,
-    DocumentBloc bloc,
-  ) {
-    final toggled = toolState.toggleableHandlers.containsKey(index);
-    final selected = index == toolState.index || toggled;
-    final selection = toolState.selection?.selected ?? const [];
-    final highlighted = selection.any((e) => e is Tool && e.id == tool.id);
-    final status = handler.getStatus(bloc);
-    final icon = handler.getIcon(bloc) ?? tool.icon(filled: selected);
-    final color = switch (status) {
-      .disabled => Theme.of(context).disabledColor,
-      _ => selected ? style.onAccent : style.onSurface,
-    };
-    final border = highlighted
-        ? CircleBorder(side: BorderSide(color: style.accent, width: 2))
-        : const CircleBorder();
-    // Long press opens the tool's options, so the tooltip only shows on hover.
-    return Tooltip(
-      message: tool.getDisplay(context),
-      triggerMode: TooltipTriggerMode.manual,
-      child: Material(
-        key: ValueKey(('amaze-tool-wheel-slot', index)),
-        color: selected ? style.accent : Colors.transparent,
-        shape: border,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: () => _select(context, bloc),
-          onLongPress: () => context.read<ToolCubit>().changeSelection(tool),
-          child: Center(child: PhosphorIcon(icon, size: 24, color: color)),
+  Widget _buildBar(BuildContext context, _ToolControls controls) {
+    final style = AmazeStyle.of(context);
+    final loc = AppLocalizations.of(context);
+    final adjustments = controls.adjustments;
+    const divider = SizedBox(height: 32, child: VerticalDivider(width: 12));
+    return Padding(
+      key: const ValueKey('amaze-tool-bar'),
+      padding: const EdgeInsets.all(8),
+      child: AmazeSurface(
+        radius: 32,
+        child: SizedBox(
+          height: kToolBarHeight,
+          child: SingleChildScrollView(
+            scrollDirection: .horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              spacing: 6,
+              children: [
+                IconButton(
+                  key: const ValueKey('amaze-bar-show-wheel'),
+                  tooltip: loc.showToolWheel,
+                  onPressed: onShowWheel,
+                  icon: const PhosphorIcon(PhosphorIconsLight.circle),
+                ),
+                divider,
+                for (var slot = 0; slot < kToolSlotCount; slot++)
+                  _SlotButton(
+                    slot: slot,
+                    controls: controls,
+                    style: style,
+                    size: 44,
+                  ),
+                divider,
+                _HistoryButton(redo: false, style: style, size: 40),
+                _HistoryButton(redo: true, style: style, size: 40),
+                if (adjustments.isNotEmpty) divider,
+                for (final adjustment in adjustments)
+                  _AdjustmentButton(
+                    adjustment: adjustment,
+                    controls: controls,
+                    style: style,
+                    open: openAdjustment == adjustment,
+                    size: const Size(60, 48),
+                    onTap: () => onAdjustmentTap?.call(adjustment),
+                  ),
+                if (controls.color != null) ...[
+                  divider,
+                  _ColorButton(controls: controls, style: style, diameter: 40),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
-
-  void _select(BuildContext context, DocumentBloc bloc) {
-    final controller = context.read<EditorController>();
-    final cubit = controller.toolCubit;
-    if (index != toolState.index || toolState.temporaryHandler != null) {
-      cubit.resetSelection();
-      cubit.changeTool(controller, bloc, index: index, context: context);
-      return;
-    }
-    cubit.changeSelection(tool, true);
-  }
 }
 
-class _WheelHub extends StatelessWidget {
-  const _WheelHub({
-    required this.geometry,
-    required this.style,
-    required this.toolState,
-    required this.tools,
-    required this.page,
-    required this.pages,
-    this.onPageChanged,
-    this.onCollapse,
-    this.onDrag,
-  });
+/// Slider for one adjustment of the active tool. The tool is updated when
+/// the slider is released, so a drag is one undo step.
+class _AdjustmentPanel extends StatefulWidget {
+  const _AdjustmentPanel({required this.adjustment, required this.onClose});
 
-  final ToolWheelGeometry geometry;
-  final AmazeStyle style;
-  final ToolRuntimeState toolState;
-  final List<Tool> tools;
-  final int page;
-  final int pages;
-  final ValueChanged<int>? onPageChanged;
-  final VoidCallback? onCollapse;
-  final ValueChanged<Offset>? onDrag;
+  final ToolAdjustment adjustment;
+  final VoidCallback onClose;
+
+  @override
+  State<_AdjustmentPanel> createState() => _AdjustmentPanelState();
+}
+
+class _AdjustmentPanelState extends State<_AdjustmentPanel> {
+  double? _dragValue;
 
   @override
   Widget build(BuildContext context) {
-    final bloc = context.read<DocumentBloc>();
+    return _ToolControlsBuilder(builder: _buildPanel);
+  }
+
+  Widget _buildPanel(BuildContext context, _ToolControls controls) {
+    final adjustment = widget.adjustment;
+    final tool = controls.active;
+    final value = tool?.readAdjustment(adjustment);
+    if (tool == null || value == null) return const SizedBox.shrink();
+    final range = tool.adjustmentRange(adjustment);
+    final shown = range.clamp(_dragValue ?? value);
     final loc = AppLocalizations.of(context);
-    final size = geometry.hubRadius * 2;
-    final drag = onDrag;
-    final changePage = onPageChanged;
-    final dark = Color.lerp(style.accent, const Color(0xFF000000), 0.3)!;
-    return GestureDetector(
-      key: const ValueKey('amaze-tool-wheel-hub'),
-      behavior: HitTestBehavior.opaque,
-      onPanUpdate: drag == null ? null : (details) => drag(details.delta),
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [style.accent, dark],
-          ),
-        ),
-        child: Stack(
+    final textTheme = Theme.of(context).textTheme;
+    return AmazeSurface(
+      key: const ValueKey('amaze-adjustment-panel'),
+      radius: 20,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+        child: Column(
+          mainAxisSize: .min,
           children: [
-            Center(child: _buildCurrentTool(context)),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: _buildHubButton(
-                key: const ValueKey('amaze-tool-wheel-undo'),
-                icon: PhosphorIconsLight.arrowCounterClockwise,
-                tooltip: loc.undo,
-                onPressed: bloc.canSendUndo ? bloc.sendUndo : null,
-              ),
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: _buildHubButton(
-                key: const ValueKey('amaze-tool-wheel-redo'),
-                icon: PhosphorIconsLight.arrowClockwise,
-                tooltip: loc.redo,
-                onPressed: bloc.canSendRedo ? bloc.sendRedo : null,
-              ),
-            ),
-            if (pages > 1 && changePage != null)
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: TextButton(
-                  key: const ValueKey('amaze-tool-wheel-page'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: style.onAccent,
-                    minimumSize: const Size(40, 24),
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            Row(
+              children: [
+                PhosphorIcon(_adjustmentIcon(adjustment), size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _adjustmentName(loc, adjustment),
+                    style: textTheme.titleSmall,
                   ),
-                  onPressed: () => changePage((page + 1) % pages),
-                  child: Text('${page + 1}/$pages'),
                 ),
-              ),
+                Text(
+                  formatAdjustment(adjustment, shown),
+                  key: const ValueKey('amaze-adjustment-value'),
+                  style: textTheme.titleMedium,
+                ),
+                IconButton(
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                  onPressed: widget.onClose,
+                  icon: const PhosphorIcon(PhosphorIconsLight.x),
+                ),
+              ],
+            ),
+            Slider(
+              key: const ValueKey('amaze-adjustment-slider'),
+              value: shown,
+              min: range.min,
+              max: range.max,
+              onChanged: (next) => setState(() => _dragValue = next),
+              onChangeEnd: (next) {
+                setState(() => _dragValue = null);
+                _applyAdjustment(context, adjustment, next);
+              },
+            ),
           ],
         ),
       ),
     );
   }
-
-  Widget _buildCurrentTool(BuildContext context) {
-    final index = toolState.index;
-    final tool = index == null ? null : tools.elementAtOrNull(index);
-    final ring = _handlerColor(toolState.handler) ?? style.outline;
-    final icon = tool?.icon(filled: true) ?? PhosphorIconsFill.hand;
-    final cubit = context.read<ToolCubit>();
-    return Tooltip(
-      message: tool?.getDisplay(context) ?? '',
-      triggerMode: TooltipTriggerMode.manual,
-      child: Material(
-        key: const ValueKey('amaze-tool-wheel-current'),
-        color: style.surface,
-        shape: CircleBorder(side: BorderSide(color: ring, width: 3)),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: tool == null ? null : () => cubit.changeSelection(tool, true),
-          onLongPress: onCollapse,
-          child: SizedBox.square(
-            dimension: 46,
-            child: Center(child: PhosphorIcon(icon, color: style.onSurface)),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHubButton({
-    required Key key,
-    required PhosphorIconData icon,
-    required String tooltip,
-    required VoidCallback? onPressed,
-  }) {
-    return IconButton(
-      key: key,
-      tooltip: tooltip,
-      onPressed: onPressed,
-      color: style.onAccent,
-      disabledColor: style.onAccent.withValues(alpha: 0.38),
-      iconSize: 20,
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints.tightFor(width: 34, height: 34),
-      icon: PhosphorIcon(icon),
-    );
-  }
 }
 
-class _WheelBackground extends StatelessWidget {
-  const _WheelBackground({required this.style});
-
-  final AmazeStyle style;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: style.surface,
-        shape: BoxShape.circle,
-        border: Border.all(color: style.outline),
-        boxShadow: style.shadows,
-      ),
-      child: CustomPaint(painter: _MazeRingPainter(style.outline)),
-    );
-  }
-}
-
-/// Paints broken concentric rings, like the walls of a maze.
-class _MazeRingPainter extends CustomPainter {
-  const _MazeRingPainter(this.color);
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round;
-    final outer = Rect.fromCircle(center: center, radius: size.width / 2 - 5);
-    final inner = Rect.fromCircle(center: center, radius: 64);
-    for (var i = 0; i < kToolWheelSlots; i++) {
-      final start = i * pi / 4 + pi / 8;
-      canvas.drawArc(outer, start + 0.12, pi / 4 - 0.24, false, paint);
-      if (i.isEven) canvas.drawArc(inner, start, pi / 4, false, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_MazeRingPainter oldDelegate) =>
-      oldDelegate.color != color;
-}
-
-/// The collapsed tool wheel: a small handle that shows the current tool.
+/// The collapsed tool wheel: a small handle that shows the active color or
+/// tool.
 class ToolWheelPuck extends StatelessWidget {
   const ToolWheelPuck({super.key, this.onExpand, this.onDrag});
 
@@ -431,12 +877,26 @@ class ToolWheelPuck extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = AmazeStyle.of(context);
     final drag = onDrag;
-    return BlocBuilder<ToolCubit, ToolRuntimeState>(
-      builder: (context, toolState) {
-        final data = toolState.handler.data;
-        final icon = data is Tool
-            ? data.icon(filled: true)
-            : PhosphorIconsFill.hand;
+    return _ToolControlsBuilder(
+      builder: (context, controls) {
+        final color = controls.color;
+        final icon = controls.active?.icon(filled: true);
+        final Widget content;
+        if (color == null) {
+          content = PhosphorIcon(
+            icon ?? PhosphorIconsFill.hand,
+            color: style.onAccent,
+          );
+        } else {
+          content = DecoratedBox(
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(color: style.onAccent),
+            ),
+            child: const SizedBox.square(dimension: 28),
+          );
+        }
         return GestureDetector(
           key: const ValueKey('amaze-tool-wheel-puck'),
           onPanUpdate: drag == null ? null : (details) => drag(details.delta),
@@ -451,9 +911,7 @@ class ToolWheelPuck extends StatelessWidget {
                 onTap: onExpand,
                 child: SizedBox.square(
                   dimension: kToolWheelPuckSize,
-                  child: Center(
-                    child: PhosphorIcon(icon, color: style.onAccent),
-                  ),
+                  child: Center(child: content),
                 ),
               ),
             ),
@@ -464,11 +922,11 @@ class ToolWheelPuck extends StatelessWidget {
   }
 }
 
-/// Places a [ToolWheel] in the available space and lets the user move,
-/// collapse and expand it.
+/// Places the tool wheel or the tool bar in the available space.
 ///
-/// The position is kept as a fraction of the free space, so the wheel stays
-/// in the same corner when the screen rotates.
+/// Long-press the wheel's ring and drag to move it; dropping it on the dock
+/// target turns it into a tool bar. The mode, position (as a fraction of the
+/// free space, so it survives rotation) and collapse state are saved.
 class AmazeToolWheelLayer extends StatefulWidget {
   const AmazeToolWheelLayer({
     super.key,
@@ -482,49 +940,113 @@ class AmazeToolWheelLayer extends StatefulWidget {
 }
 
 class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
-  Offset? _fraction;
+  ToolWheelLayout _layout = const ToolWheelLayout();
   Size _bounds = Size.zero;
-  bool _collapsed = false;
-  int? _page;
+  bool _dragging = false;
+  bool _overDock = false;
+  Offset? _lastPointer;
+  ToolAdjustment? _openAdjustment;
 
-  Size get _size {
-    if (_collapsed) return const Size.square(kToolWheelPuckSize);
-    return Size.square(widget.geometry.diameter);
-  }
-
-  Offset _defaultFraction(Size bounds) {
-    final landscape = bounds.width >= bounds.height;
-    return landscape ? const Offset(0.98, 0.96) : const Offset(0.5, 0.98);
-  }
-
-  Offset _positionFor(Offset fraction, Size bounds) {
-    final size = _size;
-    final freeX = bounds.width - size.width;
-    final freeY = bounds.height - size.height;
-    final position = Offset(freeX * fraction.dx, freeY * fraction.dy);
-    return clampToolWheelPosition(position, size, bounds);
-  }
-
-  void _move(Offset delta) {
-    final size = _size;
-    final fraction = _fraction ?? _defaultFraction(_bounds);
-    final moved = _positionFor(fraction, _bounds) + delta;
-    final position = clampToolWheelPosition(moved, size, _bounds);
-    final freeX = _bounds.width - size.width;
-    final freeY = _bounds.height - size.height;
-    setState(() {
-      _fraction = Offset(
-        freeX > 0 ? position.dx / freeX : 0,
-        freeY > 0 ? position.dy / freeY : 0,
-      );
+  @override
+  void initState() {
+    super.initState();
+    loadToolWheelLayout().then((layout) {
+      if (mounted) setState(() => _layout = layout);
     });
   }
 
-  int _currentPage() {
-    final page = _page;
-    if (page != null) return page;
-    final index = context.read<ToolCubit>().state.index;
-    return toolWheelPageOf(index ?? 0);
+  void _update(ToolWheelLayout layout) {
+    setState(() => _layout = layout);
+    saveToolWheelLayout(layout);
+  }
+
+  Size get _wheelSize {
+    if (_layout.collapsed) return const Size.square(kToolWheelPuckSize);
+    return Size.square(widget.geometry.diameter);
+  }
+
+  Offset get _fraction {
+    final saved = _layout.position;
+    if (saved != null) return saved;
+    final landscape = _bounds.width >= _bounds.height;
+    return landscape ? const Offset(0.98, 0.96) : const Offset(0.5, 0.98);
+  }
+
+  Offset get _position {
+    final size = _wheelSize;
+    final freeX = _bounds.width - size.width;
+    final freeY = _bounds.height - size.height;
+    final position = Offset(freeX * _fraction.dx, freeY * _fraction.dy);
+    return clampToolWheelPosition(position, size, _bounds);
+  }
+
+  Rect get _dockRect {
+    final center = Offset(_bounds.width / 2, _bounds.height - 44);
+    return Rect.fromCenter(center: center, width: 280, height: 72);
+  }
+
+  Offset _toLocal(Offset global) {
+    final box = context.findRenderObject();
+    if (box is! RenderBox) return global;
+    return box.globalToLocal(global);
+  }
+
+  void _move(Offset delta, {bool overDock = false}) {
+    final size = _wheelSize;
+    final moved = _position + delta;
+    final position = clampToolWheelPosition(moved, size, _bounds);
+    final freeX = _bounds.width - size.width;
+    final freeY = _bounds.height - size.height;
+    final fraction = Offset(
+      freeX > 0 ? position.dx / freeX : 0,
+      freeY > 0 ? position.dy / freeY : 0,
+    );
+    setState(() {
+      _layout = _layout.copyWith(position: fraction);
+      _overDock = overDock;
+    });
+  }
+
+  void _onRingPressStart(LongPressStartDetails details) {
+    setState(() {
+      _dragging = true;
+      _overDock = false;
+      _openAdjustment = null;
+      _lastPointer = details.globalPosition;
+    });
+  }
+
+  void _onRingPressMove(LongPressMoveUpdateDetails details) {
+    final pointer = details.globalPosition;
+    final last = _lastPointer ?? pointer;
+    _lastPointer = pointer;
+    _move(pointer - last, overDock: _dockRect.contains(_toLocal(pointer)));
+  }
+
+  void _onRingPressEnd(LongPressEndDetails details) {
+    final dock = _overDock;
+    setState(() {
+      _dragging = false;
+      _overDock = false;
+      _lastPointer = null;
+    });
+    if (dock) {
+      _update(_layout.copyWith(mode: ToolWheelMode.bar));
+    } else {
+      saveToolWheelLayout(_layout);
+    }
+  }
+
+  void _toggleAdjustment(ToolAdjustment adjustment) {
+    setState(() {
+      _openAdjustment = _openAdjustment == adjustment ? null : adjustment;
+    });
+  }
+
+  void _closeAdjustment() => setState(() => _openAdjustment = null);
+
+  void _showWheel() {
+    _update(_layout.copyWith(mode: ToolWheelMode.wheel, collapsed: false));
   }
 
   @override
@@ -532,35 +1054,130 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
     return LayoutBuilder(
       builder: (context, constraints) {
         _bounds = constraints.biggest;
-        final fraction = _fraction ?? _defaultFraction(_bounds);
-        final position = _positionFor(fraction, _bounds);
-        return Stack(
-          children: [
-            Positioned(
-              left: position.dx,
-              top: position.dy,
-              child: _collapsed ? _buildPuck() : _buildWheel(),
-            ),
-          ],
-        );
+        final children = _layout.mode == ToolWheelMode.bar
+            ? _buildBar()
+            : _buildWheel();
+        return Stack(children: children);
       },
     );
   }
 
-  Widget _buildWheel() {
-    return ToolWheel(
-      geometry: widget.geometry,
-      page: _currentPage(),
-      onPageChanged: (page) => setState(() => _page = page),
-      onCollapse: () => setState(() => _collapsed = true),
-      onDrag: _move,
+  List<Widget> _buildWheel() {
+    final position = _position;
+    final children = <Widget>[if (_dragging) _buildDockTarget()];
+    if (_layout.collapsed) {
+      children.add(
+        Positioned(
+          left: position.dx,
+          top: position.dy,
+          child: ToolWheelPuck(
+            onExpand: () => _update(_layout.copyWith(collapsed: false)),
+            onDrag: _move,
+          ),
+        ),
+      );
+      return children;
+    }
+    children.add(
+      Positioned(
+        left: position.dx,
+        top: position.dy,
+        child: ToolWheel(
+          geometry: widget.geometry,
+          openAdjustment: _openAdjustment,
+          onAdjustmentTap: _toggleAdjustment,
+          onCollapse: () => _update(_layout.copyWith(collapsed: true)),
+          onRingLongPressStart: _onRingPressStart,
+          onRingLongPressMove: _onRingPressMove,
+          onRingLongPressEnd: _onRingPressEnd,
+        ),
+      ),
+    );
+    final adjustment = _openAdjustment;
+    if (adjustment != null) {
+      final anchor = position & _wheelSize;
+      children.add(_buildPanel(adjustment, anchor));
+    }
+    return children;
+  }
+
+  List<Widget> _buildBar() {
+    final adjustment = _openAdjustment;
+    return [
+      Positioned(
+        left: 0,
+        right: 0,
+        bottom: 0,
+        child: Center(
+          child: AmazeToolBar(
+            openAdjustment: _openAdjustment,
+            onAdjustmentTap: _toggleAdjustment,
+            onShowWheel: _showWheel,
+          ),
+        ),
+      ),
+      if (adjustment != null)
+        _buildPanel(
+          adjustment,
+          Rect.fromLTWH(0, _bounds.height - kToolBarHeight - 16, 0, 0),
+          centered: true,
+        ),
+    ];
+  }
+
+  Widget _buildPanel(
+    ToolAdjustment adjustment,
+    Rect anchor, {
+    bool centered = false,
+  }) {
+    const width = 300.0;
+    const height = 120.0;
+    final centerX = centered ? _bounds.width / 2 : anchor.center.dx;
+    final maxLeft = max(0.0, _bounds.width - width);
+    final left = (centerX - width / 2).clamp(0.0, maxLeft);
+    var top = anchor.top - height - 8;
+    if (top < 0) top = min(anchor.bottom + 8, _bounds.height - height);
+    return Positioned(
+      left: left,
+      top: max(0.0, top),
+      width: width,
+      child: _AdjustmentPanel(
+        adjustment: adjustment,
+        onClose: _closeAdjustment,
+      ),
     );
   }
 
-  Widget _buildPuck() {
-    return ToolWheelPuck(
-      onExpand: () => setState(() => _collapsed = false),
-      onDrag: _move,
+  Widget _buildDockTarget() {
+    final rect = _dockRect;
+    final style = AmazeStyle.of(context);
+    final active = _overDock;
+    final color = active ? style.onAccent : style.onSurface;
+    return Positioned.fromRect(
+      rect: rect,
+      child: IgnorePointer(
+        child: AnimatedContainer(
+          key: const ValueKey('amaze-dock-target'),
+          duration: const Duration(milliseconds: 120),
+          decoration: BoxDecoration(
+            color: active ? style.accent : style.surface,
+            borderRadius: BorderRadius.circular(36),
+            border: Border.all(color: style.accent, width: 2),
+            boxShadow: style.shadows,
+          ),
+          child: Row(
+            mainAxisAlignment: .center,
+            spacing: 8,
+            children: [
+              PhosphorIcon(PhosphorIconsLight.toolbox, color: color),
+              Text(
+                AppLocalizations.of(context).dropForToolbar,
+                style: TextStyle(color: color, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

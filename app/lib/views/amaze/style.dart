@@ -9,7 +9,9 @@ class AmazeStyle {
     required this.accent,
     required this.onAccent,
     required this.surface,
+    required this.surfaceVariant,
     required this.onSurface,
+    required this.muted,
     required this.outline,
     required this.shadow,
   });
@@ -21,7 +23,9 @@ class AmazeStyle {
       accent: dark ? const Color(0xFF4FD6C4) : const Color(0xFF0B8F84),
       onAccent: dark ? const Color(0xFF00201D) : const Color(0xFFFFFFFF),
       surface: scheme.surfaceContainerHigh.withValues(alpha: 0.96),
+      surfaceVariant: scheme.surfaceContainerHighest,
       onSurface: scheme.onSurface,
+      muted: scheme.onSurfaceVariant,
       outline: scheme.outlineVariant,
       shadow: const Color(0xFF000000).withValues(alpha: dark ? 0.5 : 0.18),
     );
@@ -36,8 +40,14 @@ class AmazeStyle {
   /// Background of floating shell surfaces.
   final Color surface;
 
+  /// Background of buttons on a [surface].
+  final Color surfaceVariant;
+
   /// Content color on top of [surface].
   final Color onSurface;
+
+  /// Secondary content color, for hints and empty slots.
+  final Color muted;
 
   /// Hairline border around floating surfaces.
   final Color outline;
