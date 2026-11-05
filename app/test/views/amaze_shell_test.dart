@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math' show Point, cos, min, pi, sin;
+import 'dart:math' show Point, cos, pi, sin;
 import 'dart:ui' as ui;
 
 import 'package:butterfly/actions/shortcuts.dart';
@@ -68,17 +68,6 @@ Future<void> _loadFonts() async {
     }
     await loader.load();
   }
-}
-
-/// Temporary: prints screenshots to the CI log for review.
-void _printForReview(String name, List<int> bytes) {
-  if (Platform.environment['GITHUB_ACTIONS'] != 'true') return;
-  final encoded = base64Encode(bytes);
-  stdout.writeln('AMAZE-SHOT-BEGIN $name');
-  for (var i = 0; i < encoded.length; i += 4000) {
-    stdout.writeln(encoded.substring(i, min(encoded.length, i + 4000)));
-  }
-  stdout.writeln('AMAZE-SHOT-END $name');
 }
 
 NoteData _sampleDocument() {
@@ -290,7 +279,6 @@ void main() {
       final file = File('build/amaze_screenshots/$name.png');
       await file.create(recursive: true);
       await file.writeAsBytes(bytes);
-      _printForReview(name, bytes);
     });
   }
 
