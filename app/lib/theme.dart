@@ -1,16 +1,11 @@
 import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:material_ui/material_ui.dart';
 
-import 'main.dart';
-
-const kClassicFirstColor = Color(0xFFc4840d);
-const kClassicSecondColor = Color(0xFF7b8f96);
-const kClassicThemePrimary = isNightly
-    ? kClassicSecondColor
-    : kClassicFirstColor;
-const kClassicThemeSecondary = isNightly
-    ? kClassicFirstColor
-    : kClassicSecondColor;
+// aMaze teal and amber.
+const kClassicFirstColor = Color(0xFF0B8F84);
+const kClassicSecondColor = Color(0xFFE0A526);
+const kClassicThemePrimary = kClassicFirstColor;
+const kClassicThemeSecondary = kClassicSecondColor;
 const kClassicTheme = FlexSchemeColor(
   primary: kClassicThemePrimary,
   secondary: kClassicThemeSecondary,

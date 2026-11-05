@@ -19,6 +19,8 @@ import 'package:butterfly/services/export.dart';
 import 'package:butterfly/services/font.dart';
 import 'package:butterfly/services/import.dart';
 import 'package:butterfly/services/network.dart';
+import 'package:butterfly/views/amaze/layout.dart';
+import 'package:butterfly/views/amaze/shell.dart';
 import 'package:butterfly/views/app_bar.dart';
 import 'package:butterfly/views/navigator/view.dart';
 import 'package:butterfly/views/toolbar/view.dart';
@@ -713,11 +715,9 @@ class _ProjectPageState extends State<ProjectPage> {
                                   })
                                 >(
                                   selector: (state) => (
-                                    isInline: state.isInline,
+                                    isInline: state.usesInlineTools,
                                     toolbarSize: state.toolbarSize,
-                                    floatingEditor: state.hasFlag(
-                                      'floatingEditor',
-                                    ),
+                                    floatingEditor: state.usesFloatingEditor,
                                   ),
                                   builder: (context, settings) {
                                     final actions = _buildActions(context);
@@ -977,7 +977,9 @@ class _MainBody extends StatelessWidget {
                                     previous.propertyPosition !=
                                         current.propertyPosition ||
                                     previous.hasFlag('floatingEditor') !=
-                                        current.hasFlag('floatingEditor'),
+                                        current.hasFlag('floatingEditor') ||
+                                    previous.usesAmazeShell !=
+                                        current.usesAmazeShell,
                                 builder: (context, settings) {
                                   return LayoutBuilder(
                                     builder: (context, constraints) =>
@@ -1021,6 +1023,18 @@ class _MainBody extends StatelessWidget {
     final bool isLarge =
         constraints.maxWidth >= LeapBreakpoints.expanded &&
         (constraints.maxHeight + bottomInset) >= 400;
+    if (settings.usesAmazeShell) {
+      return _buildAmazeLayout(
+        context,
+        state,
+        toolState,
+        inputState,
+        saveState,
+        settings,
+        isMobile: isMobile,
+        isLarge: isLarge,
+      );
+    }
 
     final floatingEditor =
         settings.hasFlag('floatingEditor') &&
@@ -1078,6 +1092,37 @@ class _MainBody extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAmazeLayout(
+    BuildContext context,
+    DocumentState state,
+    ToolRuntimeState toolState,
+    EditorInputState inputState,
+    DocumentSaveState saveState,
+    ButterflySettings settings, {
+    required bool isMobile,
+    required bool isLarge,
+  }) {
+    final showChrome =
+        state is DocumentLoadSuccess && inputState.hideUi == .visible;
+    return AmazeEditorLayout(
+      viewport: MainViewViewport(key: viewportKey),
+      selectionListener: _buildSelectionListener(context, toolState),
+      zoom: _buildZoomAndTools(context, settings, isMobile, inputState),
+      property: Align(
+        alignment: switch (settings.propertyPosition) {
+          .topRight => Alignment.topRight,
+          .topLeft => Alignment.topLeft,
+          .bottomRight => Alignment.bottomRight,
+          .bottomLeft => Alignment.bottomLeft,
+        },
+        child: PropertyView(position: settings.propertyPosition),
+      ),
+      showChrome: showChrome,
+      editable: saveState.embedding?.editable != false,
+      large: isLarge,
     );
   }
 

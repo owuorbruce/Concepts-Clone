@@ -180,6 +180,7 @@ flutter:
         - asset: fonts/Roboto-Italic-Variable.ttf
           style: italic
   assets:
+    - images/amaze.png
     - images/banner.png
     - images/banner.svg
     - images/file.ico
