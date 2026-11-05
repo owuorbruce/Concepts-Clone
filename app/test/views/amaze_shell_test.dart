@@ -474,7 +474,7 @@ void main() {
     NoteData? stored;
     for (var i = 0; i < 120 && stored?.name != 'Saved in aMaze'; i++) {
       await tester.pump(const Duration(milliseconds: 50));
-      stored = await tester.runAsync(() async {
+      stored = await tester.runAsync<NoteData?>(() async {
         final location = bloc.editorController.saveCubit.state.location;
         final system = fileSystem.buildDocumentSystem();
         final asset = await system.getAsset(location.path);
