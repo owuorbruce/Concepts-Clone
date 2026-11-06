@@ -85,6 +85,7 @@ part 'grid.dart';
 part 'polygon.dart';
 part 'select.dart';
 part 'shape.dart';
+part 'slice.dart';
 part 'table.dart';
 part 'spacer.dart';
 part 'stamp.dart';
@@ -314,6 +315,9 @@ abstract class Handler<T> {
       RedoTool() => RedoHandler(tool),
       LabelTool() => LabelHandler(tool),
       PenTool() => PenHandler(tool),
+      EraserTool() when tool.displayIcon == kSliceDisplayIcon => SliceHandler(
+        tool,
+      ),
       EraserTool() => EraserHandler(tool),
       CollectionTool() => CollectionHandler(tool),
       AreaTool() => AreaHandler(tool),
