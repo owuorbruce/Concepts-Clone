@@ -44,6 +44,13 @@ class DocumentDefaults {
             UndoTool(id: createUniqueId()),
             RedoTool(id: createUniqueId()),
             HandTool(id: createUniqueId()),
+            Tool.shape(
+              id: createUniqueId(),
+              property: const ShapeProperty(shape: LineShape()),
+            ),
+            Tool.label(id: createUniqueId()),
+            Tool.eyeDropper(id: createUniqueId()),
+            Tool.ruler(id: createUniqueId()),
           ]
           .map(
             (e) =>
