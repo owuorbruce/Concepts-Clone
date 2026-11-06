@@ -17,17 +17,21 @@ class AmazeStyle {
   });
 
   factory AmazeStyle.of(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final dark = scheme.brightness == Brightness.dark;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    // A drawing instrument needs clear separation between its controls.
+    // Use an opaque, high-contrast local palette instead of translucent
+    // Material surfaces that blend into the page and competing toolbars.
     return AmazeStyle._(
-      accent: dark ? const Color(0xFF4FD6C4) : const Color(0xFF0B8F84),
-      onAccent: dark ? const Color(0xFF00201D) : const Color(0xFFFFFFFF),
-      surface: scheme.surfaceContainerHigh.withValues(alpha: 0.96),
-      surfaceVariant: scheme.surfaceContainerHighest,
-      onSurface: scheme.onSurface,
-      muted: scheme.onSurfaceVariant,
-      outline: scheme.outlineVariant,
-      shadow: const Color(0xFF000000).withValues(alpha: dark ? 0.5 : 0.18),
+      accent: dark ? const Color(0xFF53D9BD) : const Color(0xFF117C72),
+      onAccent: dark ? const Color(0xFF092C28) : const Color(0xFFFFFFFF),
+      surface: dark ? const Color(0xFF202C33) : const Color(0xFFFDFEFC),
+      surfaceVariant: dark
+          ? const Color(0xFF34434A)
+          : const Color(0xFFE9F1EE),
+      onSurface: dark ? const Color(0xFFF1F7F5) : const Color(0xFF1C3035),
+      muted: dark ? const Color(0xFFA8C2BF) : const Color(0xFF647B7A),
+      outline: dark ? const Color(0xFF52656D) : const Color(0xFFCDDDDA),
+      shadow: const Color(0xFF000000).withValues(alpha: dark ? 0.42 : 0.13),
     );
   }
 
@@ -56,14 +60,14 @@ class AmazeStyle {
   final Color shadow;
 
   List<BoxShadow> get shadows {
-    const offset = Offset(0, 6);
-    return [BoxShadow(color: shadow, blurRadius: 18, offset: offset)];
+    const offset = Offset(0, 4);
+    return [BoxShadow(color: shadow, blurRadius: 14, offset: offset)];
   }
 }
 
 /// Rounded floating surface used by the dock and side panels.
 class AmazeSurface extends StatelessWidget {
-  const AmazeSurface({super.key, required this.child, this.radius = 28});
+  const AmazeSurface({super.key, required this.child, this.radius = 20});
 
   final Widget child;
   final double radius;
