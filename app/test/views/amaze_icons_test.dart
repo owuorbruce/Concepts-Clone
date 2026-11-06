@@ -60,7 +60,14 @@ Widget _cell(String label, Widget icon, Color color) {
       children: [
         SizedBox.square(dimension: 32, child: Center(child: icon)),
         const SizedBox(height: 4),
-        Text(label, style: TextStyle(fontSize: 11, color: color)),
+        Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Comfortaa',
+            fontSize: 11,
+            color: color,
+          ),
+        ),
       ],
     ),
   );
@@ -79,7 +86,11 @@ Widget _sheet(bool dark) {
             width: 120,
             child: Text(
               title,
-              style: TextStyle(color: foreground, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                fontFamily: 'Comfortaa',
+                color: foreground,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           ...cells,
@@ -142,6 +153,9 @@ Widget _sheet(bool dark) {
   );
 }
 
+/// Sum of the alpha channel of the last [_coverage] image.
+var _lastAlphaSum = 0;
+
 /// Paints [glyph] at [size] and returns how many pixels it covered.
 Future<int> _coverage(AmazeGlyph glyph, double size, {bool wide = false}) {
   final recorder = ui.PictureRecorder();
@@ -160,6 +174,10 @@ Future<int> _coverage(AmazeGlyph glyph, double size, {bool wide = false}) {
     final data = bytes!.buffer.asUint8List();
     for (var i = 3; i < data.length; i += 4) {
       if (data[i] > 24) covered++;
+    }
+    _lastAlphaSum = 0;
+    for (var i = 3; i < data.length; i += 4) {
+      _lastAlphaSum += data[i];
     }
     return covered;
   });
@@ -292,11 +310,13 @@ void main() {
     }
 
     test('brushes look different from each other', () async {
-      final seen = <int>{};
+      final seen = <int, AmazeGlyph>{};
       for (final glyph in AmazeGlyph.values.where((glyph) => glyph.isBrush)) {
-        seen.add(await _coverage(glyph, 96));
+        await _coverage(glyph, 96);
+        final twin = seen[_lastAlphaSum];
+        expect(twin, isNull, reason: '${glyph.name} looks like $twin');
+        seen[_lastAlphaSum] = glyph;
       }
-      expect(seen.length, 12);
     });
   });
 }

@@ -483,7 +483,7 @@ class _AdjustmentButton extends StatelessWidget {
             child: Column(
               mainAxisAlignment: .center,
               children: [
-                AmazeIcon(_adjustmentIcon(adjustment), size: 16, color: color),
+                AmazeIcon(_adjustmentIcon(adjustment), size: 18, color: color),
                 Text(
                   formatAdjustment(adjustment, value),
                   style: textTheme.labelLarge?.copyWith(

@@ -557,13 +557,17 @@ void main() {
     await tester.longPress(slotButton(0));
     await tester.pumpAndSettle();
     expect(libraryItem(LibraryEntry.inkBlot), findsNothing);
+    final scrollable = find.descendant(
+      of: find.byKey(const ValueKey('amaze-library-scroll')),
+      matching: find.byType(Scrollable),
+    );
     final market = find.byKey(const ValueKey('amaze-library-market'));
-    await tester.ensureVisible(market);
+    await tester.scrollUntilVisible(market, 200, scrollable: scrollable);
     await tester.pumpAndSettle();
     await tester.tap(market);
     await tester.pumpAndSettle();
     final last = libraryItem(LibraryEntry.inkBlot);
-    await tester.ensureVisible(last);
+    await tester.scrollUntilVisible(last, 200, scrollable: scrollable);
     await tester.pumpAndSettle();
     for (final entry in LibraryEntry.of(LibrarySection.market)) {
       expect(libraryItem(entry), findsOneWidget);

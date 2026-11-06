@@ -353,10 +353,20 @@ class _LibraryTile extends StatelessWidget {
     final foreground = selected ? style.onAccent : style.onSurface;
     final glyph = entry.glyph;
     final Widget icon;
-    if (glyph != null) {
-      icon = AmazeGlyphIcon(glyph, size: 40, color: foreground);
+    if (glyph != null && (glyph.isBrush || glyph.isPack)) {
+      // Brushes show a long stroke so their character reads at a glance.
+      icon = Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        child: AmazeBrushPreview(glyph, color: foreground),
+      );
+    } else if (glyph != null) {
+      icon = Center(
+        child: AmazeGlyphIcon(glyph, size: 34, color: foreground),
+      );
     } else {
-      icon = AmazeIcon(entry.icon, size: 30, color: foreground);
+      icon = Center(
+        child: AmazeIcon(entry.icon, size: 30, color: foreground),
+      );
     }
     final tile = Material(
       key: ValueKey(('amaze-library-item', entry.name)),
@@ -369,7 +379,7 @@ class _LibraryTile extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
           child: Column(
             children: [
-              Expanded(child: Center(child: icon)),
+              Expanded(child: icon),
               const SizedBox(height: 4),
               Text(
                 name,

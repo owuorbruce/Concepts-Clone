@@ -431,8 +431,9 @@ class _BrushArtist {
   final Color color;
   final bool wide;
 
-  /// Stroke unit: 1/24 of the box height, like the icon grid.
-  double get unit => box.height / 24;
+  /// Stroke unit: 1/24 of the box height, like the icon grid. Square icons
+  /// use slightly heavier strokes so they stay legible at small sizes.
+  double get unit => box.height / 24 * (wide ? 1 : 1.3);
 
   Offset _at(double x, double y) {
     return Offset(box.left + box.width * x, box.top + box.height * y);
