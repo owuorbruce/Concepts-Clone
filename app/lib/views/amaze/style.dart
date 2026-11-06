@@ -33,6 +33,24 @@ class AmazeStyle {
     );
   }
 
+  /// Dark instrument housing for the radial wheel, independent from the
+  /// current document theme. Contrast stays stable over a bright canvas.
+  factory AmazeStyle.forWheel(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return AmazeStyle._(
+      accent: dark ? const Color(0xFF53D9BD) : const Color(0xFF58DCC3),
+      onAccent: const Color(0xFF102B2F),
+      surface: dark ? const Color(0xFF1C2A31) : const Color(0xFF23353B),
+      surfaceVariant: dark
+          ? const Color(0xFF30454C)
+          : const Color(0xFF344951),
+      onSurface: const Color(0xFFF4F8F6),
+      muted: const Color(0xFFB0C6C5),
+      outline: const Color(0xFF586F72),
+      shadow: const Color(0xFF000000),
+    );
+  }
+
   /// Highlight color for the selected tool and the wheel hub.
   final Color accent;
 
