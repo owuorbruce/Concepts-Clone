@@ -185,7 +185,7 @@ class PadAppBar extends StatelessWidget implements PreferredSizeWidget {
           return floating
               ? SizedBox.square(
                   dimension: 56,
-                  child: Card.filled(
+                  child: Card(
                     margin: EdgeInsets.zero,
                     shape: _floatingTitleShape,
                     elevation: 1,
@@ -397,11 +397,10 @@ class _AppBarTitleState extends State<_AppBarTitle> {
                                 controller: widget.searchController,
                                 viewShape: _floatingTitleShape,
                                 isFullScreen: false,
-                                anchorBuilder: (context, searchButton) =>
-                                    Card.filled(
-                                      margin: EdgeInsets.zero,
-                                      shape: _floatingTitleShape,
-                                      elevation: 1,
+                                anchorBuilder: (context, searchButton) => Card(
+                                  margin: EdgeInsets.zero,
+                                  shape: _floatingTitleShape,
+                                  elevation: 1,
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 12,
