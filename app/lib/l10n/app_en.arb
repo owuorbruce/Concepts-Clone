@@ -1729,5 +1729,7 @@
   "eraserModeStrokeDescription": "Erases only the parts of pen strokes that the eraser touches.",
   "eraserModePath": "Whole elements",
   "eraserModePathDescription": "Removes each stroke that the eraser touches as a whole.",
+  "toolOptions": "Tool options",
+  "zoomControls": "Zoom controls",
   "eraseAllElementsDescription": "Also erases shapes, images, text and other elements that are not pen strokes."
 }

@@ -3,11 +3,10 @@ import 'package:butterfly/views/edit.dart';
 import 'package:butterfly/views/toolbar/view.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'dock.dart';
 import 'tool_wheel.dart';
-import 'style.dart';
+import 'wheel_prefs.dart';
 
 /// Editor layout of aMaze.
 ///
@@ -53,17 +52,43 @@ class AmazeEditorLayout extends StatefulWidget {
 
 class _AmazeEditorLayoutState extends State<AmazeEditorLayout> {
   bool _showAllTools = false;
-  // The wheel is the primary drawing control. Legacy tool and zoom panels
-  // remain one tap away instead of consuming canvas space all the time.
-  bool _showAdvancedControls = false;
-  bool _showZoomControls = false;
+  // The wheel is the main drawing control, so the inherited tool options
+  // and zoom panels start hidden and are turned on from the dock.
+  AmazePanels _panels = (toolOptions: false, zoom: false);
+
+  @override
+  void initState() {
+    super.initState();
+    loadAmazePanels().then((panels) {
+      if (mounted) setState(() => _panels = panels);
+    });
+  }
 
   void _toggleAllTools() => setState(() => _showAllTools = !_showAllTools);
+
+  void _setPanels(AmazePanels panels) {
+    setState(() => _panels = panels);
+    saveAmazePanels(panels);
+  }
+
+  void _toggleToolOptions() {
+    _setPanels((toolOptions: !_panels.toolOptions, zoom: _panels.zoom));
+  }
+
+  void _toggleZoom() {
+    _setPanels((toolOptions: _panels.toolOptions, zoom: !_panels.zoom));
+  }
 
   @override
   Widget build(BuildContext context) {
     final chrome = widget.showChrome;
     final tools = chrome && widget.editable;
+    // Zoom stays visible while the interface is hidden: it holds the button
+    // that brings the interface back.
+    final overlays = <Widget>[
+      if (_panels.zoom || !chrome) widget.zoom,
+      widget.property,
+    ];
     return Stack(
       children: [
         widget.viewport,
@@ -81,6 +106,10 @@ class _AmazeEditorLayoutState extends State<AmazeEditorLayout> {
                       editable: widget.editable,
                       showAllTools: _showAllTools,
                       onToggleAllTools: _toggleAllTools,
+                      showToolOptions: _panels.toolOptions,
+                      onToggleToolOptions: _toggleToolOptions,
+                      showZoom: _panels.zoom,
+                      onToggleZoom: _toggleZoom,
                     ),
                   ),
                 ),
@@ -101,72 +130,14 @@ class _AmazeEditorLayoutState extends State<AmazeEditorLayout> {
               Expanded(
                 child: Column(
                   children: [
-                    if (chrome && _showAdvancedControls)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 56),
-                        child: ToolbarView(),
-                      ),
-                    Expanded(
-                      child: Stack(
-                        children: [
-                          if (_showZoomControls || !chrome)
-                            Padding(
-                              padding: EdgeInsets.only(top: 56),
-                              child: widget.zoom,
-                            ),
-                          widget.property,
-                        ],
-                      ),
-                    ),
+                    if (tools && _panels.toolOptions) const ToolbarView(),
+                    Expanded(child: Stack(children: overlays)),
                   ],
                 ),
               ),
             ],
           ),
         ),
-        if (chrome)
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 88, right: 12),
-                child: AmazeSurface(
-                  radius: 18,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        key: const ValueKey('amaze-advanced-controls-toggle'),
-                        tooltip: 'Advanced tool controls',
-                        color: _showAdvancedControls
-                            ? AmazeStyle.of(context).accent
-                            : AmazeStyle.of(context).onSurface,
-                        icon: const PhosphorIcon(
-                          PhosphorIconsLight.slidersHorizontal,
-                        ),
-                        onPressed: () => setState(
-                          () => _showAdvancedControls = !_showAdvancedControls,
-                        ),
-                      ),
-                      IconButton(
-                        key: const ValueKey('amaze-zoom-toggle'),
-                        tooltip: 'Zoom controls',
-                        color: _showZoomControls
-                            ? AmazeStyle.of(context).accent
-                            : AmazeStyle.of(context).onSurface,
-                        icon: const PhosphorIcon(
-                          PhosphorIconsLight.magnifyingGlass,
-                        ),
-                        onPressed: () => setState(
-                          () => _showZoomControls = !_showZoomControls,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
         if (tools)
           const SafeArea(
             child: Padding(

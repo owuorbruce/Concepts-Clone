@@ -445,7 +445,6 @@ class _AdjustmentButton extends StatelessWidget {
                 Text(
                   formatAdjustment(adjustment, value),
                   style: textTheme.labelLarge?.copyWith(
-                    fontFamily: 'Roboto',
                     color: color,
                     fontWeight: FontWeight.w700,
                   ),
@@ -548,7 +547,7 @@ class ToolWheel extends StatelessWidget {
   }
 
   Widget _buildWheel(BuildContext context, _ToolControls controls) {
-    final style = AmazeStyle.forWheel(context);
+    final style = AmazeStyle.of(context);
     final center = Offset(geometry.radius, geometry.radius);
     final supported = controls.adjustments.toSet();
     Widget place(Offset offset, Size size, Widget child) {
@@ -1059,18 +1058,21 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        _bounds = constraints.biggest;
-        final children = _layout.mode == ToolWheelMode.bar
-            ? _buildBar()
-            : _buildWheel();
-        return Stack(children: children);
-      },
+    return Theme(
+      data: AmazeStyle.instrumentTheme(context),
+      child: LayoutBuilder(builder: _buildLayout),
     );
   }
 
-  List<Widget> _buildWheel() {
+  Widget _buildLayout(BuildContext context, BoxConstraints constraints) {
+    _bounds = constraints.biggest;
+    final children = _layout.mode == ToolWheelMode.bar
+        ? _buildBar(context)
+        : _buildWheel(context);
+    return Stack(children: children);
+  }
+
+  List<Widget> _buildWheel(BuildContext context) {
     final position = _position;
     // Keys keep the wheel's gesture state when the dock target appears.
     final children = <Widget>[];
@@ -1109,11 +1111,11 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
       final anchor = position & _wheelSize;
       children.add(_buildPanel(adjustment, anchor));
     }
-    if (_dragging) children.add(_buildDockTarget());
+    if (_dragging) children.add(_buildDockTarget(context));
     return children;
   }
 
-  List<Widget> _buildBar() {
+  List<Widget> _buildBar(BuildContext context) {
     final adjustment = _openAdjustment;
     return [
       Positioned(
@@ -1160,7 +1162,7 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
     );
   }
 
-  Widget _buildDockTarget() {
+  Widget _buildDockTarget(BuildContext context) {
     final rect = _dockRect;
     final style = AmazeStyle.of(context);
     final active = _overDock;

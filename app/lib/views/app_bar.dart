@@ -188,7 +188,7 @@ class PadAppBar extends StatelessWidget implements PreferredSizeWidget {
                   child: Card(
                     margin: EdgeInsets.zero,
                     shape: _floatingTitleShape,
-                    elevation: 1,
+                    elevation: _floatingElevation(context),
                     child: Center(child: menu),
                   ),
                 )
@@ -400,7 +400,7 @@ class _AppBarTitleState extends State<_AppBarTitle> {
                                 anchorBuilder: (context, searchButton) => Card(
                                   margin: EdgeInsets.zero,
                                   shape: _floatingTitleShape,
-                                  elevation: 1,
+                                  elevation: _floatingElevation(context),
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 12,
@@ -1199,4 +1199,10 @@ class MainPopupMenu extends StatelessWidget {
       },
     );
   }
+}
+
+/// The aMaze shell uses a flatter floating header than the classic editor.
+double _floatingElevation(BuildContext context) {
+  final settings = context.read<SettingsCubit>().state;
+  return settings.usesAmazeShell ? 1 : 6;
 }

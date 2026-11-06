@@ -12,8 +12,9 @@ import 'style.dart';
 /// Vertical dock on the edge of the aMaze editor.
 ///
 /// It opens the document navigator pages (layers, pages, areas and more) and
-/// toggles the full tool bar. On large screens the navigator opens as a side
-/// panel next to the dock; otherwise it opens as a dialog.
+/// turns the tool options, zoom controls and full tool bar on and off. On
+/// large screens the navigator opens as a side panel next to the dock;
+/// otherwise it opens as a dialog.
 class AmazeDock extends StatelessWidget {
   const AmazeDock({
     super.key,
@@ -21,15 +22,24 @@ class AmazeDock extends StatelessWidget {
     required this.editable,
     required this.showAllTools,
     required this.onToggleAllTools,
+    required this.showToolOptions,
+    required this.onToggleToolOptions,
+    required this.showZoom,
+    required this.onToggleZoom,
   });
 
   final bool large;
   final bool editable;
   final bool showAllTools;
   final VoidCallback onToggleAllTools;
+  final bool showToolOptions;
+  final VoidCallback onToggleToolOptions;
+  final bool showZoom;
+  final VoidCallback onToggleZoom;
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final embedded = context.select<DocumentSaveCubit, bool>(
       (cubit) => cubit.state.embedding != null,
     );
@@ -65,17 +75,33 @@ class AmazeDock extends StatelessWidget {
                     selected: open && viewState.navigatorPage == page,
                     onPressed: () => _openPage(context, page, viewState),
                   ),
-                if (editable) ...[
-                  const SizedBox(width: 32, child: Divider(height: 8)),
+                const SizedBox(width: 32, child: Divider(height: 8)),
+                if (editable)
+                  _DockButton(
+                    key: const ValueKey('amaze-dock-tool-options'),
+                    icon: PhosphorIconsLight.slidersHorizontal,
+                    selectedIcon: PhosphorIconsFill.slidersHorizontal,
+                    tooltip: loc.toolOptions,
+                    selected: showToolOptions,
+                    onPressed: onToggleToolOptions,
+                  ),
+                _DockButton(
+                  key: const ValueKey('amaze-dock-zoom'),
+                  icon: PhosphorIconsLight.magnifyingGlass,
+                  selectedIcon: PhosphorIconsFill.magnifyingGlass,
+                  tooltip: loc.zoomControls,
+                  selected: showZoom,
+                  onPressed: onToggleZoom,
+                ),
+                if (editable)
                   _DockButton(
                     key: const ValueKey('amaze-dock-all-tools'),
                     icon: PhosphorIconsLight.toolbox,
                     selectedIcon: PhosphorIconsFill.toolbox,
-                    tooltip: AppLocalizations.of(context).allTools,
+                    tooltip: loc.allTools,
                     selected: showAllTools,
                     onPressed: onToggleAllTools,
                   ),
-                ],
               ],
             ),
           ),

@@ -2,8 +2,10 @@ import 'package:material_ui/material_ui.dart';
 
 /// Visual tokens for the aMaze editor shell.
 ///
-/// Surfaces follow the active [ColorScheme], so the shell works with light,
-/// dark and custom themes; the teal accent is aMaze's own.
+/// Surfaces are opaque and come from the active [ColorScheme], so the shell
+/// follows light, dark and custom themes; the teal accent is aMaze's own.
+/// The tool wheel and tool bar sit inside [instrumentTheme], which gives
+/// them one dark, high-contrast look over any canvas.
 class AmazeStyle {
   const AmazeStyle._({
     required this.accent,
@@ -17,35 +19,46 @@ class AmazeStyle {
   });
 
   factory AmazeStyle.of(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    // A drawing instrument needs clear separation between its controls.
-    // Use an opaque, high-contrast local palette instead of translucent
-    // Material surfaces that blend into the page and competing toolbars.
+    final scheme = Theme.of(context).colorScheme;
+    final dark = scheme.brightness == Brightness.dark;
     return AmazeStyle._(
       accent: dark ? const Color(0xFF53D9BD) : const Color(0xFF117C72),
       onAccent: dark ? const Color(0xFF092C28) : const Color(0xFFFFFFFF),
-      surface: dark ? const Color(0xFF202C33) : const Color(0xFFFDFEFC),
-      surfaceVariant: dark ? const Color(0xFF34434A) : const Color(0xFFE9F1EE),
-      onSurface: dark ? const Color(0xFFF1F7F5) : const Color(0xFF1C3035),
-      muted: dark ? const Color(0xFFA8C2BF) : const Color(0xFF647B7A),
-      outline: dark ? const Color(0xFF52656D) : const Color(0xFFCDDDDA),
+      surface: scheme.surfaceContainerHigh,
+      surfaceVariant: scheme.surfaceContainerHighest,
+      onSurface: scheme.onSurface,
+      muted: scheme.onSurfaceVariant,
+      outline: scheme.outlineVariant,
       shadow: const Color(0xFF000000).withValues(alpha: dark ? 0.42 : 0.13),
     );
   }
 
-  /// Dark instrument housing for the radial wheel, independent from the
-  /// current document theme. Contrast stays stable over a bright canvas.
-  factory AmazeStyle.forWheel(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return AmazeStyle._(
-      accent: dark ? const Color(0xFF53D9BD) : const Color(0xFF58DCC3),
-      onAccent: const Color(0xFF102B2F),
-      surface: dark ? const Color(0xFF1C2A31) : const Color(0xFF23353B),
-      surfaceVariant: dark ? const Color(0xFF30454C) : const Color(0xFF344951),
+  /// Theme for the tool wheel, tool bar and their panels: a dark housing
+  /// that keeps its contrast over a bright canvas in every app theme.
+  static ThemeData instrumentTheme(BuildContext context) {
+    final base = Theme.of(context);
+    final seeded = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF117C72),
+      brightness: Brightness.dark,
+    );
+    final scheme = seeded.copyWith(
+      primary: const Color(0xFF53D9BD),
+      onPrimary: const Color(0xFF092C28),
+      surface: const Color(0xFF1C2A31),
+      surfaceContainerHigh: const Color(0xFF23353B),
+      surfaceContainerHighest: const Color(0xFF344951),
       onSurface: const Color(0xFFF4F8F6),
-      muted: const Color(0xFFB0C6C5),
-      outline: const Color(0xFF586F72),
-      shadow: const Color(0xFF000000),
+      onSurfaceVariant: const Color(0xFFB0C6C5),
+      outlineVariant: const Color(0xFF586F72),
+    );
+    final textTheme = base.textTheme.apply(
+      bodyColor: scheme.onSurface,
+      displayColor: scheme.onSurface,
+    );
+    return base.copyWith(
+      colorScheme: scheme,
+      textTheme: textTheme,
+      iconTheme: IconThemeData(color: scheme.onSurface),
     );
   }
 

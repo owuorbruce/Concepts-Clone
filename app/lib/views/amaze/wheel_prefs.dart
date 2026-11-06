@@ -64,3 +64,25 @@ Future<void> saveToolWheelLayout(ToolWheelLayout layout) async {
   await prefs.setDouble(_xKey, position.dx);
   await prefs.setDouble(_yKey, position.dy);
 }
+
+const _toolOptionsKey = 'amaze.shell.toolOptions';
+const _zoomKey = 'amaze.shell.zoom';
+
+/// Which optional editor panels the dock has turned on.
+typedef AmazePanels = ({bool toolOptions, bool zoom});
+
+/// Loads which optional panels are shown. Both start hidden.
+Future<AmazePanels> loadAmazePanels() async {
+  final prefs = await SharedPreferences.getInstance();
+  return (
+    toolOptions: prefs.getBool(_toolOptionsKey) ?? false,
+    zoom: prefs.getBool(_zoomKey) ?? false,
+  );
+}
+
+/// Saves which optional panels are shown.
+Future<void> saveAmazePanels(AmazePanels panels) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setBool(_toolOptionsKey, panels.toolOptions);
+  await prefs.setBool(_zoomKey, panels.zoom);
+}

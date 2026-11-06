@@ -21,6 +21,8 @@ import 'package:butterfly/views/app_bar.dart';
 import 'package:butterfly/views/edit.dart';
 import 'package:butterfly/views/main.dart';
 import 'package:butterfly/views/navigator/layers.dart';
+import 'package:butterfly/views/toolbar/view.dart';
+import 'package:butterfly/views/zoom.dart';
 import 'package:butterfly_api/butterfly_api.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -706,6 +708,56 @@ void main() {
     expect(find.byType(LayersView), findsOneWidget);
     expect(tester.takeException(), isNull);
     await capture(tester, 'portrait-layers');
+  });
+
+  testWidgets('the dock shows tool options and zoom and remembers them', (
+    tester,
+  ) async {
+    setScreen(tester, const Size(1280, 800));
+    await openEditor(tester);
+    expect(find.byType(ToolbarView), findsNothing);
+    expect(find.byType(ZoomView), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('amaze-dock-tool-options')));
+    await tester.pumpAndSettle();
+    expect(find.byType(ToolbarView), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('amaze-dock-zoom')));
+    await tester.pumpAndSettle();
+    expect(find.byType(ZoomView), findsOneWidget);
+    final saved = await tester.runAsync(() async {
+      final prefs = await SharedPreferences.getInstance();
+      return (
+        prefs.getBool('amaze.shell.toolOptions'),
+        prefs.getBool('amaze.shell.zoom'),
+      );
+    });
+    expect(saved, (true, true));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('saved panels come back in the next session', (tester) async {
+    SharedPreferences.setMockInitialValues({'amaze.shell.zoom': true});
+    setScreen(tester, const Size(1280, 800));
+    await openEditor(tester);
+
+    expect(find.byType(ZoomView), findsOneWidget);
+    expect(find.byType(ToolbarView), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the wheel and the tool bar share the instrument theme', (
+    tester,
+  ) async {
+    setScreen(tester, const Size(1280, 800));
+    await openEditor(tester);
+    Brightness brightnessOf(Finder finder) {
+      return Theme.of(tester.element(finder)).colorScheme.brightness;
+    }
+
+    expect(brightnessOf(find.byKey(_wheel)), Brightness.dark);
+    await dockWheel(tester);
+    expect(brightnessOf(find.byKey(_bar)), Brightness.dark);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('All tools shows the full tool bar', (tester) async {
