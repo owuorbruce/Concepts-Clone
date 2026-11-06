@@ -12,7 +12,7 @@ import 'style.dart';
 import 'tool_slots.dart';
 
 /// Width of the brush library sidebar.
-const kBrushLibraryWidth = 360.0;
+const kBrushLibraryWidth = 400.0;
 
 /// The brush library: picks the brush or tool of one wheel slot.
 ///
