@@ -14,7 +14,6 @@ import 'package:butterfly/main.dart';
 import 'package:butterfly/services/import.dart';
 import 'package:butterfly/services/network.dart';
 import 'package:butterfly/views/amaze/shell.dart';
-import 'package:butterfly/views/amaze/style.dart';
 import 'package:butterfly/views/edit.dart';
 import 'package:butterfly/visualizer/asset.dart';
 import 'package:butterfly/widgets/search.dart';
@@ -186,17 +185,12 @@ class PadAppBar extends StatelessWidget implements PreferredSizeWidget {
           return floating
               ? SizedBox.square(
                   dimension: 56,
-                  child: context.read<SettingsCubit>().state.usesAmazeShell
-                      ? AmazeSurface(
-                          radius: 20,
-                          child: Center(child: menu),
-                        )
-                      : Card(
-                          margin: EdgeInsets.zero,
-                          shape: _floatingTitleShape,
-                          elevation: 6,
-                          child: Center(child: menu),
-                        ),
+                  child: Card.filled(
+                    margin: EdgeInsets.zero,
+                    shape: _floatingTitleShape,
+                    elevation: 1,
+                    child: Center(child: menu),
+                  ),
                 )
               : menu;
         },
@@ -403,8 +397,12 @@ class _AppBarTitleState extends State<_AppBarTitle> {
                                 controller: widget.searchController,
                                 viewShape: _floatingTitleShape,
                                 isFullScreen: false,
-                                anchorBuilder: (context, searchButton) {
-                                  final title = Padding(
+                                anchorBuilder: (context, searchButton) =>
+                                    Card.filled(
+                                      margin: EdgeInsets.zero,
+                                      shape: _floatingTitleShape,
+                                      elevation: 1,
+                                  child: Padding(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 12,
                                       vertical: 2,
@@ -419,20 +417,8 @@ class _AppBarTitleState extends State<_AppBarTitle> {
                                       settings,
                                       searchButton: searchButton,
                                     ),
-                                  );
-                                  if (settings.usesAmazeShell) {
-                                    return AmazeSurface(
-                                      radius: 20,
-                                      child: title,
-                                    );
-                                  }
-                                  return Card(
-                                    margin: EdgeInsets.zero,
-                                    shape: _floatingTitleShape,
-                                    elevation: 6,
-                                    child: title,
-                                  );
-                                },
+                                  ),
+                                ),
                               )
                             : _buildAppBar(
                                 state,
