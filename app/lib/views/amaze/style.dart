@@ -41,9 +41,7 @@ class AmazeStyle {
       accent: dark ? const Color(0xFF53D9BD) : const Color(0xFF58DCC3),
       onAccent: const Color(0xFF102B2F),
       surface: dark ? const Color(0xFF1C2A31) : const Color(0xFF23353B),
-      surfaceVariant: dark
-          ? const Color(0xFF30454C)
-          : const Color(0xFF344951),
+      surfaceVariant: dark ? const Color(0xFF30454C) : const Color(0xFF344951),
       onSurface: const Color(0xFFF4F8F6),
       muted: const Color(0xFFB0C6C5),
       outline: const Color(0xFF586F72),
