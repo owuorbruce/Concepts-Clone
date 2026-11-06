@@ -229,6 +229,7 @@ void main() {
         LibraryEntry.wire,
         LibraryEntry.fill,
         LibraryEntry.lasso,
+        LibraryEntry.nudge,
         LibraryEntry.slice,
         LibraryEntry.text,
         LibraryEntry.pan,
