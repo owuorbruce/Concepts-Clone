@@ -3,9 +3,11 @@ import 'package:butterfly/views/edit.dart';
 import 'package:butterfly/views/toolbar/view.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'dock.dart';
 import 'tool_wheel.dart';
+import 'style.dart';
 
 /// Editor layout of aMaze.
 ///
@@ -51,6 +53,10 @@ class AmazeEditorLayout extends StatefulWidget {
 
 class _AmazeEditorLayoutState extends State<AmazeEditorLayout> {
   bool _showAllTools = false;
+  // The wheel is the primary drawing control. Legacy tool and zoom panels
+  // remain one tap away instead of consuming canvas space all the time.
+  bool _showAdvancedControls = false;
+  bool _showZoomControls = false;
 
   void _toggleAllTools() => setState(() => _showAllTools = !_showAllTools);
 
@@ -95,9 +101,22 @@ class _AmazeEditorLayoutState extends State<AmazeEditorLayout> {
               Expanded(
                 child: Column(
                   children: [
-                    if (chrome) const ToolbarView(),
+                    if (chrome && _showAdvancedControls)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 56),
+                        child: ToolbarView(),
+                      ),
                     Expanded(
-                      child: Stack(children: [widget.zoom, widget.property]),
+                      child: Stack(
+                        children: [
+                          if (_showZoomControls || !chrome)
+                            Padding(
+                              padding: EdgeInsets.only(top: 56),
+                              child: widget.zoom,
+                            ),
+                          widget.property,
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -105,6 +124,49 @@ class _AmazeEditorLayoutState extends State<AmazeEditorLayout> {
             ],
           ),
         ),
+        if (chrome)
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8, right: 12),
+                child: AmazeSurface(
+                  radius: 18,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        key: const ValueKey('amaze-advanced-controls-toggle'),
+                        tooltip: 'Advanced tool controls',
+                        color: _showAdvancedControls
+                            ? AmazeStyle.of(context).accent
+                            : AmazeStyle.of(context).onSurface,
+                        icon: const PhosphorIcon(
+                          PhosphorIconsLight.slidersHorizontal,
+                        ),
+                        onPressed: () => setState(
+                          () => _showAdvancedControls = !_showAdvancedControls,
+                        ),
+                      ),
+                      IconButton(
+                        key: const ValueKey('amaze-zoom-toggle'),
+                        tooltip: 'Zoom controls',
+                        color: _showZoomControls
+                            ? AmazeStyle.of(context).accent
+                            : AmazeStyle.of(context).onSurface,
+                        icon: const PhosphorIcon(
+                          PhosphorIconsLight.magnifyingGlass,
+                        ),
+                        onPressed: () => setState(
+                          () => _showZoomControls = !_showZoomControls,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         if (tools)
           const SafeArea(
             child: Padding(
