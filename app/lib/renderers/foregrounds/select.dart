@@ -44,6 +44,38 @@ class LassoSelectionForegroundRenderer extends Renderer<List<Offset>> {
   }
 }
 
+/// An open, unfilled preview of the pending Slice gesture.
+class SliceForegroundRenderer extends Renderer<List<Offset>> {
+  final ColorScheme scheme;
+  SliceForegroundRenderer(super.element, this.scheme);
+
+  @override
+  void build(
+    Canvas canvas,
+    Size size,
+    NoteData document,
+    DocumentPage page,
+    DocumentInfo info,
+    CameraTransform transform, [
+    ColorScheme? colorScheme,
+    bool foreground = false,
+  ]) {
+    if (element.length < 2) return;
+    final path = Path()..moveTo(element.first.dx, element.first.dy);
+    for (final point in element.skip(1)) {
+      path.lineTo(point.dx, point.dy);
+    }
+    final paint = Paint()
+      ..color = scheme.primaryContainer
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2 / transform.size
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..isAntiAlias = true;
+    canvas.drawPath(path, paint);
+  }
+}
+
 typedef TransformResult = ({
   Offset position,
   double rotation,
