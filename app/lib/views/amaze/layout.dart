@@ -129,7 +129,7 @@ class _AmazeEditorLayoutState extends State<AmazeEditorLayout> {
             child: Align(
               alignment: Alignment.topRight,
               child: Padding(
-                padding: const EdgeInsets.only(top: 8, right: 12),
+                padding: const EdgeInsets.only(top: 88, right: 12),
                 child: AmazeSurface(
                   radius: 18,
                   child: Row(
