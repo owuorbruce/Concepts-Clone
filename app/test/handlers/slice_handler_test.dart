@@ -9,10 +9,10 @@ void main() {
   group('slice geometry', () {
     test('one crossing shares an exact point and interpolates pressure', () {
       const points = [PathPoint(0, 0, 0.2), PathPoint(100, 0, 0.8)];
-      final pieces = splitPenPointsAtCut(
-        points,
-        [const Offset(50, -10), const Offset(50, 10)],
-      )!;
+      final pieces = splitPenPointsAtCut(points, [
+        const Offset(50, -10),
+        const Offset(50, 10),
+      ])!;
 
       expect(pieces, hasLength(2));
       expect(pieces.map((piece) => piece.length), [2, 2]);
@@ -25,20 +25,13 @@ void main() {
     });
 
     test('two crossings across two stroke segments make three pieces', () {
-      const points = [
-        PathPoint(0, 0),
-        PathPoint(50, 0),
-        PathPoint(100, 0),
-      ];
-      final pieces = splitPenPointsAtCut(
-        points,
-        [
-          const Offset(25, -10),
-          const Offset(25, 10),
-          const Offset(75, 10),
-          const Offset(75, -10),
-        ],
-      )!;
+      const points = [PathPoint(0, 0), PathPoint(50, 0), PathPoint(100, 0)];
+      final pieces = splitPenPointsAtCut(points, [
+        const Offset(25, -10),
+        const Offset(25, 10),
+        const Offset(75, 10),
+        const Offset(75, -10),
+      ])!;
 
       expect(pieces, hasLength(3));
       expect(pieces.first.last.x, closeTo(25, 1e-10));
@@ -49,51 +42,38 @@ void main() {
 
     test('two cut segments crossing one stroke segment stay ordered', () {
       const points = [PathPoint(0, 0), PathPoint(100, 0)];
-      final pieces = splitPenPointsAtCut(
-        points,
-        [
-          const Offset(75, -10),
-          const Offset(75, 10),
-          const Offset(25, 10),
-          const Offset(25, -10),
-        ],
-      )!;
+      final pieces = splitPenPointsAtCut(points, [
+        const Offset(75, -10),
+        const Offset(75, 10),
+        const Offset(25, 10),
+        const Offset(25, -10),
+      ])!;
 
-      expect(
-        pieces.map((piece) => piece.map((point) => point.x).toList()),
-        [
-          [0, 25],
-          [25, 75],
-          [75, 100],
-        ],
-      );
+      expect(pieces.map((piece) => piece.map((point) => point.x).toList()), [
+        [0, 25],
+        [25, 75],
+        [75, 100],
+      ]);
     });
 
     test('cut segments sharing a crossing do not duplicate the split', () {
       const points = [PathPoint(0, 0), PathPoint(100, 0)];
-      final pieces = splitPenPointsAtCut(
-        points,
-        [
-          const Offset(50, -10),
-          const Offset(50, 0),
-          const Offset(50, 10),
-        ],
-      )!;
+      final pieces = splitPenPointsAtCut(points, [
+        const Offset(50, -10),
+        const Offset(50, 0),
+        const Offset(50, 10),
+      ])!;
 
       expect(pieces, hasLength(2));
       expect(pieces.first.last, same(pieces.last.first));
     });
 
     test('a cut at an internal stroke vertex produces two valid pieces', () {
-      const points = [
-        PathPoint(0, 0),
-        PathPoint(50, 0),
-        PathPoint(100, 0),
-      ];
-      final pieces = splitPenPointsAtCut(
-        points,
-        [const Offset(50, -10), const Offset(50, 10)],
-      )!;
+      const points = [PathPoint(0, 0), PathPoint(50, 0), PathPoint(100, 0)];
+      final pieces = splitPenPointsAtCut(points, [
+        const Offset(50, -10),
+        const Offset(50, 10),
+      ])!;
 
       expect(pieces, hasLength(2));
       expect(pieces.first, hasLength(2));
@@ -115,17 +95,17 @@ void main() {
     test('touching only the first or last stroke endpoint does nothing', () {
       const points = [PathPoint(0, 0), PathPoint(100, 0)];
       expect(
-        splitPenPointsAtCut(
-          points,
-          [const Offset(0, -10), const Offset(0, 10)],
-        ),
+        splitPenPointsAtCut(points, [
+          const Offset(0, -10),
+          const Offset(0, 10),
+        ]),
         isNull,
       );
       expect(
-        splitPenPointsAtCut(
-          points,
-          [const Offset(100, -10), const Offset(100, 10)],
-        ),
+        splitPenPointsAtCut(points, [
+          const Offset(100, -10),
+          const Offset(100, 10),
+        ]),
         isNull,
       );
     });
@@ -138,17 +118,14 @@ void main() {
       expect(splitPenPointsAtCut(points, []), isNull);
       expect(splitPenPointsAtCut(points, [Offset.zero]), isNull);
       expect(
-        splitPenPointsAtCut(
-          [const PathPoint(double.nan, 0), points.last],
-          cut,
-        ),
+        splitPenPointsAtCut([const PathPoint(double.nan, 0), points.last], cut),
         isNull,
       );
       expect(
-        splitPenPointsAtCut(
-          points,
-          [const Offset(double.infinity, 0), cut.last],
-        ),
+        splitPenPointsAtCut(points, [
+          const Offset(double.infinity, 0),
+          cut.last,
+        ]),
         isNull,
       );
     });
@@ -163,9 +140,6 @@ void main() {
   });
 
   test('the library makes the Slice display icon', () {
-    expect(
-      LibraryEntry.slice.createTool()!.displayIcon,
-      kSliceDisplayIcon,
-    );
+    expect(LibraryEntry.slice.createTool()!.displayIcon, kSliceDisplayIcon);
   });
 }

@@ -315,8 +315,9 @@ abstract class Handler<T> {
       RedoTool() => RedoHandler(tool),
       LabelTool() => LabelHandler(tool),
       PenTool() => PenHandler(tool),
-      EraserTool() when tool.displayIcon == kSliceDisplayIcon =>
-        SliceHandler(tool),
+      EraserTool() when tool.displayIcon == kSliceDisplayIcon => SliceHandler(
+        tool,
+      ),
       EraserTool() => EraserHandler(tool),
       CollectionTool() => CollectionHandler(tool),
       AreaTool() => AreaHandler(tool),

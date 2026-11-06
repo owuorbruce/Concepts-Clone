@@ -14,9 +14,7 @@ List<List<PathPoint>>? splitPenPointsAtCut(
   if (points.length < 2 || cut.length < 2) return null;
   if (points.any(
         (point) =>
-            !point.x.isFinite ||
-            !point.y.isFinite ||
-            !point.pressure.isFinite,
+            !point.x.isFinite || !point.y.isFinite || !point.pressure.isFinite,
       ) ||
       cut.any((point) => !point.dx.isFinite || !point.dy.isFinite)) {
     return null;
@@ -36,8 +34,7 @@ List<List<PathPoint>>? splitPenPointsAtCut(
     for (var j = 1; j < cut.length; j++) {
       final cutStart = cut[j - 1];
       final direction = cut[j] - cutStart;
-      final denominator =
-          stroke.dx * direction.dy - stroke.dy * direction.dx;
+      final denominator = stroke.dx * direction.dy - stroke.dy * direction.dx;
       if (denominator == 0) continue; // Parallel or collinear.
 
       final delta = cutStart - origin;
@@ -139,9 +136,7 @@ class SliceHandler extends Handler<EraserTool> {
 
   @override
   void onPointerMove(PointerMoveEvent event, EventContext context) {
-    if (_disposed ||
-        _gesture.cancelled ||
-        event.pointer != _gesture.pointer) {
+    if (_disposed || _gesture.cancelled || event.pointer != _gesture.pointer) {
       return;
     }
     _record(event.localPosition, context);
@@ -160,19 +155,12 @@ class SliceHandler extends Handler<EraserTool> {
       editorController.settingsCubit.state.design,
       false,
     ).colorScheme;
-    return [
-      SliceForegroundRenderer(List<Offset>.of(_gesture.cut), scheme),
-    ];
+    return [SliceForegroundRenderer(List<Offset>.of(_gesture.cut), scheme)];
   }
 
   @override
-  Future<void> onPointerUp(
-    PointerUpEvent event,
-    EventContext context,
-  ) async {
-    if (_disposed ||
-        _gesture.cancelled ||
-        event.pointer != _gesture.pointer) {
+  Future<void> onPointerUp(PointerUpEvent event, EventContext context) async {
+    if (_disposed || _gesture.cancelled || event.pointer != _gesture.pointer) {
       return;
     }
     final gesture = _gesture;
@@ -221,10 +209,7 @@ class SliceHandler extends Handler<EraserTool> {
       }
       if (changes.isNotEmpty && !gesture.cancelled && !_disposed) {
         bloc.add(
-          ElementsChanged(
-            changes,
-            pageName: context.getState()?.pageName,
-          ),
+          ElementsChanged(changes, pageName: context.getState()?.pageName),
         );
       }
     } finally {
