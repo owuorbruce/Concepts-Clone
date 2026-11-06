@@ -62,11 +62,7 @@ Widget _cell(String label, Widget icon, Color color) {
         const SizedBox(height: 4),
         Text(
           label,
-          style: TextStyle(
-            fontFamily: 'Comfortaa',
-            fontSize: 11,
-            color: color,
-          ),
+          style: TextStyle(fontFamily: 'Comfortaa', fontSize: 11, color: color),
         ),
       ],
     ),

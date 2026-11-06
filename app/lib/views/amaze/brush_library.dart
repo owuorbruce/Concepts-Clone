@@ -360,13 +360,9 @@ class _LibraryTile extends StatelessWidget {
         child: AmazeBrushPreview(glyph, color: foreground),
       );
     } else if (glyph != null) {
-      icon = Center(
-        child: AmazeGlyphIcon(glyph, size: 34, color: foreground),
-      );
+      icon = Center(child: AmazeGlyphIcon(glyph, size: 34, color: foreground));
     } else {
-      icon = Center(
-        child: AmazeIcon(entry.icon, size: 30, color: foreground),
-      );
+      icon = Center(child: AmazeIcon(entry.icon, size: 30, color: foreground));
     }
     final tile = Material(
       key: ValueKey(('amaze-library-item', entry.name)),
