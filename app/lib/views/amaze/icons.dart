@@ -155,11 +155,7 @@ class AmazeIcon extends StatelessWidget {
         size: size,
         color: color,
       ),
-      GlyphAmazeIcon() => AmazeGlyphIcon(
-        data.glyph,
-        size: size,
-        color: color,
-      ),
+      GlyphAmazeIcon() => AmazeGlyphIcon(data.glyph, size: size, color: color),
     };
   }
 }
@@ -393,7 +389,9 @@ class _LineArtist {
   void _opacity() {
     const center = Offset(12, 12);
     canvas.save();
-    canvas.clipPath(Path()..addOval(Rect.fromCircle(center: center, radius: 8)));
+    canvas.clipPath(
+      Path()..addOval(Rect.fromCircle(center: center, radius: 8)),
+    );
     canvas.drawRect(const Rect.fromLTWH(4, 4, 8, 16), _fill);
     final faint = _fill..color = color.withValues(alpha: 0.25);
     canvas.drawRect(const Rect.fromLTWH(12, 4, 8, 16), faint);
@@ -660,11 +658,7 @@ class _BrushArtist {
     final step = u * 3.2;
     final reach = box.height;
     for (var x = box.left - reach; x < box.right; x += step) {
-      canvas.drawLine(
-        Offset(x, box.bottom),
-        Offset(x + reach, box.top),
-        paint,
-      );
+      canvas.drawLine(Offset(x, box.bottom), Offset(x + reach, box.top), paint);
     }
     for (var x = box.left; x < box.right + reach; x += step * 1.6) {
       canvas.drawLine(Offset(x, box.bottom), Offset(x - reach, box.top), paint);

@@ -474,7 +474,10 @@ void main() {
     final name = tester.widget<Text>(
       find.byKey(const ValueKey('amaze-library-name')),
     );
-    expect(name.data, slotTool(pen).getDisplay(tester.element(find.byKey(_library))));
+    expect(
+      name.data,
+      slotTool(pen).getDisplay(tester.element(find.byKey(_library))),
+    );
     await capture(tester, 'library-brushes');
 
     await tester.tap(find.byKey(const ValueKey('amaze-library-close')));

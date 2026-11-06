@@ -1,7 +1,6 @@
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly/visualizer/tool.dart';
 import 'package:butterfly_api/butterfly_api.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'icons.dart';
@@ -123,7 +122,10 @@ enum LibraryEntry {
   Tool? createTool({String name = ''}) {
     final tool = _build();
     if (tool == null) return null;
-    return tool.copyWith(name: name, displayIcon: '$kLibraryIconPrefix${this.name}');
+    return tool.copyWith(
+      name: name,
+      displayIcon: '$kLibraryIconPrefix${this.name}',
+    );
   }
 
   Tool? _build() {
@@ -153,7 +155,9 @@ enum LibraryEntry {
 LibraryEntry? libraryEntryOf(Tool tool) {
   final displayIcon = tool.displayIcon;
   if (displayIcon.startsWith(kLibraryIconPrefix)) {
-    return LibraryEntry.byName(displayIcon.substring(kLibraryIconPrefix.length));
+    return LibraryEntry.byName(
+      displayIcon.substring(kLibraryIconPrefix.length),
+    );
   }
   if (displayIcon.isNotEmpty) return null;
   return switch (tool) {

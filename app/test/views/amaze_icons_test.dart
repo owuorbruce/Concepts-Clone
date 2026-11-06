@@ -8,6 +8,7 @@ import 'package:butterfly_api/butterfly_api.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_leap/material_leap.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -267,7 +268,10 @@ void main() {
         ),
       );
       final synced = syncLibraryFill(red) as PenTool;
-      expect(synced.property.fillPaint.previewColor, const SRGBColor(0xFFFF0000));
+      expect(
+        synced.property.fillPaint.previewColor,
+        const SRGBColor(0xFFFF0000),
+      );
       final pen = Tool.pen();
       expect(syncLibraryFill(pen), same(pen));
     });
