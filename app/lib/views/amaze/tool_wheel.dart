@@ -383,6 +383,8 @@ class _HistoryButton extends StatelessWidget {
       style: IconButton.styleFrom(
         backgroundColor: style.surfaceVariant,
         foregroundColor: style.onSurface,
+        disabledForegroundColor: style.muted,
+        disabledBackgroundColor: style.surfaceVariant,
         fixedSize: Size.square(size),
         minimumSize: Size.square(size),
         padding: EdgeInsets.zero,
