@@ -11,9 +11,9 @@ const kClassicEditorFlag = 'classicEditor';
 
 /// Whether the aMaze shell is used when neither flag is set.
 ///
-/// aMaze is Android-first, so the shell is the default there. Other
-/// platforms opt in with [kAmazeShellFlag].
-bool get amazeShellIsDefault => !kIsWeb && Platform.isAndroid;
+/// aMaze is Android-first, so the shell is the default there and on the web
+/// preview. Other platforms opt in with [kAmazeShellFlag].
+bool get amazeShellIsDefault => kIsWeb || Platform.isAndroid;
 
 extension AmazeShellSettings on ButterflySettings {
   /// Whether the editor should use the aMaze shell.
