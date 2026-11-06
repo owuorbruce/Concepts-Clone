@@ -14,6 +14,7 @@ import 'package:butterfly/services/font.dart';
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly/theme.dart';
 import 'package:butterfly/views/amaze/dock.dart';
+import 'package:butterfly/views/amaze/library.dart';
 import 'package:butterfly/views/amaze/shell.dart';
 import 'package:butterfly/views/amaze/tool_slots.dart';
 import 'package:butterfly/views/amaze/tool_wheel.dart';
@@ -23,6 +24,7 @@ import 'package:butterfly/views/main.dart';
 import 'package:butterfly/views/navigator/layers.dart';
 import 'package:butterfly/views/toolbar/view.dart';
 import 'package:butterfly/views/zoom.dart';
+import 'package:butterfly/visualizer/tool.dart';
 import 'package:butterfly_api/butterfly_api.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -44,6 +46,7 @@ const _bar = ValueKey('amaze-tool-bar');
 const _color = ValueKey('amaze-color');
 const _puck = ValueKey('amaze-tool-wheel-puck');
 const _layers = ValueKey(('amaze-dock', 'layers'));
+const _library = ValueKey('amaze-brush-library');
 const _amaze = ButterflySettings(
   defaultTemplate: 'default',
   flags: [kAmazeShellFlag],
@@ -301,6 +304,10 @@ void main() {
 
   Finder slotButton(int slot) => find.byKey(ValueKey(('amaze-slot', slot)));
 
+  Finder libraryItem(LibraryEntry entry) {
+    return find.byKey(ValueKey(('amaze-library-item', entry.name)));
+  }
+
   Future<void> selectSlot(
     WidgetTester tester,
     EditorController editor,
@@ -425,49 +432,226 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('an empty slot is assigned from the catalog', (tester) async {
+  testWidgets('an empty slot opens the brush library', (tester) async {
     setScreen(tester, const Size(1280, 800));
-    await openEditor(tester);
+    final editor = await openEditor(tester);
     final empty = slotToolIndices(documentTools()).length;
-    final laser = slotToolCatalog().indexWhere((tool) => tool is LaserTool);
 
     await tester.tap(slotButton(empty));
     await tester.pumpAndSettle();
-    await capture(tester, 'slot-catalog');
-    await tester.tap(find.byKey(ValueKey(('amaze-catalog', laser))));
+    expect(find.byKey(_library), findsOneWidget);
+    expect(find.byKey(const ValueKey('amaze-library-slot-menu')), findsNothing);
+    await tester.tap(libraryItem(LibraryEntry.wire));
     await pumpUntil(
       tester,
       () => slotToolIndices(documentTools()).length == empty + 1,
       'slot assigned',
     );
-    expect(slotTool(empty), isA<LaserTool>());
+    final wire = slotTool(empty) as PenTool;
+    expect(wire.zoomDependent, isTrue);
+    expect(wire.property.thinning, 0);
+    expect(libraryEntryOf(wire), LibraryEntry.wire);
+    await tester.pumpAndSettle();
+    expect(editor.toolCubit.state.handler.data, isA<PenTool>());
     expect(tester.takeException(), isNull);
     await tester.pump(const Duration(minutes: 1));
   });
 
-  testWidgets('a slot menu replaces and moves tools', (tester) async {
+  testWidgets('long press opens the library, tap still activates', (
+    tester,
+  ) async {
+    setScreen(tester, const Size(1280, 800));
+    final editor = await openEditor(tester);
+    final hand = slotOf<HandTool>();
+
+    await selectSlot(tester, editor, hand);
+    expect(find.byKey(_library), findsNothing);
+    final pen = slotOf<PenTool>();
+    await tester.longPress(slotButton(pen));
+    await tester.pumpAndSettle();
+    expect(find.byKey(_library), findsOneWidget);
+    expect(editor.toolCubit.state.handler.data, isA<HandTool>());
+    final name = tester.widget<Text>(
+      find.byKey(const ValueKey('amaze-library-name')),
+    );
+    expect(name.data, slotTool(pen).getDisplay(tester.element(find.byKey(_library))));
+    await capture(tester, 'library-brushes');
+
+    await tester.tap(find.byKey(const ValueKey('amaze-library-close')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(_library), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('picking a brush replaces the slot and activates it', (
+    tester,
+  ) async {
+    setScreen(tester, const Size(1280, 800));
+    final editor = await openEditor(tester);
+    final eraser = slotOf<EraserTool>();
+    final eraserId = slotTool(eraser).id;
+    final index = slotToolIndices(documentTools())[eraser];
+
+    await tester.longPress(slotButton(eraser));
+    await tester.pumpAndSettle();
+    await tester.tap(libraryItem(LibraryEntry.dynamicPen));
+    await pumpUntil(tester, () => slotTool(eraser) is PenTool, 'replaced');
+    await pumpUntil(
+      tester,
+      () => editor.toolCubit.state.index == index,
+      'activated',
+    );
+    final tool = slotTool(eraser) as PenTool;
+    expect(tool.id, eraserId);
+    expect(tool.property.thinning, 0.8);
+    expect(libraryEntryOf(tool), LibraryEntry.dynamicPen);
+    expect(editor.toolCubit.state.handler.data, isA<PenTool>());
+
+    await tester.tap(libraryItem(LibraryEntry.fill));
+    await pumpUntil(
+      tester,
+      () => libraryEntryOf(slotTool(eraser)) == LibraryEntry.fill,
+      'fill',
+    );
+    final fill = slotTool(eraser) as PenTool;
+    expect(fill.property.fillPaint.previewColor.a, greaterThan(0));
+    expect(
+      fill.property.fillPaint.previewColor,
+      fill.property.paint.previewColor,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(minutes: 1));
+  });
+
+  testWidgets('unavailable library items cannot be picked', (tester) async {
+    setScreen(tester, const Size(1280, 800));
+    await openEditor(tester);
+    final pen = slotOf<PenTool>();
+    final before = slotTool(pen);
+
+    await tester.longPress(slotButton(pen));
+    await tester.pumpAndSettle();
+    for (final entry in LibraryEntry.values) {
+      if (entry.section == LibrarySection.market) continue;
+      await tester.ensureVisible(libraryItem(entry));
+      expect(libraryItem(entry), findsOneWidget);
+    }
+    await tester.ensureVisible(libraryItem(LibraryEntry.watercolor));
+    await tester.pumpAndSettle();
+    await tester.tap(libraryItem(LibraryEntry.watercolor), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(slotTool(pen), same(before));
+    await tester.ensureVisible(libraryItem(LibraryEntry.lasso));
+    await tester.pumpAndSettle();
+    await capture(tester, 'library-tools');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the brush market expands', (tester) async {
+    setScreen(tester, const Size(1280, 800));
+    await openEditor(tester);
+
+    await tester.longPress(slotButton(0));
+    await tester.pumpAndSettle();
+    expect(libraryItem(LibraryEntry.inkBlot), findsNothing);
+    final market = find.byKey(const ValueKey('amaze-library-market'));
+    await tester.ensureVisible(market);
+    await tester.pumpAndSettle();
+    await tester.tap(market);
+    await tester.pumpAndSettle();
+    final last = libraryItem(LibraryEntry.inkBlot);
+    await tester.ensureVisible(last);
+    await tester.pumpAndSettle();
+    for (final entry in LibraryEntry.of(LibrarySection.market)) {
+      expect(libraryItem(entry), findsOneWidget);
+      expect(entry.available, isFalse);
+    }
+    await capture(tester, 'library-market');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the library offers the slot menu to replace and move tools', (
+    tester,
+  ) async {
     setScreen(tester, const Size(1280, 800));
     await openEditor(tester);
     final eraser = slotOf<EraserTool>();
     final eraserId = slotTool(eraser).id;
     final label = slotToolCatalog().indexWhere((tool) => tool is LabelTool);
+    final slotMenu = find.byKey(const ValueKey('amaze-library-slot-menu'));
 
     await tester.longPress(slotButton(eraser));
+    await tester.pumpAndSettle();
+    await tester.tap(slotMenu);
     await tester.pumpAndSettle();
     await capture(tester, 'slot-menu');
     await tester.tap(find.byKey(const ValueKey('amaze-slot-replace')));
     await tester.pumpAndSettle();
+    await capture(tester, 'slot-catalog');
     await tester.tap(find.byKey(ValueKey(('amaze-catalog', label))));
     await pumpUntil(tester, () => slotTool(eraser) is LabelTool, 'replaced');
     expect(slotTool(eraser).id, eraserId);
+    await tester.pumpAndSettle();
 
     final first = slotTool(0).id;
     await tester.longPress(slotButton(0));
+    await tester.pumpAndSettle();
+    await tester.tap(slotMenu);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('amaze-slot-later')));
     await pumpUntil(tester, () => slotTool(1).id == first, 'moved');
     expect(tester.takeException(), isNull);
     await tester.pump(const Duration(minutes: 1));
+  });
+
+  testWidgets('the tool bar opens the library too', (tester) async {
+    setScreen(tester, const Size(800, 1280));
+    await openEditor(tester);
+    await dockWheel(tester);
+    expect(find.byKey(_bar), findsOneWidget);
+    await capture(tester, 'toolbar-icons');
+
+    await tester.longPress(slotButton(0));
+    await tester.pumpAndSettle();
+    expect(find.byKey(_library), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('library assignments are stored with the document', (
+    tester,
+  ) async {
+    setScreen(tester, const Size(1280, 800));
+    await openEditor(tester);
+    final pen = slotOf<PenTool>();
+
+    await tester.longPress(slotButton(pen));
+    await tester.pumpAndSettle();
+    await tester.tap(libraryItem(LibraryEntry.fixedWidth));
+    await pumpUntil(
+      tester,
+      () => libraryEntryOf(slotTool(pen)) == LibraryEntry.fixedWidth,
+      'fixed width',
+    );
+    // Tools are stored in the document, so a JSON round trip is what the
+    // next session reads back.
+    final reopened = documentTools().map((tool) {
+      final json = jsonDecode(jsonEncode(tool.toJson()));
+      return Tool.fromJson(json as Map<String, dynamic>);
+    }).toList();
+    final slot = reopened[slotToolIndices(reopened)[pen]];
+    expect(libraryEntryOf(slot), LibraryEntry.fixedWidth);
+    expect((slot as PenTool).property.thinning, 0);
+    expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(minutes: 1));
+  });
+
+  testWidgets('dark library', (tester) async {
+    setScreen(tester, const Size(1280, 800));
+    await openEditor(tester, dark: true);
+    await tester.longPress(slotButton(0));
+    await tester.pumpAndSettle();
+    await capture(tester, 'library-dark');
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('middle ring adjustments change the active pen', (tester) async {

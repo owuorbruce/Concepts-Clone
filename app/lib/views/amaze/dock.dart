@@ -5,8 +5,8 @@ import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly/views/navigator/view.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import 'icons.dart';
 import 'style.dart';
 
 /// Vertical dock on the edge of the aMaze editor.
@@ -69,8 +69,7 @@ class AmazeDock extends StatelessWidget {
                 for (final page in pages)
                   _DockButton(
                     key: ValueKey(('amaze-dock', page.name)),
-                    icon: page.icon(),
-                    selectedIcon: page.icon(filled: true),
+                    icon: _pageIcon(page),
                     tooltip: page.getLocalizedName(context),
                     selected: open && viewState.navigatorPage == page,
                     onPressed: () => _openPage(context, page, viewState),
@@ -79,16 +78,14 @@ class AmazeDock extends StatelessWidget {
                 if (editable)
                   _DockButton(
                     key: const ValueKey('amaze-dock-tool-options'),
-                    icon: PhosphorIconsLight.slidersHorizontal,
-                    selectedIcon: PhosphorIconsFill.slidersHorizontal,
+                    icon: AmazeIcons.toolOptions,
                     tooltip: loc.toolOptions,
                     selected: showToolOptions,
                     onPressed: onToggleToolOptions,
                   ),
                 _DockButton(
                   key: const ValueKey('amaze-dock-zoom'),
-                  icon: PhosphorIconsLight.magnifyingGlass,
-                  selectedIcon: PhosphorIconsFill.magnifyingGlass,
+                  icon: AmazeIcons.zoom,
                   tooltip: loc.zoomControls,
                   selected: showZoom,
                   onPressed: onToggleZoom,
@@ -96,8 +93,7 @@ class AmazeDock extends StatelessWidget {
                 if (editable)
                   _DockButton(
                     key: const ValueKey('amaze-dock-all-tools'),
-                    icon: PhosphorIconsLight.toolbox,
-                    selectedIcon: PhosphorIconsFill.toolbox,
+                    icon: AmazeIcons.toolCatalog,
                     tooltip: loc.allTools,
                     selected: showAllTools,
                     onPressed: onToggleAllTools,
@@ -125,6 +121,11 @@ class AmazeDock extends StatelessWidget {
     cubit.setNavigator(page: page);
     showAmazeNavigatorDialog(context);
   }
+}
+
+AmazeIconData _pageIcon(NavigatorPage page) {
+  if (page == NavigatorPage.layers) return AmazeIcons.layers;
+  return PhosphorAmazeIcon(page.icon(), page.icon(filled: true));
 }
 
 /// Opens the document navigator as a dialog with the editor's state.
@@ -177,14 +178,12 @@ class _DockButton extends StatelessWidget {
   const _DockButton({
     super.key,
     required this.icon,
-    required this.selectedIcon,
     required this.tooltip,
     required this.selected,
     required this.onPressed,
   });
 
-  final PhosphorIconData icon;
-  final PhosphorIconData selectedIcon;
+  final AmazeIconData icon;
   final String tooltip;
   final bool selected;
   final VoidCallback onPressed;
@@ -200,8 +199,8 @@ class _DockButton extends StatelessWidget {
         foregroundColor: style.onSurface,
         backgroundColor: selected ? style.accent : null,
       ),
-      selectedIcon: PhosphorIcon(selectedIcon, color: style.onAccent),
-      icon: PhosphorIcon(icon),
+      selectedIcon: AmazeIcon(icon, filled: true, color: style.onAccent),
+      icon: AmazeIcon(icon),
     );
   }
 }

@@ -13,6 +13,9 @@ import 'package:material_leap/material_leap.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import 'brush_library.dart';
+import 'icons.dart';
+import 'library.dart';
 import 'slot_menu.dart';
 import 'style.dart';
 import 'tool_slots.dart';
@@ -113,11 +116,11 @@ String _adjustmentName(AppLocalizations loc, ToolAdjustment adjustment) {
   };
 }
 
-PhosphorIconData _adjustmentIcon(ToolAdjustment adjustment) {
+AmazeIconData _adjustmentIcon(ToolAdjustment adjustment) {
   return switch (adjustment) {
-    ToolAdjustment.size => PhosphorIconsLight.arrowsOutSimple,
-    ToolAdjustment.opacity => PhosphorIconsLight.drop,
-    ToolAdjustment.smoothing => PhosphorIconsLight.path,
+    ToolAdjustment.size => AmazeIcons.size,
+    ToolAdjustment.opacity => AmazeIcons.opacity,
+    ToolAdjustment.smoothing => AmazeIcons.smoothing,
   };
 }
 
@@ -139,36 +142,63 @@ Future<void> _onSlotTap(BuildContext context, int slot) async {
   cubit.changeSelection(state.info.tools[index], true);
 }
 
-/// Puts a tool chosen from the catalog into [slot], replacing the tool that
-/// is there. The replacement keeps the slot's tool id.
+/// Puts a tool chosen from the catalog into [slot].
 Future<void> _assignSlot(BuildContext context, int slot) async {
+  final picked = await showToolSlotCatalog(context);
+  if (picked == null || !context.mounted) return;
+  await _putToolInSlot(context, slot, picked);
+}
+
+/// Puts the tool of a brush library [entry] into [slot]. Unavailable
+/// entries are ignored.
+Future<void> _putLibraryEntryInSlot(
+  BuildContext context,
+  int slot,
+  LibraryEntry entry,
+) async {
+  final name = entry.getLocalizedName(AppLocalizations.of(context));
+  final tool = entry.createTool(name: name);
+  if (tool == null) return;
+  await _putToolInSlot(context, slot, tool);
+}
+
+/// Puts [tool] into [slot] and activates it. A replacement keeps the id of
+/// the slot's tool, so its place on the wheel stays the same.
+Future<void> _putToolInSlot(BuildContext context, int slot, Tool tool) async {
   final bloc = context.read<DocumentBloc>();
   final controller = context.read<EditorController>();
-  final picked = await showToolSlotCatalog(context);
+  final cubit = controller.toolCubit;
   final state = bloc.state;
-  if (picked == null || state is! DocumentLoadSuccess) return;
+  if (state is! DocumentLoadSuccess) return;
   final background = state.page.backgrounds.firstOrNull?.defaultColor;
-  final tool = updateToolDefaultColor(picked, background ?? SRGBColor.white);
+  final colored = updateToolDefaultColor(tool, background ?? SRGBColor.white);
+  final prepared = syncLibraryFill(colored);
   final tools = state.info.tools;
   final indices = slotToolIndices(tools);
+  final Tool placed;
+  final int index;
   if (slot < indices.length) {
-    bloc.add(ToolsChanged([tool.copyWith(id: tools[indices[slot]].id)]));
-    return;
+    index = indices[slot];
+    placed = prepared.copyWith(id: tools[index].id);
+    bloc.add(ToolsChanged([placed]));
+  } else {
+    index = tools.length;
+    placed = prepared.copyWith(id: createUniqueId());
+    bloc.add(ToolCreated(placed));
   }
-  final created = tool.copyWith(id: createUniqueId());
-  bloc.add(ToolCreated(created));
-  if (created.isAction()) return;
-  if (!context.mounted) return;
-  await controller.toolCubit.changeTool(
+  if (placed.isAction()) return;
+  cubit.resetSelection();
+  await cubit.changeTool(
     controller,
     bloc,
-    index: tools.length,
+    index: index,
     context: context,
-    handler: Handler.fromTool(created),
+    handler: Handler.fromTool(placed),
   );
 }
 
-Future<void> _onSlotLongPress(BuildContext context, int slot) async {
+/// Opens the menu of [slot]: settings, replace, move and remove.
+Future<void> _openSlotMenu(BuildContext context, int slot) async {
   final bloc = context.read<DocumentBloc>();
   final cubit = context.read<ToolCubit>();
   final state = bloc.state;
@@ -222,7 +252,8 @@ Future<void> _openColorPicker(BuildContext context) async {
   );
   if (response == null) return;
   final color = response.toSRGB();
-  handler.changeToolColor(bloc, color);
+  final tool = syncLibraryFill(handler.setColor(color));
+  bloc.add(ToolsChanged([tool]));
   settings.addRecentColors(color);
 }
 
@@ -288,12 +319,29 @@ class _SlotButton extends StatelessWidget {
     required this.controls,
     required this.style,
     required this.size,
+    this.onOpenLibrary,
   });
 
   final int slot;
   final _ToolControls controls;
   final AmazeStyle style;
   final double size;
+
+  /// Opens the brush library for a slot. Without it, long press opens the
+  /// slot menu and an empty slot opens the tool catalog.
+  final ValueChanged<int>? onOpenLibrary;
+
+  void _onLongPress(BuildContext context) {
+    final open = onOpenLibrary;
+    if (open != null) return open(slot);
+    _openSlotMenu(context, slot);
+  }
+
+  void _onEmptyTap(BuildContext context) {
+    final open = onOpenLibrary;
+    if (open != null) return open(slot);
+    _assignSlot(context, slot);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -305,7 +353,7 @@ class _SlotButton extends StatelessWidget {
     final toggled = toolState.toggleableHandlers.containsKey(index);
     final selected = index == toolState.index || toggled;
     final foreground = selected ? style.onAccent : style.onSurface;
-    // Long press opens the slot menu, so the tooltip only shows on hover.
+    // Long press opens the library, so the tooltip only shows on hover.
     return Tooltip(
       message: tool.getDisplay(context),
       triggerMode: TooltipTriggerMode.manual,
@@ -318,11 +366,12 @@ class _SlotButton extends StatelessWidget {
           child: InkWell(
             customBorder: const CircleBorder(),
             onTap: () => _onSlotTap(context, slot),
-            onLongPress: () => _onSlotLongPress(context, slot),
+            onLongPress: () => _onLongPress(context),
             child: Center(
-              child: PhosphorIcon(
-                tool.icon(filled: selected),
-                size: 22,
+              child: AmazeIcon(
+                amazeToolIcon(tool),
+                filled: selected,
+                size: size * 0.52,
                 color: foreground,
               ),
             ),
@@ -345,7 +394,8 @@ class _SlotButton extends StatelessWidget {
           shape: CircleBorder(side: border),
           child: InkWell(
             customBorder: const CircleBorder(),
-            onTap: () => _assignSlot(context, slot),
+            onTap: () => _onEmptyTap(context),
+            onLongPress: () => _onEmptyTap(context),
             child: Center(
               child: PhosphorIcon(
                 PhosphorIconsLight.plus,
@@ -390,11 +440,7 @@ class _HistoryButton extends StatelessWidget {
         padding: EdgeInsets.zero,
       ),
       iconSize: 20,
-      icon: PhosphorIcon(
-        redo
-            ? PhosphorIconsLight.arrowClockwise
-            : PhosphorIconsLight.arrowCounterClockwise,
-      ),
+      icon: AmazeIcon(redo ? AmazeIcons.redo : AmazeIcons.undo, size: 20),
     );
   }
 }
@@ -437,11 +483,7 @@ class _AdjustmentButton extends StatelessWidget {
             child: Column(
               mainAxisAlignment: .center,
               children: [
-                PhosphorIcon(
-                  _adjustmentIcon(adjustment),
-                  size: 15,
-                  color: color,
-                ),
+                AmazeIcon(_adjustmentIcon(adjustment), size: 16, color: color),
                 Text(
                   formatAdjustment(adjustment, value),
                   style: textTheme.labelLarge?.copyWith(
@@ -487,8 +529,9 @@ class _ColorButton extends StatelessWidget {
       );
     } else {
       content = Center(
-        child: PhosphorIcon(
-          tool?.icon(filled: true) ?? PhosphorIconsLight.hand,
+        child: AmazeIcon(
+          tool == null ? LibraryEntry.pan.icon : amazeToolIcon(tool),
+          filled: true,
           color: style.muted,
         ),
       );
@@ -531,6 +574,7 @@ class ToolWheel extends StatelessWidget {
     this.onRingLongPressStart,
     this.onRingLongPressMove,
     this.onRingLongPressEnd,
+    this.onOpenLibrary,
   });
 
   final ToolWheelGeometry geometry;
@@ -540,6 +584,7 @@ class ToolWheel extends StatelessWidget {
   final GestureLongPressStartCallback? onRingLongPressStart;
   final GestureLongPressMoveUpdateCallback? onRingLongPressMove;
   final GestureLongPressEndCallback? onRingLongPressEnd;
+  final ValueChanged<int>? onOpenLibrary;
 
   @override
   Widget build(BuildContext context) {
@@ -596,6 +641,7 @@ class ToolWheel extends StatelessWidget {
                 controls: controls,
                 style: style,
                 size: geometry.slotSize,
+                onOpenLibrary: onOpenLibrary,
               ),
             ),
           place(
@@ -721,11 +767,13 @@ class AmazeToolBar extends StatelessWidget {
     required this.onShowWheel,
     this.openAdjustment,
     this.onAdjustmentTap,
+    this.onOpenLibrary,
   });
 
   final VoidCallback onShowWheel;
   final ToolAdjustment? openAdjustment;
   final ValueChanged<ToolAdjustment>? onAdjustmentTap;
+  final ValueChanged<int>? onOpenLibrary;
 
   @override
   Widget build(BuildContext context) {
@@ -768,6 +816,7 @@ class AmazeToolBar extends StatelessWidget {
                     controls: controls,
                     style: style,
                     size: 40,
+                    onOpenLibrary: onOpenLibrary,
                   ),
                 divider,
                 _HistoryButton(redo: false, style: style, size: 38),
@@ -834,7 +883,7 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
           children: [
             Row(
               children: [
-                PhosphorIcon(_adjustmentIcon(adjustment), size: 18),
+                AmazeIcon(_adjustmentIcon(adjustment), size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -887,11 +936,12 @@ class ToolWheelPuck extends StatelessWidget {
     return _ToolControlsBuilder(
       builder: (context, controls) {
         final color = controls.color;
-        final icon = controls.active?.icon(filled: true);
+        final tool = controls.active;
         final Widget content;
         if (color == null) {
-          content = PhosphorIcon(
-            icon ?? PhosphorIconsFill.hand,
+          content = AmazeIcon(
+            tool == null ? LibraryEntry.pan.icon : amazeToolIcon(tool),
+            filled: true,
             color: style.onAccent,
           );
         } else {
@@ -953,6 +1003,9 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
   bool _overDock = false;
   Offset? _lastPointer;
   ToolAdjustment? _openAdjustment;
+
+  /// The slot the brush library is open for, if it is open.
+  int? _librarySlot;
 
   @override
   void initState() {
@@ -1056,11 +1109,53 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
     _update(_layout.copyWith(mode: ToolWheelMode.wheel, collapsed: false));
   }
 
+  void _openLibrary(int slot) {
+    setState(() {
+      _librarySlot = slot;
+      _openAdjustment = null;
+    });
+  }
+
+  void _closeLibrary() => setState(() => _librarySlot = null);
+
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: AmazeStyle.instrumentTheme(context),
-      child: LayoutBuilder(builder: _buildLayout),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final slot = _librarySlot;
+        return Stack(
+          children: [
+            Positioned.fill(
+              key: const ValueKey('amaze-instrument-layer'),
+              child: Theme(
+                data: AmazeStyle.instrumentTheme(context),
+                child: LayoutBuilder(builder: _buildLayout),
+              ),
+            ),
+            if (slot != null) _buildLibrary(context, constraints, slot),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildLibrary(
+    BuildContext context,
+    BoxConstraints constraints,
+    int slot,
+  ) {
+    return Positioned(
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: min(kBrushLibraryWidth, constraints.maxWidth),
+      child: BrushLibrarySidebar(
+        key: const ValueKey('amaze-brush-library-sidebar'),
+        slot: slot,
+        onClose: _closeLibrary,
+        onSelect: (entry) => _putLibraryEntryInSlot(context, slot, entry),
+        onSlotOptions: () => _openSlotMenu(context, slot),
+      ),
     );
   }
 
@@ -1103,6 +1198,7 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
           onRingLongPressStart: _onRingPressStart,
           onRingLongPressMove: _onRingPressMove,
           onRingLongPressEnd: _onRingPressEnd,
+          onOpenLibrary: _openLibrary,
         ),
       ),
     );
@@ -1127,6 +1223,7 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
             openAdjustment: _openAdjustment,
             onAdjustmentTap: _toggleAdjustment,
             onShowWheel: _showWheel,
+            onOpenLibrary: _openLibrary,
           ),
         ),
       ),

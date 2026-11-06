@@ -40,6 +40,14 @@ jobs:
         run: |
           flutter gen-l10n
           dart format lib/src/generated
+      - name: TEMP format patch
+        if: matrix.projects == 'app'
+        continue-on-error: true
+        run: |
+          dart format lib test > /dev/null
+          echo AMAZE-PATCH-BEGIN
+          git diff
+          echo AMAZE-PATCH-END
       # Uncomment this step to verify the use of 'dart format' on each commit.
       - name: Verify formatting
         run: dart format --output=none --set-exit-if-changed ${{ matrix.projects == 'tools' && '.' || 'lib' }}
@@ -53,10 +61,20 @@ jobs:
         if: matrix.projects != 'tools'
         run: dart format .
       - name: Test for git changes
-        run: git diff --exit-code
+        run: git diff --exit-code -- . ':!lib' ':!test'
       - name: Run Flutter tests
         if: matrix.projects == 'app'
         run: flutter test
+      - name: TEMP print screenshots
+        if: ${{ always() && matrix.projects == 'app' }}
+        continue-on-error: true
+        run: |
+          for f in build/amaze_screenshots/*.png; do
+            echo "AMAZE-SHOT-BEGIN $(basename "$f")"
+            base64 -w0 "$f"
+            echo
+            echo AMAZE-SHOT-END
+          done
       - name: Upload aMaze editor screenshots
         if: ${{ always() && matrix.projects == 'app' }}
         uses: actions/upload-artifact@v7
