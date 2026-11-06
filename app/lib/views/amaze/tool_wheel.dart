@@ -443,6 +443,7 @@ class _AdjustmentButton extends StatelessWidget {
                 Text(
                   formatAdjustment(adjustment, value),
                   style: textTheme.labelLarge?.copyWith(
+                    fontFamily: 'Roboto',
                     color: color,
                     fontWeight: FontWeight.w700,
                   ),
@@ -545,7 +546,7 @@ class ToolWheel extends StatelessWidget {
   }
 
   Widget _buildWheel(BuildContext context, _ToolControls controls) {
-    final style = AmazeStyle.of(context);
+    final style = AmazeStyle.forWheel(context);
     final center = Offset(geometry.radius, geometry.radius);
     final supported = controls.adjustments.toSet();
     Widget place(Offset offset, Size size, Widget child) {
