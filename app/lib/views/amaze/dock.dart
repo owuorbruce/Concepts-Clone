@@ -33,9 +33,16 @@ class AmazeDock extends StatelessWidget {
     final embedded = context.select<DocumentSaveCubit, bool>(
       (cubit) => cubit.state.embedding != null,
     );
-    final pages = NavigatorPage.values
-        .where((page) => !embedded || page != .files)
-        .toList();
+    // Put the everyday drawing destinations first. Layers should not be
+    // buried beneath Waypoints and Areas on a tablet drawing workspace.
+    final pages = <NavigatorPage>[
+      NavigatorPage.layers,
+      NavigatorPage.pages,
+      NavigatorPage.areas,
+      NavigatorPage.waypoints,
+      NavigatorPage.components,
+      NavigatorPage.files,
+    ].where((page) => !embedded || page != NavigatorPage.files).toList();
     return BlocBuilder<EditorViewCubit, EditorViewState>(
       buildWhen: (previous, current) =>
           previous.navigatorEnabled != current.navigatorEnabled ||
@@ -44,10 +51,10 @@ class AmazeDock extends StatelessWidget {
         final open = large && viewState.navigatorEnabled;
         return AmazeSurface(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(6),
+            padding: const EdgeInsets.all(4),
             child: Column(
               mainAxisSize: .min,
-              spacing: 4,
+              spacing: 2,
               children: [
                 for (final page in pages)
                   _DockButton(
