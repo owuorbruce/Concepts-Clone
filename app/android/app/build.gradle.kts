@@ -38,17 +38,17 @@ android {
         create("production") {
             dimension = "default"
             applicationIdSuffix = ""
-            manifestPlaceholders["appName"] = "Butterfly"
+            manifestPlaceholders["appName"] = "aMaze"
         }
         create("development") {
             dimension = "default"
             applicationIdSuffix = ""
-            manifestPlaceholders["appName"] = "Butterfly Nightly"
+            manifestPlaceholders["appName"] = "aMaze Nightly"
         }
         create("nightly") {
             dimension = "default"
             applicationIdSuffix = ".nightly"
-            manifestPlaceholders["appName"] = "Butterfly Nightly"
+            manifestPlaceholders["appName"] = "aMaze Nightly"
         }
     }
 

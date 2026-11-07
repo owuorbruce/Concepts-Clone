@@ -1,0 +1,41 @@
+name: Connector tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/smart-connectors]
+  pull_request:
+    paths:
+      - api/lib/src/helpers/connector.dart
+      - api/test/connector_test.dart
+      - app/lib/bloc/document_bloc.dart
+      - app/lib/handlers/stamp.dart
+      - app/test/bloc/connector_bloc_test.dart
+
+permissions:
+  contents: read
+
+jobs:
+  connectors:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - name: ⬆️ Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version-file: app/pubspec.yaml
+          cache: true
+      - name: API connector tests
+        working-directory: api
+        run: |
+          dart pub get
+          dart test test/connector_test.dart
+      - name: App connector tests
+        working-directory: app
+        run: |
+          flutter pub get
+          flutter gen-l10n
+          flutter test test/bloc/connector_bloc_test.dart test/handlers/stamp_handler_test.dart
