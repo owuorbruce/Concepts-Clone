@@ -5,7 +5,8 @@ aMaze is a Concepts-style infinite-canvas sketching app, built as a fork of
 The upstream code still uses the `butterfly` package names; aMaze is the
 product name and UI layer on top.
 
-**Current status and next tasks: see `HANDOFF.md`.**
+**Current status and next tasks: see `HANDOFF.md`. Full project summary and
+planned features: see `PROJECT_OVERVIEW.md`.**
 
 ## Repo layout
 
@@ -30,7 +31,8 @@ product name and UI layer on top.
 - `feature/amaze-editor-shell` — main active branch (wheel, dock, brush library,
   Nudge and Slice tools). Pushes here also publish a web preview to `gh-pages`
   via `.github/workflows/amaze-preview.yml`.
-- `feature/smart-connectors`, `feature/palette-import` — other aMaze features.
+- `feature/smart-connectors`, `feature/palette-import` — finished; merged into
+  `feature/amaze-editor-shell` on 2026-11-07.
 - `develop` — tracks upstream Butterfly. Don't commit aMaze work to it.
 
 ## Commands (run inside `app/` unless noted)
