@@ -141,6 +141,7 @@ enum LibraryEntry {
         property: const PenProperty(fillPaint: ElementPaint.solid()),
       ),
       lasso => Tool.select(mode: SelectMode.lasso),
+      nudge => Tool.hand(),
       slice => Tool.eraser(mode: EraserMode.stroke),
       text => Tool.label(),
       pan => Tool.hand(),

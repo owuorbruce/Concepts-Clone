@@ -75,6 +75,7 @@ part 'hand.dart';
 part 'import.dart';
 part 'label.dart';
 part 'laser.dart';
+part 'nudge.dart';
 part 'collection.dart';
 part 'pen.dart';
 part 'eye_dropper.dart';
@@ -308,6 +309,7 @@ abstract class Handler<T> {
 
   static Handler<T> fromTool<T extends Tool>(T tool) {
     return switch (tool) {
+      HandTool() when isNudgeTool(tool) => NudgeHandler(tool),
       HandTool() => HandHandler(tool),
       SelectTool() => SelectHandler(tool),
       ImportTool() => ImportHandler(tool),
