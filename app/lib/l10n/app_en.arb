@@ -1755,5 +1755,6 @@
   "tilingPatterns": "Tiling patterns",
   "waterful": "Waterful",
   "crosshatching": "Crosshatching",
-  "inkAndBlotTextures": "Ink and blot textures"
+  "inkAndBlotTextures": "Ink and blot textures",
+  "connectShapes": "Connect shapes"
 }
