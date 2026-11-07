@@ -211,14 +211,13 @@ not a color
 
     test('rejects bad magic and truncated files', () {
       expect(
-        () => importPaletteFile(
-          _text('NOPE'),
-          fileExtension: 'ase',
-          name: 'bad',
-        ),
+        () =>
+            importPaletteFile(_text('NOPE'), fileExtension: 'ase', name: 'bad'),
         throwsFormatException,
       );
-      final valid = _ase([_aseColor('Red', 'RGB ', [1, 0, 0])]);
+      final valid = _ase([
+        _aseColor('Red', 'RGB ', [1, 0, 0]),
+      ]);
       final truncated = Uint8List.sublistView(valid, 0, valid.length - 6);
       expect(
         () => importPaletteFile(truncated, fileExtension: 'ase', name: 'x'),
