@@ -1,0 +1,15 @@
+name: tmp format diff
+on:
+  push:
+    branches: [tmp/format-diff]
+permissions:
+  contents: read
+jobs:
+  diff:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          flutter-version-file: app/pubspec.yaml
+      - run: cd api && dart format lib && git diff
