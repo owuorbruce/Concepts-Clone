@@ -5,6 +5,8 @@ aMaze is a Concepts-style infinite-canvas sketching app, built as a fork of
 The upstream code still uses the `butterfly` package names; aMaze is the
 product name and UI layer on top.
 
+**Current status and next tasks: see `HANDOFF.md`.**
+
 ## Repo layout
 
 - `app/` — the Flutter app (package `butterfly`). Almost all work happens here.
