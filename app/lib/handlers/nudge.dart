@@ -97,6 +97,7 @@ class NudgeHandler extends Handler<HandTool> {
   _NudgeGesture _gesture = _NudgeGesture(null);
   final Map<String, PenElement> _pending = {};
   final Map<String, PenElement> _originals = {};
+  final Set<String> _moved = {};
   bool _disposed = false;
   Offset? _localPosition;
 
@@ -111,6 +112,7 @@ class NudgeHandler extends Handler<HandTool> {
     _gesture.cancel();
     _pending.clear();
     _originals.clear();
+    _moved.clear();
     _gesture = _NudgeGesture(event.pointer);
     _localPosition = event.localPosition;
     final transform = context.getEditorController().transformCubit.state;
@@ -140,6 +142,14 @@ class NudgeHandler extends Handler<HandTool> {
         delta,
       );
       if (points != null) {
+        final previousPoints = entry.value.points;
+        for (var i = 0; i < points.length; i++) {
+          if (points[i].x != previousPoints[i].x ||
+              points[i].y != previousPoints[i].y) {
+            _moved.add(entry.key);
+            break;
+          }
+        }
         _pending[entry.key] = entry.value.copyWith(points: points);
       }
     }
@@ -234,7 +244,8 @@ class NudgeHandler extends Handler<HandTool> {
     final changes = <String, List<PadElement>>{};
     for (final entry in _pending.entries) {
       final original = _originals[entry.key];
-      if (original != null &&
+      if (_moved.contains(entry.key) &&
+          original != null &&
           !const ListEquality<PathPoint>().equals(
             original.points,
             entry.value.points,
@@ -253,6 +264,7 @@ class NudgeHandler extends Handler<HandTool> {
   void _clear(EventContext context) {
     _pending.clear();
     _originals.clear();
+    _moved.clear();
     _localPosition = null;
     _gesture = _NudgeGesture(null);
     context.refreshForegrounds();
@@ -264,6 +276,7 @@ class NudgeHandler extends Handler<HandTool> {
     _gesture = _NudgeGesture(null);
     _pending.clear();
     _originals.clear();
+    _moved.clear();
     _localPosition = null;
   }
 
