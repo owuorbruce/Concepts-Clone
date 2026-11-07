@@ -1,4 +1,5 @@
 import 'package:butterfly/cubits/settings.dart';
+import 'package:flutter/foundation.dart';
 
 /// Settings flag that turns the aMaze editor shell on.
 const kAmazeShellFlag = 'amazeShell';
@@ -10,7 +11,13 @@ const kClassicEditorFlag = 'classicEditor';
 ///
 /// aMaze treats every platform the same, so the shell is always the default.
 /// [kClassicEditorFlag] still switches back to the classic layout.
-bool get amazeShellIsDefault => true;
+bool get amazeShellIsDefault => debugAmazeShellIsDefault ?? true;
+
+/// Overrides [amazeShellIsDefault] in tests, so tests written for the classic
+/// Butterfly editor keep running against the classic layout. Reset to null in
+/// `tearDownAll`.
+@visibleForTesting
+bool? debugAmazeShellIsDefault;
 
 extension AmazeShellSettings on ButterflySettings {
   /// Whether the editor should use the aMaze shell.

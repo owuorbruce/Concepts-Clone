@@ -53,11 +53,7 @@ List<NamedItem<ColorPalette>> importPaletteFile(
   return result;
 }
 
-List<_RawPalette> _readPalettes(
-  Uint8List data,
-  String extension,
-  String name,
-) {
+List<_RawPalette> _readPalettes(Uint8List data, String extension, String name) {
   switch (extension) {
     case 'gpl':
       return _readGpl(_decodeText(data), name);
