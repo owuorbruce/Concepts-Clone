@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:material_leap/material_leap.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'channel_rings.dart';
 import 'color_model.dart';
 import 'marker_ring.dart';
 
@@ -228,7 +229,17 @@ class _AmazeColorOverlayState extends State<_AmazeColorOverlay> {
                                   color: _preview.value,
                                   onPreview: _previewMarker,
                                 )
-                              : const SizedBox.expand(),
+                              : ChannelRings(
+                                  // One key for both modes keeps the precise
+                                  // HSL values when switching.
+                                  key: const ValueKey('amaze-color-rings'),
+                                  mode: _mode == AmazeColorMode.rgb
+                                      ? AmazeColorMode.rgb
+                                      : AmazeColorMode.hsl,
+                                  color: _preview,
+                                  onPreview: (color) =>
+                                      setState(() => _preview = color),
+                                ),
                         ),
                         const SizedBox(height: 8),
                         Row(
