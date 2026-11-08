@@ -211,6 +211,20 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('Ctrl + scroll follows the scroll distance', (tester) async {
+      await pumpLayer(tester);
+      final center = wheel(tester).center;
+      await _scroll(tester, center, -100, notches: 1, control: true);
+      expect(wheel(tester).width, closeTo(336, 1e-6));
+      // Ten small trackpad steps add up to one notch.
+      await _scroll(tester, center, -10, notches: 10, control: true);
+      expect(wheel(tester).width, closeTo(352, 1e-6));
+      await _scroll(tester, center, 25, notches: 1, control: true);
+      expect(wheel(tester).width, closeTo(348, 1e-6));
+      expect(wheel(tester).center, _near(center));
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('Ctrl + scroll stops at the limits', (tester) async {
       await pumpLayer(tester);
       final center = wheel(tester).center;
