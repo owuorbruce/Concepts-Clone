@@ -1757,6 +1757,11 @@
   "crosshatching": "Crosshatching",
   "inkAndBlotTextures": "Ink and blot textures",
   "connectShapes": "Connect shapes",
+  "amazeColorDone": "Done",
+  "amazeColorCancel": "Cancel",
+  "amazeColorTrademark": "COPIC is a trademark of Too Corporation. aMaze is not affiliated with or endorsed by Too Corporation. Digital colors are approximations.",
+  "amazeColorDataAttribution": "Color data: meodai/copic-colors (MIT).",
+  "amazeColorRecent": "Recent colors",
   "amazePresetHint": "Hold to save the current value",
   "@amazePresetHint": {
     "description": "Tooltip on a preset of the tool wheel's adjustment panel."
