@@ -26,6 +26,7 @@ import '../helpers/mocks.dart';
 Tool _withId(Tool tool, String id) => tool.copyWith(id: id);
 
 /// Every length and offset of [geometry], for comparing two diameters.
+/// Every length and offset of [geometry], for comparing two diameters.
 List<double> _measurements(ToolWheelGeometry geometry) {
   List<double> point(Offset offset) => [offset.dx, offset.dy];
   List<double> sector(WheelSector sector) => [
@@ -34,46 +35,52 @@ List<double> _measurements(ToolWheelGeometry geometry) {
   ];
   return [
     geometry.radius,
-    geometry.slotSize,
-    geometry.historySize,
-    geometry.slotDistance,
-    geometry.middleRadius,
-    geometry.middleInnerRadius,
-    geometry.middleGap,
+    geometry.wedgeInnerRadius,
+    geometry.discRadius,
+    geometry.adjustmentInnerRadius,
     geometry.centerRadius,
-    geometry.adjustmentDistance,
-    geometry.adjustmentSize.width,
-    geometry.adjustmentSize.height,
-    for (var slot = 0; slot < kToolSlotCount; slot++)
-      ...point(geometry.slotCenter(slot)),
+    geometry.historyRadius,
+    geometry.historyDistance,
+    geometry.wedgeIconDistance,
+    geometry.wedgeLabelDistance,
+    for (var slot = 0; slot < kToolSlotCount; slot++) ...[
+      ...sector(geometry.slotSector(slot)),
+      ...point(geometry.slotIconCenter(slot)),
+      ...point(geometry.slotLabelCenter(slot)),
+    ],
     ...point(geometry.undoCenter),
     ...point(geometry.redoCenter),
     for (final adjustment in ToolAdjustment.values) ...[
-      ...point(geometry.adjustmentCenter(adjustment)),
       ...sector(geometry.adjustmentSector(adjustment)),
+      ...point(geometry.adjustmentLabelCenter(adjustment)),
     ],
-    for (var index = 0; index < 10; index++)
-      ...sector(geometry.ringSector(index)),
   ];
 }
 
+double _degrees(double radians) => radians * 180 / pi;
+
+Offset _polar(double degrees, double distance) {
+  final angle = degrees * pi / 180;
+  return Offset(cos(angle), sin(angle)) * distance;
+}
+
 void main() {
-  group('proportional geometry', () {
-    test('the default wheel keeps the current sizes', () {
+  group('wheel layout', () {
+    test('lengths are fractions of the outer radius', () {
       const geometry = ToolWheelGeometry();
       expect(geometry.diameter, kToolWheelDefaultDiameter);
-      expect(kToolWheelDefaultDiameter, 320);
       expect(kToolWheelMinDiameter, 240);
       expect(kToolWheelMaxDiameter, 480);
-      expect(geometry.slotDistance, closeTo(130, 0.5));
-      expect(geometry.middleRadius, closeTo(104, 0.5));
-      expect(geometry.centerRadius, closeTo(30, 0.5));
-      expect(geometry.adjustmentDistance, closeTo(68, 0.5));
-      expect(geometry.slotSize, closeTo(46, 0.5));
-      expect(geometry.historySize, closeTo(40, 0.5));
-      expect(geometry.adjustmentSize.width, closeTo(60, 0.5));
-      expect(geometry.adjustmentSize.height, closeTo(40, 0.5));
-      expect(geometry.middleInnerRadius, closeTo(36, 0.5));
+      final r = geometry.radius;
+      expect(r, 160);
+      expect(geometry.wedgeInnerRadius, closeTo(0.60 * r, 1e-9));
+      expect(geometry.discRadius, closeTo(0.57 * r, 1e-9));
+      expect(geometry.adjustmentInnerRadius, closeTo(0.23 * r, 1e-9));
+      expect(geometry.centerRadius, closeTo(0.20 * r, 1e-9));
+      expect(geometry.historyRadius, closeTo(0.12 * r, 1e-9));
+      expect(geometry.historyDistance, closeTo(0.80 * r, 1e-9));
+      expect(geometry.wedgeIconDistance, closeTo(0.78 * r, 1e-9));
+      expect(geometry.wedgeLabelDistance, closeTo(0.92 * r, 1e-9));
     });
 
     test('every length doubles with the diameter', () {
@@ -81,18 +88,57 @@ void main() {
       final large = _measurements(const ToolWheelGeometry(diameter: 640));
       expect(large, hasLength(small.length));
       for (var i = 0; i < small.length; i++) {
-        expect(large[i], 2 * small[i], reason: 'measurement $i');
+        expect(large[i], closeTo(2 * small[i], 1e-9), reason: '$i');
       }
     });
 
-    test('angles do not depend on the diameter', () {
-      const small = ToolWheelGeometry(diameter: 240);
-      const large = ToolWheelGeometry(diameter: 480);
+    test('the wedges cover 300° clockwise from 210°', () {
+      const geometry = ToolWheelGeometry();
+      final first = geometry.slotSector(0);
+      final last = geometry.slotSector(kToolSlotCount - 1);
+      expect(_degrees(first.startAngle), closeTo(210, 1e-9));
+      expect(_degrees(last.startAngle + last.sweepAngle), closeTo(510, 1e-9));
+      var total = 0.0;
+      for (var slot = 0; slot < kToolSlotCount; slot++) {
+        final sector = geometry.slotSector(slot);
+        expect(_degrees(sector.sweepAngle), closeTo(37.5, 1e-9));
+        if (slot > 0) {
+          final previous = geometry.slotSector(slot - 1);
+          expect(
+            sector.startAngle,
+            closeTo(previous.startAngle + previous.sweepAngle, 1e-9),
+          );
+        }
+        total += _degrees(sector.sweepAngle);
+      }
+      expect(total, closeTo(300, 1e-9));
+    });
+
+    test('undo and redo sit in the gap on the left', () {
+      const geometry = ToolWheelGeometry();
+      final r = geometry.radius;
+      expect(geometry.undoCenter.dx, closeTo(_polar(195, 0.8 * r).dx, 1e-9));
+      expect(geometry.undoCenter.dy, lessThan(0));
+      expect(geometry.redoCenter.dy, greaterThan(0));
+      expect(geometry.undoCenter.dx, lessThan(0));
+    });
+
+    test('adjustment sectors: size top, opacity right, smoothing left', () {
+      const geometry = ToolWheelGeometry();
+      final size = geometry.adjustmentLabelCenter(ToolAdjustment.size);
+      final opacity = geometry.adjustmentLabelCenter(ToolAdjustment.opacity);
+      final smoothing = geometry.adjustmentLabelCenter(
+        ToolAdjustment.smoothing,
+      );
+      expect(size.dx, closeTo(0, 1e-9));
+      expect(size.dy, lessThan(0));
+      expect(opacity.dx, greaterThan(0));
+      expect(opacity.dy, greaterThan(0));
+      expect(smoothing.dx, lessThan(0));
+      expect(smoothing.dy, greaterThan(0));
       for (final adjustment in ToolAdjustment.values) {
-        final a = small.adjustmentSector(adjustment);
-        final b = large.adjustmentSector(adjustment);
-        expect(b.startAngle, a.startAngle);
-        expect(b.sweepAngle, a.sweepAngle);
+        final sector = geometry.adjustmentSector(adjustment);
+        expect(_degrees(sector.sweepAngle), closeTo(120, 1e-9));
       }
     });
   });
@@ -104,53 +150,70 @@ void main() {
   ]) {
     group('hit test at diameter $diameter', () {
       final geometry = ToolWheelGeometry(diameter: diameter);
+      final r = geometry.radius;
+
+      test('the middle of each wedge belongs to its slot', () {
+        for (var slot = 0; slot < kToolSlotCount; slot++) {
+          final middle = geometry.slotSector(slot).middle;
+          expect(geometry.hitTest(middle), WheelHit.slot(slot));
+        }
+      });
+
+      test('slots own their whole wedge', () {
+        for (var slot = 0; slot < kToolSlotCount; slot++) {
+          final sector = geometry.slotSector(slot);
+          for (final t in [0.01, 0.25, 0.5, 0.75, 0.99]) {
+            final angle = sector.startAngle + sector.sweepAngle * t;
+            for (final w in [0.01, 0.5, 0.99]) {
+              final distance = sector.innerRadius + sector.width * w;
+              final point = Offset(cos(angle), sin(angle)) * distance;
+              expect(geometry.hitTest(point), WheelHit.slot(slot));
+            }
+          }
+        }
+      });
 
       test('each control owns its center point', () {
         for (final control in geometry.controls) {
           final point = geometry.controlCenter(control);
           expect(geometry.hitTest(point), control, reason: '$control');
         }
+        expect(geometry.hitTest(geometry.undoCenter), WheelHit.undo);
+        expect(geometry.hitTest(geometry.redoCenter), WheelHit.redo);
+        expect(geometry.hitTest(Offset.zero), WheelHit.center);
       });
 
-      test('gaps between outer ring buttons belong to the ring', () {
-        for (var index = 0; index < 10; index++) {
-          final angle = geometry.ringAngle(index) + pi / 10;
-          final point = Offset(cos(angle), sin(angle)) * geometry.slotDistance;
-          expect(geometry.hitTest(point), WheelHit.ring, reason: '$index');
+      test('the gap and the thin rings belong to the ring', () {
+        // In the gap, between and beside undo and redo.
+        expect(geometry.hitTest(_polar(180, 0.80 * r)), WheelHit.ring);
+        expect(geometry.hitTest(_polar(180, 0.65 * r)), WheelHit.ring);
+        expect(geometry.hitTest(_polar(155, 0.95 * r)), WheelHit.ring);
+        expect(geometry.hitTest(_polar(205, 0.95 * r)), WheelHit.ring);
+        for (var degrees = 0; degrees < 360; degrees += 30) {
+          // Between the disc and the wedges.
+          expect(
+            geometry.hitTest(_polar(degrees + 5.0, 0.585 * r)),
+            WheelHit.ring,
+          );
+          // Between the color dot and the adjustments.
+          expect(
+            geometry.hitTest(_polar(degrees + 5.0, 0.215 * r)),
+            WheelHit.ring,
+          );
         }
       });
 
-      test('the gap around the center belongs to the ring', () {
-        final distance =
-            (geometry.centerRadius + geometry.middleInnerRadius) / 2;
-        for (final adjustment in ToolAdjustment.values) {
-          final angle = geometry.adjustmentAngle(adjustment);
-          final point = Offset(cos(angle), sin(angle)) * distance;
-          expect(geometry.hitTest(point), WheelHit.ring);
-        }
-      });
-
-      test('slots, undo and redo only own their circle', () {
-        final corner = Offset(geometry.slotSize, geometry.slotSize) * 0.45;
-        expect(
-          geometry.hitTest(geometry.slotCenter(0) + corner),
-          isNot(const WheelHit.slot(0)),
-        );
-        final historyCorner =
-            Offset(geometry.historySize, geometry.historySize) * 0.45;
-        expect(
-          geometry.hitTest(geometry.undoCenter + historyCorner),
-          isNot(WheelHit.undo),
-        );
-      });
-
-      test('adjustments own their whole segment', () {
+      test('each disc sector belongs to its adjustment', () {
         for (final adjustment in ToolAdjustment.values) {
           final sector = geometry.adjustmentSector(adjustment);
-          for (final t in [0.02, 0.25, 0.5, 0.75, 0.98]) {
+          expect(
+            geometry.hitTest(sector.middle),
+            WheelHit.adjustment(adjustment),
+          );
+          for (final t in [0.01, 0.5, 0.99]) {
             final angle = sector.startAngle + sector.sweepAngle * t;
-            for (final r in [0.02, 0.5, 0.98]) {
-              final distance = sector.innerRadius + sector.width * r;
+            for (final w in [0.01, 0.99]) {
+              final distance = sector.innerRadius + sector.width * w;
               final point = Offset(cos(angle), sin(angle)) * distance;
               expect(geometry.hitTest(point), WheelHit.adjustment(adjustment));
             }
@@ -160,21 +223,18 @@ void main() {
 
       test('points beyond the rim are outside', () {
         for (var degrees = 0; degrees < 360; degrees += 15) {
-          final angle = degrees * pi / 180;
-          final point = Offset(cos(angle), sin(angle)) * (geometry.radius + 1);
-          expect(geometry.hitTest(point), WheelHit.outside);
+          expect(
+            geometry.hitTest(_polar(degrees.toDouble(), r + 1)),
+            WheelHit.outside,
+          );
         }
-        expect(
-          geometry.hitTest(Offset(0, geometry.radius)),
-          isNot(WheelHit.outside),
-        );
+        expect(geometry.hitTest(Offset(0, r)), isNot(WheelHit.outside));
       });
 
       test('controls do not overlap', () {
         final controls = geometry.controls;
-        final radius = geometry.radius;
-        for (var y = -radius; y <= radius; y += 1) {
-          for (var x = -radius; x <= radius; x += 1) {
+        for (var y = -r; y <= r; y += 1) {
+          for (var x = -r; x <= r; x += 1) {
             final point = Offset(x, y);
             final owners = controls.where(
               (control) => geometry.controlContains(control, point),
@@ -182,28 +242,36 @@ void main() {
             expect(owners.length, lessThanOrEqualTo(1), reason: '$point');
           }
         }
+        // Undo and redo stay clear of the wedges and of each other.
+        final gap = (geometry.undoCenter - geometry.redoCenter).distance;
+        expect(gap, greaterThan(2 * geometry.historyRadius));
+        for (final center in [geometry.undoCenter, geometry.redoCenter]) {
+          final angle = _degrees(atan2(center.dy, center.dx)) % 360;
+          final half = _degrees(asin(geometry.historyRadius / center.distance));
+          expect(angle - half, greaterThan(150));
+          expect(angle + half, lessThan(210));
+        }
       });
 
       test('controls lie inside the rim', () {
-        final circles = [
-          for (var slot = 0; slot < kToolSlotCount; slot++)
-            (geometry.slotCenter(slot), geometry.slotSize / 2),
-          (geometry.undoCenter, geometry.historySize / 2),
-          (geometry.redoCenter, geometry.historySize / 2),
-        ];
-        for (final (center, size) in circles) {
-          expect(center.distance + size, lessThanOrEqualTo(geometry.radius));
+        for (final center in [geometry.undoCenter, geometry.redoCenter]) {
           expect(
-            center.distance - size,
-            greaterThanOrEqualTo(geometry.middleRadius),
+            center.distance + geometry.historyRadius,
+            lessThanOrEqualTo(r),
           );
+          expect(
+            center.distance - geometry.historyRadius,
+            greaterThan(geometry.discRadius),
+          );
+        }
+        for (var slot = 0; slot < kToolSlotCount; slot++) {
+          expect(geometry.slotSector(slot).outerRadius, lessThanOrEqualTo(r));
         }
         for (final adjustment in ToolAdjustment.values) {
           final sector = geometry.adjustmentSector(adjustment);
-          expect(sector.outerRadius, lessThanOrEqualTo(geometry.radius));
+          expect(sector.outerRadius, lessThan(geometry.wedgeInnerRadius));
           expect(sector.innerRadius, greaterThan(geometry.centerRadius));
         }
-        expect(geometry.centerRadius, lessThan(geometry.radius));
       });
     });
   }
@@ -279,17 +347,18 @@ void main() {
     const geometry = ToolWheelGeometry();
     const panel = ValueKey('amaze-adjustment-panel');
 
-    /// A point on the segment of [adjustment] outside its old 60x40 button.
-    Offset arcPoint(ToolAdjustment adjustment) {
+    /// A point on the sector of [adjustment] away from its label.
+    Offset sectorPoint(ToolAdjustment adjustment) {
       final sector = geometry.adjustmentSector(adjustment);
-      final angle = sector.startAngle + sector.sweepAngle * 0.15;
-      final point = Offset(cos(angle), sin(angle)) * sector.middleRadius;
-      final button = Rect.fromCenter(
-        center: geometry.adjustmentCenter(adjustment),
-        width: geometry.adjustmentSize.width,
-        height: geometry.adjustmentSize.height,
+      final angle = sector.startAngle + sector.sweepAngle * 0.12;
+      final distance = sector.innerRadius + sector.width * 0.2;
+      final point = Offset(cos(angle), sin(angle)) * distance;
+      final label = Rect.fromCenter(
+        center: geometry.adjustmentLabelCenter(adjustment),
+        width: geometry.radius * 0.36,
+        height: geometry.radius * 0.16,
       );
-      expect(button.contains(point), isFalse);
+      expect(label.contains(point), isFalse);
       expect(geometry.hitTest(point), WheelHit.adjustment(adjustment));
       return point;
     }
@@ -298,15 +367,15 @@ void main() {
       return tester.getCenter(find.byKey(const ValueKey('amaze-tool-wheel')));
     }
 
-    testWidgets('tapping the arc beside the button opens the adjustment', (
+    testWidgets('tapping anywhere on a disc sector opens the adjustment', (
       tester,
     ) async {
       await pumpWheel<PenTool>(tester);
       for (final adjustment in ToolAdjustment.values) {
-        await tester.tapAt(wheelCenter(tester) + arcPoint(adjustment));
+        await tester.tapAt(wheelCenter(tester) + sectorPoint(adjustment));
         await tester.pumpAndSettle();
         expect(find.byKey(panel), findsOneWidget, reason: '$adjustment');
-        await tester.tapAt(wheelCenter(tester) + arcPoint(adjustment));
+        await tester.tapAt(wheelCenter(tester) + sectorPoint(adjustment));
         await tester.pumpAndSettle();
         expect(find.byKey(panel), findsNothing, reason: '$adjustment');
       }
@@ -322,73 +391,21 @@ void main() {
         ToolAdjustment.opacity,
         ToolAdjustment.smoothing,
       ]) {
-        await tester.tapAt(wheelCenter(tester) + arcPoint(adjustment));
+        await tester.tapAt(wheelCenter(tester) + sectorPoint(adjustment));
         await tester.pumpAndSettle();
         await tester.tapAt(
-          wheelCenter(tester) + geometry.adjustmentCenter(adjustment),
+          wheelCenter(tester) + geometry.adjustmentLabelCenter(adjustment),
         );
         await tester.pumpAndSettle();
         expect(find.byKey(panel), findsNothing, reason: '$adjustment');
       }
       expect((bloc.state as DocumentLoadSuccess).info.tools, before);
-      await tester.tapAt(wheelCenter(tester) + arcPoint(ToolAdjustment.size));
+      await tester.tapAt(
+        wheelCenter(tester) + sectorPoint(ToolAdjustment.size),
+      );
       await tester.pumpAndSettle();
       expect(find.byKey(panel), findsOneWidget);
       expect(tester.takeException(), isNull);
-    });
-  });
-
-  group('ToolWheelGeometry', () {
-    const geometry = ToolWheelGeometry();
-
-    List<(Offset, double)> ringButtons() => [
-      for (var slot = 0; slot < kToolSlotCount; slot++)
-        (geometry.slotCenter(slot), geometry.slotSize / 2),
-      (geometry.undoCenter, geometry.historySize / 2),
-      (geometry.redoCenter, geometry.historySize / 2),
-    ];
-
-    test('puts undo and redo at the bottom, outside the slots', () {
-      expect(geometry.undoCenter.dy, greaterThan(geometry.radius / 2));
-      expect(geometry.redoCenter.dy, greaterThan(geometry.radius / 2));
-      expect(geometry.undoCenter.dx, lessThan(0));
-      expect(geometry.redoCenter.dx, greaterThan(0));
-    });
-
-    test('keeps the outer ring buttons apart and inside the rim', () {
-      final buttons = ringButtons();
-      for (var i = 0; i < buttons.length; i++) {
-        final (center, radius) = buttons[i];
-        expect(center.distance + radius, lessThan(geometry.radius));
-        expect(center.distance - radius, greaterThan(geometry.middleRadius));
-        for (var j = i + 1; j < buttons.length; j++) {
-          final (other, otherRadius) = buttons[j];
-          final gap = (center - other).distance - radius - otherRadius;
-          expect(gap, greaterThan(0), reason: 'buttons $i and $j overlap');
-        }
-      }
-    });
-
-    test('keeps adjustments clear of the slots and the center', () {
-      for (final adjustment in ToolAdjustment.values) {
-        final rect = Rect.fromCenter(
-          center: geometry.adjustmentCenter(adjustment),
-          width: geometry.adjustmentSize.width,
-          height: geometry.adjustmentSize.height,
-        );
-        for (final (center, radius) in ringButtons()) {
-          final closest = Offset(
-            center.dx.clamp(rect.left, rect.right),
-            center.dy.clamp(rect.top, rect.bottom),
-          );
-          expect((center - closest).distance, greaterThan(radius));
-        }
-        final nearest = Offset(
-          0.0.clamp(rect.left, rect.right),
-          0.0.clamp(rect.top, rect.bottom),
-        );
-        expect(nearest.distance, greaterThan(geometry.centerRadius));
-      }
     });
   });
 

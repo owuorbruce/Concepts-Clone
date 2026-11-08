@@ -1,11 +1,34 @@
+import 'dart:math';
+
 import 'package:material_ui/material_ui.dart';
+
+/// Opacity of the tool wheel's surfaces at rest, so the canvas shows through
+/// slightly.
+const kWheelSurfaceOpacity = 0.92;
+
+/// Opacity of the whole tool wheel while a stroke passes underneath it.
+const kWheelFadedOpacity = 0.3;
+
+/// Black or white, whichever contrasts more with [background].
+Color contrastingContent(Color background) {
+  final luminance = background.computeLuminance();
+  // Contrast ratio against white is 1.05 / (L + 0.05), against black
+  // (L + 0.05) / 0.05; they are equal at L ≈ 0.179.
+  return luminance > 0.179 ? const Color(0xFF000000) : const Color(0xFFFFFFFF);
+}
+
+/// WCAG contrast ratio between two opaque colors.
+double contrastRatio(Color a, Color b) {
+  final la = a.computeLuminance();
+  final lb = b.computeLuminance();
+  return (max(la, lb) + 0.05) / (min(la, lb) + 0.05);
+}
 
 /// Visual tokens for the aMaze editor shell.
 ///
-/// Surfaces are opaque and come from the active [ColorScheme], so the shell
-/// follows light, dark and custom themes; the teal accent is aMaze's own.
-/// The tool wheel and tool bar sit inside [instrumentTheme], which gives
-/// them one dark, high-contrast look over any canvas.
+/// Surfaces come from the active [ColorScheme], so the shell, including the
+/// tool wheel and tool bar, follows light, dark and custom themes; the teal
+/// accent is aMaze's own.
 class AmazeStyle {
   const AmazeStyle._({
     required this.accent,
@@ -33,30 +56,17 @@ class AmazeStyle {
     );
   }
 
-  /// Theme for the tool wheel, tool bar and their panels: a dark housing
-  /// that keeps its contrast over a bright canvas in every app theme.
+  /// Theme for the tool wheel, tool bar and their panels. It follows the
+  /// app's light or dark [ColorScheme], with text and icons in its
+  /// on-surface color so they read on the wheel's surfaces.
   static ThemeData instrumentTheme(BuildContext context) {
     final base = Theme.of(context);
-    final seeded = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF117C72),
-      brightness: Brightness.dark,
-    );
-    final scheme = seeded.copyWith(
-      primary: const Color(0xFF53D9BD),
-      onPrimary: const Color(0xFF092C28),
-      surface: const Color(0xFF1C2A31),
-      surfaceContainerHigh: const Color(0xFF23353B),
-      surfaceContainerHighest: const Color(0xFF344951),
-      onSurface: const Color(0xFFF4F8F6),
-      onSurfaceVariant: const Color(0xFFB0C6C5),
-      outlineVariant: const Color(0xFF586F72),
-    );
+    final scheme = base.colorScheme;
     final textTheme = base.textTheme.apply(
       bodyColor: scheme.onSurface,
       displayColor: scheme.onSurface,
     );
     return base.copyWith(
-      colorScheme: scheme,
       textTheme: textTheme,
       iconTheme: IconThemeData(color: scheme.onSurface),
     );

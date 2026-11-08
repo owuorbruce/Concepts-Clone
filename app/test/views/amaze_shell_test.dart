@@ -15,7 +15,9 @@ import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly/theme.dart';
 import 'package:butterfly/views/amaze/dock.dart';
 import 'package:butterfly/views/amaze/library.dart';
+import 'package:butterfly/handlers/handler.dart';
 import 'package:butterfly/views/amaze/shell.dart';
+import 'package:butterfly/views/amaze/style.dart';
 import 'package:butterfly/views/amaze/tool_slots.dart';
 import 'package:butterfly/views/amaze/tool_wheel.dart';
 import 'package:butterfly/views/app_bar.dart';
@@ -26,6 +28,7 @@ import 'package:butterfly/views/toolbar/view.dart';
 import 'package:butterfly/views/zoom.dart';
 import 'package:butterfly/visualizer/tool.dart';
 import 'package:butterfly_api/butterfly_api.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -304,6 +307,20 @@ void main() {
 
   Finder slotButton(int slot) => find.byKey(ValueKey(('amaze-slot', slot)));
 
+  /// The fill of the wheel wedge of [slot].
+  Color wedgeColor(WidgetTester tester, int slot) {
+    final box = tester.widget<DecoratedBox>(
+      find.byKey(ValueKey(('amaze-wedge', slot))),
+    );
+    return (box.decoration as ShapeDecoration).color!;
+  }
+
+  /// The opacity the wheel is shown at, or animating to.
+  double fadeOpacity(WidgetTester tester) {
+    final fade = find.byKey(const ValueKey('amaze-wheel-fade'));
+    return tester.widget<AnimatedOpacity>(fade).opacity;
+  }
+
   Finder libraryItem(LibraryEntry entry) {
     return find.byKey(ValueKey(('amaze-library-item', entry.name)));
   }
@@ -323,13 +340,13 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  /// A point on the outer ring between undo and the first slot.
+  /// A point in the wheel's left gap, between undo and redo.
   Offset ringPoint(WidgetTester tester) {
     const geometry = ToolWheelGeometry();
-    const angle = 126 * pi / 180;
+    const angle = pi; // The gap between undo and redo.
     final direction = Offset(cos(angle), sin(angle));
     final center = tester.getCenter(find.byKey(_wheel));
-    return center + direction * geometry.slotDistance;
+    return center + direction * geometry.historyDistance;
   }
 
   Future<void> dockWheel(WidgetTester tester) async {
@@ -938,18 +955,159 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('the wheel and the tool bar share the instrument theme', (
+  final themes = ValueVariant<bool>({false, true});
+
+  testWidgets('the wheel and the tool bar follow the app theme', (
     tester,
   ) async {
+    final dark = themes.currentValue!;
+    final expected = dark ? Brightness.dark : Brightness.light;
     setScreen(tester, const Size(1280, 800));
-    await openEditor(tester);
+    final editor = await openEditor(tester, dark: dark);
+    await selectSlot(tester, editor, slotOf<PenTool>());
     Brightness brightnessOf(Finder finder) {
       return Theme.of(tester.element(finder)).colorScheme.brightness;
     }
 
-    expect(brightnessOf(find.byKey(_wheel)), Brightness.dark);
+    expect(brightnessOf(find.byKey(_wheel)), expected);
+
+    // An unselected wedge, and the size number on it.
+    final eraser = slotOf<EraserTool>();
+    final scheme = getThemeData('', dark).colorScheme;
+    final surface = wedgeColor(tester, eraser);
+    expect(
+      surface,
+      scheme.surfaceContainerHigh.withValues(alpha: kWheelSurfaceOpacity),
+    );
+    final other = getThemeData('', !dark).colorScheme.surfaceContainerHigh;
+    expect(surface.withValues(alpha: 1), isNot(other.withValues(alpha: 1)));
+    final label = tester.widget<Text>(
+      find.byKey(ValueKey(('amaze-slot-size', eraser))),
+    );
+    final text = label.style!.color!;
+    // The canvas behind the translucent surface can be light or dark.
+    for (final canvas in [Colors.white, Colors.black]) {
+      final background = Color.alphaBlend(surface, canvas);
+      expect(
+        contrastRatio(text, background),
+        greaterThanOrEqualTo(4.5),
+        reason: 'over $canvas',
+      );
+    }
+
     await dockWheel(tester);
-    expect(brightnessOf(find.byKey(_bar)), Brightness.dark);
+    expect(brightnessOf(find.byKey(_bar)), expected);
+    expect(tester.takeException(), isNull);
+  }, variant: themes);
+
+  testWidgets('the selected wedge takes the tool color and follows the tool', (
+    tester,
+  ) async {
+    setScreen(tester, const Size(1280, 800));
+    final editor = await openEditor(tester);
+    final pen = slotOf<PenTool>();
+    final eraser = slotOf<EraserTool>();
+    await selectSlot(tester, editor, pen);
+    final handler = editor.toolCubit.state.handler as ColoredHandler;
+    final penColor = handler.getColor().toColor();
+    expect(wedgeColor(tester, pen), penColor);
+    final surface = wedgeColor(tester, eraser);
+    expect(surface, isNot(penColor));
+
+    await selectSlot(tester, editor, eraser);
+    expect(wedgeColor(tester, pen), surface);
+    expect(wedgeColor(tester, eraser), isNot(surface));
+    await capture(tester, 'wheel-selected-eraser');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('wedges show their tool size, tools without one show none', (
+    tester,
+  ) async {
+    setScreen(tester, const Size(1280, 800));
+    final editor = await openEditor(tester);
+    final pen = slotOf<PenTool>();
+    await selectSlot(tester, editor, pen);
+    await tester.tap(find.byKey(const ValueKey(('amaze-adjust', 'size'))));
+    await tester.pumpAndSettle();
+    final slider = find.byKey(const ValueKey('amaze-adjustment-slider'));
+    tester.widget<Slider>(slider).onChangeEnd!(34);
+    await pumpUntil(
+      tester,
+      () => (slotTool(pen) as PenTool).property.strokeWidth == 34,
+      'pen size',
+    );
+    await tester.pumpAndSettle();
+    Finder sizeOf(int slot) => find.byKey(ValueKey(('amaze-slot-size', slot)));
+    expect(tester.widget<Text>(sizeOf(pen)).data, '34');
+    for (final slot in [slotOf<SelectTool>(), slotOf<HandTool>()]) {
+      expect(slot, isNonNegative);
+      expect(sizeOf(slot), findsNothing, reason: '${slotTool(slot)}');
+    }
+    // Empty slots keep their plus and show no number.
+    final empty = slotToolIndices(documentTools()).length;
+    expect(sizeOf(empty), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(minutes: 1));
+  });
+
+  testWidgets('a stroke passing under the wheel fades it and keeps drawing', (
+    tester,
+  ) async {
+    setScreen(tester, const Size(1280, 800));
+    final editor = await openEditor(tester);
+    await selectSlot(tester, editor, slotOf<PenTool>());
+    final bloc = observer.lastDocumentBloc!;
+    int elements() => (bloc.state as DocumentLoadSuccess).page.content.length;
+    final before = elements();
+    final wheel = tester.getRect(find.byKey(_wheel));
+    final start = wheel.centerLeft - const Offset(400, 0);
+    final gesture = await tester.startGesture(
+      start,
+      kind: PointerDeviceKind.mouse,
+      buttons: kPrimaryButton,
+    );
+    await tester.pump();
+    for (var i = 1; i <= 10; i++) {
+      await gesture.moveTo(start + Offset(40.0 * i - 2, 0));
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(fadeOpacity(tester), greaterThan(0));
+    }
+    // The pointer is now within 12 px of the wheel.
+    expect(fadeOpacity(tester), kWheelFadedOpacity);
+    await gesture.moveTo(wheel.center);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(fadeOpacity(tester), kWheelFadedOpacity);
+    await gesture.up();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(fadeOpacity(tester), kWheelFadedOpacity);
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pumpAndSettle();
+    expect(fadeOpacity(tester), 1);
+    await pumpUntil(tester, () => elements() > before, 'stroke');
+    expect(tester.takeException(), isNull);
+    // Lets the autosave after the stroke run.
+    await tester.pump(const Duration(minutes: 1));
+  });
+
+  testWidgets('pointers that start on the wheel never fade it', (tester) async {
+    setScreen(tester, const Size(1280, 800));
+    await openEditor(tester);
+    final wheel = tester.getRect(find.byKey(_wheel));
+    final gesture = await tester.startGesture(ringPoint(tester));
+    for (var i = 0; i < 8; i++) {
+      await gesture.moveBy(const Offset(30, -10));
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(fadeOpacity(tester), 1);
+    }
+    await gesture.moveTo(wheel.topCenter - const Offset(0, 40));
+    await tester.pump(const Duration(milliseconds: 16));
+    await gesture.moveTo(wheel.center);
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(fadeOpacity(tester), 1);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(fadeOpacity(tester), 1);
     expect(tester.takeException(), isNull);
   });
 
