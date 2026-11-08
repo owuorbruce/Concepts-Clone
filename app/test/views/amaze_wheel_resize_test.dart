@@ -353,10 +353,10 @@ void main() {
       final before = wheel(tester);
       expect(before.width, 400);
       const geometry = ToolWheelGeometry(diameter: 400);
-      const angle = 126 * pi / 180;
+      const angle = pi; // The gap between undo and redo.
       final ring =
           before.center +
-          Offset(cos(angle), sin(angle)) * geometry.slotDistance;
+          Offset(cos(angle), sin(angle)) * geometry.historyDistance;
       final gesture = await tester.startGesture(ring);
       await tester.pump(const Duration(milliseconds: 700));
       await gesture.moveBy(const Offset(-150, -100));

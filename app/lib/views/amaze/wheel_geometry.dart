@@ -14,9 +14,27 @@ const kToolWheelMinDiameter = 240.0;
 /// Largest supported diameter of the tool wheel.
 const kToolWheelMaxDiameter = 480.0;
 
-/// Angle trimmed from each end of a middle ring sector, in radians. It
-/// leaves a visible gap between neighbouring adjustments.
-const _adjustmentSectorGap = 0.04;
+/// Start of slot 0 in degrees (screen coordinates: 0° is right, angles grow
+/// clockwise).
+const _slotStartDegrees = 210.0;
+
+/// Angle covered by one slot wedge in degrees.
+const _slotSweepDegrees = 37.5;
+
+/// Angle covered by one adjustment sector of the center disc in degrees.
+const _adjustmentSweepDegrees = 120.0;
+
+/// Center angles of the adjustment sectors in degrees.
+const _adjustmentDegrees = {
+  ToolAdjustment.size: 270.0,
+  ToolAdjustment.opacity: 30.0,
+  ToolAdjustment.smoothing: 150.0,
+};
+
+double _radians(double degrees) => degrees * pi / 180;
+
+/// [angle] in degrees, normalized to 0 (inclusive) to 360 (exclusive).
+double _normalizedDegrees(double angle) => (angle * 180 / pi) % 360;
 
 /// What a point on the tool wheel belongs to.
 enum WheelHitType { slot, undo, redo, adjustment, center, ring, outside }
@@ -29,7 +47,7 @@ class WheelHit {
   /// Tool slot [slot] (0 to 7).
   const WheelHit.slot(int slot) : this._(WheelHitType.slot, slot: slot);
 
-  /// The middle ring segment of [adjustment].
+  /// The center disc sector of [adjustment].
   const WheelHit.adjustment(ToolAdjustment adjustment)
     : this._(WheelHitType.adjustment, adjustment: adjustment);
 
@@ -92,22 +110,34 @@ class WheelSector {
 
   double get width => outerRadius - innerRadius;
 
-  /// Whether [fromCenter] lies inside the sector.
-  bool contains(Offset fromCenter) {
-    final distance = fromCenter.distance;
-    if (distance < innerRadius || distance > outerRadius) return false;
-    final angle = atan2(fromCenter.dy, fromCenter.dx);
-    final delta = (angle - startAngle) % (2 * pi);
-    return delta <= sweepAngle;
+  double get middleAngle => startAngle + sweepAngle / 2;
+
+  /// The point halfway through the sector, relative to the center.
+  Offset get middle => polarOffset(middleAngle, middleRadius);
+
+  /// The outline of the sector around [center].
+  Path toPath(Offset center) {
+    final outer = Rect.fromCircle(center: center, radius: outerRadius);
+    final inner = Rect.fromCircle(center: center, radius: innerRadius);
+    return Path()
+      ..arcTo(outer, startAngle, sweepAngle, true)
+      ..arcTo(inner, startAngle + sweepAngle, -sweepAngle, false)
+      ..close();
   }
 }
 
-/// Layout math for the three-ring tool wheel.
+/// The point at [angle] (radians) and [distance] from the center.
+Offset polarOffset(double angle, double distance) {
+  return Offset(cos(angle), sin(angle)) * distance;
+}
+
+/// Layout math for the tool wheel.
 ///
-/// The outer ring has ten positions: the eight tool slots and, at the
-/// bottom, undo and redo. The middle ring holds the adjustments and the
-/// center shows the active color. Every size is proportional to [diameter];
-/// the reference values are the ones at [kToolWheelDefaultDiameter].
+/// The outer band holds eight wedge slots covering 300° clockwise from the
+/// upper left, leaving a 60° gap on the left for undo and redo. The center
+/// disc holds the size, opacity and smoothing sectors around the color dot.
+/// Every length is a fraction of [radius], so the layout scales with
+/// [diameter].
 @immutable
 class ToolWheelGeometry {
   const ToolWheelGeometry({this.diameter = kToolWheelDefaultDiameter});
@@ -116,83 +146,103 @@ class ToolWheelGeometry {
   /// [kToolWheelMinDiameter] to [kToolWheelMaxDiameter].
   final double diameter;
 
-  /// Scales a length given at the default diameter.
-  double _scale(double reference) {
-    return diameter * reference / kToolWheelDefaultDiameter;
-  }
-
   double get radius => diameter / 2;
 
-  /// Diameter of a tool slot.
-  double get slotSize => _scale(46);
+  /// Inner radius of the slot wedges.
+  double get wedgeInnerRadius => radius * 0.60;
 
-  /// Diameter of the undo and redo buttons.
-  double get historySize => _scale(40);
+  /// Radius of the center disc.
+  double get discRadius => radius * 0.57;
 
-  /// Distance from the center to the slots, undo and redo.
-  double get slotDistance => _scale(130);
+  /// Inner radius of the adjustment sectors.
+  double get adjustmentInnerRadius => radius * 0.23;
 
-  /// Outer radius of the middle ring.
-  double get middleRadius => _scale(104);
+  /// Radius of the color dot in the center.
+  double get centerRadius => radius * 0.20;
 
-  /// Radius of the color disc in the center.
-  double get centerRadius => _scale(30);
+  /// Radius of the undo and redo buttons.
+  double get historyRadius => radius * 0.12;
 
-  /// Gap between the color disc and the middle ring.
-  double get middleGap => _scale(6);
+  /// Distance from the center to the undo and redo buttons.
+  double get historyDistance => radius * 0.80;
 
-  /// Inner radius of the middle ring.
-  double get middleInnerRadius => centerRadius + middleGap;
+  /// Distance from the center to a wedge's icon.
+  double get wedgeIconDistance => radius * 0.78;
 
-  /// Distance from the center to the adjustment buttons.
-  double get adjustmentDistance => _scale(68);
+  /// Distance from the center to a wedge's size number.
+  double get wedgeLabelDistance => radius * 0.92;
 
-  /// Size of an adjustment button.
-  Size get adjustmentSize => Size(_scale(60), _scale(40));
-
-  /// Angle of outer ring position [index] (0 to 9) in radians. Position 0 is
-  /// at the bottom left and the positions continue clockwise.
-  double ringAngle(int index) {
-    return (108 + 36 * index) * pi / 180;
+  /// Start angle of [slot] (0 to 7) in radians. Slot 0 is at the upper left
+  /// and the slots continue clockwise.
+  double slotStartAngle(int slot) {
+    return _radians(_slotStartDegrees + _slotSweepDegrees * slot);
   }
 
-  /// The 36° part of the outer band around position [index] (0 to 9).
-  WheelSector ringSector(int index) {
+  /// The wedge of [slot] (0 to 7).
+  WheelSector slotSector(int slot) {
     return WheelSector(
-      innerRadius: middleRadius,
+      innerRadius: wedgeInnerRadius,
       outerRadius: radius,
-      startAngle: ringAngle(index) - pi / 10,
-      sweepAngle: pi / 5,
+      startAngle: slotStartAngle(slot),
+      sweepAngle: _radians(_slotSweepDegrees),
     );
   }
 
-  /// Offset of [slot] (0 to 7) from the center.
-  Offset slotCenter(int slot) => _polar(ringAngle(slot + 1), slotDistance);
+  /// Offset of the icon of [slot] from the center.
+  Offset slotIconCenter(int slot) {
+    return polarOffset(slotSector(slot).middleAngle, wedgeIconDistance);
+  }
+
+  /// Offset of the size number of [slot] from the center.
+  Offset slotLabelCenter(int slot) {
+    return polarOffset(slotSector(slot).middleAngle, wedgeLabelDistance);
+  }
 
   /// Offset of the undo button from the center.
-  Offset get undoCenter => _polar(ringAngle(0), slotDistance);
+  Offset get undoCenter => polarOffset(_radians(195), historyDistance);
 
   /// Offset of the redo button from the center.
-  Offset get redoCenter => _polar(ringAngle(9), slotDistance);
+  Offset get redoCenter => polarOffset(_radians(165), historyDistance);
 
-  /// Angle of the middle ring segment of [adjustment] in radians.
+  /// Center angle of the sector of [adjustment] in radians.
   double adjustmentAngle(ToolAdjustment adjustment) {
-    return (-90 + 120 * adjustment.index) * pi / 180;
+    return _radians(_adjustmentDegrees[adjustment]!);
   }
 
-  /// The visible middle ring segment of [adjustment].
+  /// The center disc sector of [adjustment].
   WheelSector adjustmentSector(ToolAdjustment adjustment) {
+    final sweep = _radians(_adjustmentSweepDegrees);
     return WheelSector(
-      innerRadius: middleInnerRadius,
-      outerRadius: middleRadius,
-      startAngle: adjustmentAngle(adjustment) - pi / 3 + _adjustmentSectorGap,
-      sweepAngle: 2 * pi / 3 - 2 * _adjustmentSectorGap,
+      innerRadius: adjustmentInnerRadius,
+      outerRadius: discRadius,
+      startAngle: adjustmentAngle(adjustment) - sweep / 2,
+      sweepAngle: sweep,
     );
   }
 
-  /// Offset of the [adjustment] button from the center.
-  Offset adjustmentCenter(ToolAdjustment adjustment) {
-    return _polar(adjustmentAngle(adjustment), adjustmentDistance);
+  /// Offset of the label of [adjustment] from the center.
+  Offset adjustmentLabelCenter(ToolAdjustment adjustment) {
+    return adjustmentSector(adjustment).middle;
+  }
+
+  /// The slot whose wedge covers [angle] (radians), or null in the gap.
+  int? _slotAt(double angle) {
+    final relative = (_normalizedDegrees(angle) - _slotStartDegrees) % 360;
+    final slot = relative ~/ _slotSweepDegrees;
+    return slot < kToolSlotCount ? slot : null;
+  }
+
+  /// The adjustment whose sector covers [angle] (radians).
+  ToolAdjustment _adjustmentAt(double angle) {
+    final degrees = _normalizedDegrees(angle);
+    for (final MapEntry(key: adjustment, value: center)
+        in _adjustmentDegrees.entries) {
+      final start = center - _adjustmentSweepDegrees / 2;
+      final relative = (degrees - start) % 360;
+      if (relative < _adjustmentSweepDegrees) return adjustment;
+    }
+    // The sectors cover the full circle; rounding can only land on an edge.
+    return ToolAdjustment.size;
   }
 
   /// Every control on the wheel.
@@ -208,48 +258,48 @@ class ToolWheelGeometry {
   /// A point that belongs to [control].
   Offset controlCenter(WheelHit control) {
     return switch (control.type) {
-      WheelHitType.slot => slotCenter(control.slot!),
+      WheelHitType.slot => slotSector(control.slot!).middle,
       WheelHitType.undo => undoCenter,
       WheelHitType.redo => redoCenter,
-      WheelHitType.adjustment => adjustmentCenter(control.adjustment!),
+      WheelHitType.adjustment => adjustmentLabelCenter(control.adjustment!),
       _ => Offset.zero,
     };
   }
 
-  /// Whether [fromCenter] lies inside the visible region of [control].
+  /// Whether [fromCenter] lies inside the region of [control].
   bool controlContains(WheelHit control, Offset fromCenter) {
-    bool inCircle(Offset center, double diameter) {
-      return (fromCenter - center).distance <= diameter / 2;
+    final distance = fromCenter.distance;
+    final angle = atan2(fromCenter.dy, fromCenter.dx);
+    bool inCircle(Offset center) {
+      return (fromCenter - center).distance <= historyRadius;
     }
 
     return switch (control.type) {
-      WheelHitType.slot => inCircle(slotCenter(control.slot!), slotSize),
-      WheelHitType.undo => inCircle(undoCenter, historySize),
-      WheelHitType.redo => inCircle(redoCenter, historySize),
-      WheelHitType.adjustment => adjustmentSector(
-        control.adjustment!,
-      ).contains(fromCenter),
-      WheelHitType.center => fromCenter.distance <= centerRadius,
-      WheelHitType.ring =>
-        _inRing(fromCenter) && hitTest(fromCenter) == control,
-      WheelHitType.outside => !_inRing(fromCenter),
+      WheelHitType.slot =>
+        distance >= wedgeInnerRadius &&
+            distance <= radius &&
+            _slotAt(angle) == control.slot,
+      WheelHitType.undo => inCircle(undoCenter),
+      WheelHitType.redo => inCircle(redoCenter),
+      WheelHitType.adjustment =>
+        distance >= adjustmentInnerRadius &&
+            distance <= discRadius &&
+            _adjustmentAt(angle) == control.adjustment,
+      WheelHitType.center => distance <= centerRadius,
+      WheelHitType.ring => distance <= radius && hitTest(fromCenter) == control,
+      WheelHitType.outside => distance > radius,
     };
   }
 
-  bool _inRing(Offset fromCenter) => fromCenter.distance <= radius;
-
   /// What the point [fromCenter] (relative to the wheel's center) belongs
-  /// to. Slots, undo and redo only own their visible circle; adjustments own
-  /// their whole visible middle ring segment.
+  /// to. Slots own their whole wedge, adjustments their whole disc sector,
+  /// undo and redo their circle and the center its dot. Everything else
+  /// inside the outer circle, including the gap, is [WheelHit.ring].
   WheelHit hitTest(Offset fromCenter) {
-    if (!_inRing(fromCenter)) return WheelHit.outside;
+    if (fromCenter.distance > radius) return WheelHit.outside;
     for (final control in controls) {
       if (controlContains(control, fromCenter)) return control;
     }
     return WheelHit.ring;
   }
-}
-
-Offset _polar(double angle, double distance) {
-  return Offset(cos(angle), sin(angle)) * distance;
 }
