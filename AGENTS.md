@@ -1,111 +1,46 @@
-# AGENTS.md — Concepts Clone (aMaze)
+# aMaze — Repository Agent Rules
 
-aMaze is a Concepts-style infinite-canvas sketching app, built as a fork of
-[Linwood Butterfly](https://github.com/LinwoodDev/butterfly) (Flutter/Dart).
-The upstream code still uses the `butterfly` package names; aMaze is the
-product name and UI layer on top.
+This file contains technical guardrails only. Private product plans, roadmaps,
+strategy and owner decisions are not stored or reproduced in this repository.
+Do not publish them in commits, PR descriptions, issues or generated docs
+without explicit owner permission.
 
-**Current status and next tasks: see `HANDOFF.md`. Full project summary and
-planned features: see `PROJECT_OVERVIEW.md`.**
+## Authority and scope
 
-## Repo layout
+- Work only on the task explicitly assigned by the owner or architect.
+- Do not infer follow-up milestones or change unrelated code.
+- Use the base branch and file limits specified in each work order.
+- Do not merge, open a PR or publish project plans without authorization.
+- Report each actual action, changed file, validation result and limitation.
 
-- `app/` — the Flutter app (package `butterfly`). Almost all work happens here.
-  - `app/lib/views/amaze/` — **the aMaze editor shell** (our code): `shell.dart`
-    (flags), `layout.dart`, `tool_wheel.dart` (radial wheel), `dock.dart`,
-    `tool_slots.dart` (8 slots), `slot_menu.dart`, `brush_library.dart`,
-    `library.dart`, `icons.dart`, `style.dart` (design tokens), `wheel_prefs.dart`.
-  - `app/lib/handlers/` — one handler per tool, all `part` files of `handler.dart`.
-    Our tools: `nudge.dart`, `slice.dart`.
-  - `app/lib/l10n/app_en.arb` — UI strings.
-  - `app/test/` — widget and handler tests (`views/amaze_*_test.dart`,
-    `handlers/*_handler_test.dart`).
-- `api/` — `butterfly_api`: file format and data models (freezed + json_serializable).
-  Tool types live in `api/lib/src/models/tool.dart`.
-- `tools/` — build/release scripts (upstream). Rarely touched.
-- `docs/` — upstream docs site.
+## Technical requirements
 
-## Branches
+- aMaze is independent software built from Butterfly. Replacing upstream code
+  is permitted when necessary; compatibility with Butterfly is not required.
+- Existing aMaze drawing files must continue to open. Model changes require
+  defaults, migration coverage and round-trip tests.
+- Android, Windows and Linux are equal targets; do not design or validate for
+  one platform alone.
+- Preserve applicable licenses and attributions. Use original assets.
+- Keep one canonical document state, undo/redo history and save path.
+- Changes to drawings must go through the document bloc, not direct mutation.
+- Keep changes reviewable and include relevant regression tests.
+- Never hand-edit generated files; run code generation when models change.
+- Localize user-visible strings via `app/lib/l10n/app_en.arb`.
 
-- `amaze/develop` — base branch for aMaze work.
-- `feature/amaze-editor-shell` — main active branch (wheel, dock, brush library,
-  Nudge and Slice tools). Pushes here also publish a web preview to `gh-pages`
-  via `.github/workflows/amaze-preview.yml`.
-- `feature/smart-connectors`, `feature/palette-import` — finished; merged into
-  `feature/amaze-editor-shell` on 2026-11-07.
-- `develop` — tracks upstream Butterfly. Don't commit aMaze work to it.
+## Verification
 
-## Commands (run inside `app/` unless noted)
+From `app/` when the work order permits:
 
-Flutter version is pinned in `app/pubspec.yaml` (`environment.flutter`).
-
-```bash
-flutter pub get
-flutter gen-l10n                     # after editing app_en.arb
-dart run build_runner build --delete-conflicting-outputs   # after changing freezed/json models (app or api)
+```sh
 dart format lib test
 flutter analyze --fatal-infos
-flutter test                         # app tests
-flutter test test/views/amaze_shell_test.dart   # one file
-flutter run -d windows               # or -d chrome
+flutter test
 ```
 
-For `api/`: `dart pub get`, `dart test`.
+Run any required API tests, code generation and target-platform builds when
+applicable. Report exact commands and results. Never claim unavailable checks
+passed. Review before the owner authorizes a merge.
 
-CI (`.github/workflows/dart.yml`) runs exactly this: format check, analyze with
-`--fatal-infos`, build_runner, then **fails if generated files differ from what's
-committed**, then tests. Before saying a change is done, run format, analyze and
-the relevant tests locally.
-
-Widget tests write review screenshots to `app/build/amaze_screenshots/`
-(uploaded as a CI artifact). Look at them when changing the shell UI.
-
-## Conventions
-
-- **Keep aMaze changes isolated** so upstream Butterfly can still be merged:
-  new UI goes in `app/lib/views/amaze/`; edits to upstream files should be small
-  hooks (e.g. a `when` branch in `Handler.fromTool`, a check of `usesAmazeShell`).
-- **New tools reuse existing `Tool` types** instead of adding to the file format.
-  A tool is told apart by its `displayIcon` (e.g. `amaze.nudge` on a `HandTool`,
-  `amaze.slice` on an `EraserTool`), dispatched in `Handler.fromTool`. Only add a
-  new `Tool` variant in `api/` if that's truly impossible, because it changes
-  saved files.
-- **Edits must be non-destructive and undoable**: go through document events
-  (the bloc) so undo/redo works, and only commit the elements a gesture actually
-  changed.
-- The aMaze shell is the default on every platform (`amazeShellIsDefault`);
-  the `classicEditor` flag switches back. Don't break the classic editor.
-- Colors and sizes come from `AmazeStyle` (`style.dart`); the wheel and dock use
-  `AmazeStyle.instrumentTheme` (dark, high-contrast). No hard-coded colors in widgets.
-- Strings: add to `app_en.arb` only. Other `app_*.arb` files come from Crowdin.
-- Never hand-edit generated files (`*.g.dart`, `*.freezed.dart`,
-  `lib/src/generated/**`); regenerate them.
-- Style: single quotes, super parameters, `flutter_lints` (see `analysis_options.yaml`).
-- Every new tool or shell behavior gets a test in `app/test/`.
-
-## Environment
-
-- Developed on Windows (PowerShell). Prefer commands that work there.
-- License: AGPL-3.0 (keep it). Butterfly's name and logo are under
-  `BRANDING_LICENSE`, which is why the app is rebranded as aMaze. Don't
-  reintroduce Butterfly/Linwood branding in user-facing UI.
-
-## AI tooling (Claude Code and Codex)
-
-This file is the shared project guide. `CLAUDE.md` only imports it, so edit
-rules here, not there.
-
-Skills exist in two copies with identical content:
-
-- `.claude/skills/<name>/SKILL.md` — read by Claude Code
-- `.agents/skills/<name>/SKILL.md` — read by Codex
-
-**When you change a skill, make the same change in its twin in the same commit.**
-The reviewer is a Claude Code subagent (`.claude/agents/amaze-reviewer.md`) and a
-Codex skill (`.agents/skills/amaze-review/SKILL.md`); keep their checklists in sync.
-
-| Skill | Use it to |
-|---|---|
-| `amaze-check` | run CI's checks locally and fix failures |
-| `amaze-new-tool` | add a tool or brush the way Nudge and Slice were built |
-| `amaze-review` / `amaze-reviewer` | review a change before committing |
+`CLAUDE.md` imports this file. There are no other repository-wide plans
+or execution orders.
