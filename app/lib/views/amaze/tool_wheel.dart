@@ -8,6 +8,7 @@ import 'package:butterfly/helpers/color.dart';
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly/visualizer/tool.dart';
 import 'package:butterfly_api/butterfly_api.dart';
+import 'package:flutter/rendering.dart' show BoxHitTestResult, RenderProxyBox;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_leap/material_leap.dart';
 import 'package:material_ui/material_ui.dart';
@@ -19,77 +20,16 @@ import 'library.dart';
 import 'slot_menu.dart';
 import 'style.dart';
 import 'tool_slots.dart';
+import 'wheel_geometry.dart';
 import 'wheel_prefs.dart';
+
+export 'wheel_geometry.dart';
 
 /// Diameter of the collapsed wheel.
 const kToolWheelPuckSize = 64.0;
 
 /// Height of the tool bar.
 const kToolBarHeight = 64.0;
-
-/// Layout math for the three-ring tool wheel.
-///
-/// The outer ring has ten positions: the eight tool slots and, at the
-/// bottom, undo and redo. The middle ring holds the adjustments and the
-/// center shows the active color.
-class ToolWheelGeometry {
-  const ToolWheelGeometry({this.diameter = 320});
-
-  /// Outer diameter of the wheel.
-  final double diameter;
-
-  double get radius => diameter / 2;
-
-  /// Diameter of a tool slot.
-  double get slotSize => 46;
-
-  /// Diameter of the undo and redo buttons.
-  double get historySize => 40;
-
-  /// Distance from the center to the slots, undo and redo.
-  double get slotDistance => radius - 30;
-
-  /// Outer radius of the middle ring.
-  double get middleRadius => radius - 56;
-
-  /// Radius of the color disc in the center.
-  double get centerRadius => 30;
-
-  /// Distance from the center to the adjustment buttons.
-  double get adjustmentDistance => 68;
-
-  /// Size of an adjustment button.
-  Size get adjustmentSize => const Size(60, 40);
-
-  /// Angle of outer ring position [index] (0 to 9) in radians. Position 0 is
-  /// at the bottom left and the positions continue clockwise.
-  double ringAngle(int index) {
-    return (108 + 36 * index) * pi / 180;
-  }
-
-  /// Offset of [slot] (0 to 7) from the center.
-  Offset slotCenter(int slot) => _polar(ringAngle(slot + 1), slotDistance);
-
-  /// Offset of the undo button from the center.
-  Offset get undoCenter => _polar(ringAngle(0), slotDistance);
-
-  /// Offset of the redo button from the center.
-  Offset get redoCenter => _polar(ringAngle(9), slotDistance);
-
-  /// Angle of the middle ring segment of [adjustment] in radians.
-  double adjustmentAngle(ToolAdjustment adjustment) {
-    return (-90 + 120 * adjustment.index) * pi / 180;
-  }
-
-  /// Offset of the [adjustment] button from the center.
-  Offset adjustmentCenter(ToolAdjustment adjustment) {
-    return _polar(adjustmentAngle(adjustment), adjustmentDistance);
-  }
-}
-
-Offset _polar(double angle, double distance) {
-  return Offset(cos(angle), sin(angle)) * distance;
-}
 
 /// Keeps a box of [size] at [position] fully inside [bounds].
 Offset clampToolWheelPosition(Offset position, Size size, Size bounds) {
@@ -595,14 +535,22 @@ class ToolWheel extends StatelessWidget {
     final style = AmazeStyle.of(context);
     final center = Offset(geometry.radius, geometry.radius);
     final supported = controls.adjustments.toSet();
-    Widget place(Offset offset, Size size, Widget child) {
+
+    /// Places [child] centered at [offset] from the wheel's center. It only
+    /// receives pointers inside the visible region of [hit].
+    Widget place(Offset offset, Size size, WheelHit hit, Widget child) {
       final topLeft = center + offset - size.center(Offset.zero);
       return Positioned(
         left: topLeft.dx,
         top: topLeft.dy,
         width: size.width,
         height: size.height,
-        child: child,
+        child: _WheelHitRegion(
+          geometry: geometry,
+          hit: hit,
+          origin: topLeft - center,
+          child: child,
+        ),
       );
     }
 
@@ -632,10 +580,27 @@ class ToolWheel extends StatelessWidget {
               ),
             ),
           ),
+          // A supported adjustment can be tapped anywhere on its segment.
+          // Unsupported ones are left to the ring, so they do nothing.
+          for (final adjustment in ToolAdjustment.values)
+            if (supported.contains(adjustment))
+              Positioned.fill(
+                child: _WheelHitRegion(
+                  geometry: geometry,
+                  hit: WheelHit.adjustment(adjustment),
+                  origin: -center,
+                  child: GestureDetector(
+                    key: ValueKey(('amaze-adjust-sector', adjustment.name)),
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => onAdjustmentTap?.call(adjustment),
+                  ),
+                ),
+              ),
           for (var slot = 0; slot < kToolSlotCount; slot++)
             place(
               geometry.slotCenter(slot),
               slotSize,
+              WheelHit.slot(slot),
               _SlotButton(
                 slot: slot,
                 controls: controls,
@@ -647,6 +612,7 @@ class ToolWheel extends StatelessWidget {
           place(
             geometry.undoCenter,
             historySize,
+            WheelHit.undo,
             _HistoryButton(
               redo: false,
               style: style,
@@ -656,6 +622,7 @@ class ToolWheel extends StatelessWidget {
           place(
             geometry.redoCenter,
             historySize,
+            WheelHit.redo,
             _HistoryButton(
               redo: true,
               style: style,
@@ -666,6 +633,7 @@ class ToolWheel extends StatelessWidget {
             place(
               geometry.adjustmentCenter(adjustment),
               geometry.adjustmentSize,
+              WheelHit.adjustment(adjustment),
               _AdjustmentButton(
                 adjustment: adjustment,
                 controls: controls,
@@ -675,8 +643,11 @@ class ToolWheel extends StatelessWidget {
                 onTap: () => onAdjustmentTap?.call(adjustment),
               ),
             ),
-          Center(
-            child: _ColorButton(
+          place(
+            Offset.zero,
+            Size.square(geometry.centerRadius * 2),
+            WheelHit.center,
+            _ColorButton(
               controls: controls,
               style: style,
               diameter: geometry.centerRadius * 2,
@@ -686,6 +657,51 @@ class ToolWheel extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Lets [child] receive pointers only inside the visible region of [hit],
+/// as defined by [ToolWheelGeometry.controlContains]. [origin] is the
+/// child's top left corner relative to the wheel's center.
+class _WheelHitRegion extends SingleChildRenderObjectWidget {
+  const _WheelHitRegion({
+    required this.geometry,
+    required this.hit,
+    required this.origin,
+    super.child,
+  });
+
+  final ToolWheelGeometry geometry;
+  final WheelHit hit;
+  final Offset origin;
+
+  bool _contains(Offset position) {
+    return geometry.controlContains(hit, position + origin);
+  }
+
+  @override
+  RenderObject createRenderObject(BuildContext context) {
+    return _RenderWheelHitRegion(_contains);
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderWheelHitRegion renderObject,
+  ) {
+    renderObject.contains = _contains;
+  }
+}
+
+class _RenderWheelHitRegion extends RenderProxyBox {
+  _RenderWheelHitRegion(this.contains);
+
+  bool Function(Offset position) contains;
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) {
+    if (!contains(position)) return false;
+    return super.hitTest(result, position: position);
   }
 }
 
@@ -725,33 +741,32 @@ class _WheelPainter extends CustomPainter {
       final start = geometry.ringAngle(i) + pi / 10;
       canvas.drawArc(rimRect, start + 0.1, pi / 5 - 0.2, false, rim);
     }
-    final band = geometry.middleRadius - geometry.centerRadius - 6;
-    final middle = Rect.fromCircle(
-      center: center,
-      radius: geometry.middleRadius - band / 2,
-    );
+    // Each segment is drawn as a butt-capped stroke that fills exactly the
+    // sector used for hit testing.
     for (final adjustment in ToolAdjustment.values) {
       final active = supported.contains(adjustment);
       final color = adjustment == open
           ? style.accent.withValues(alpha: 0.25)
           : style.surfaceVariant.withValues(alpha: active ? 1 : 0.4);
-      final start = geometry.adjustmentAngle(adjustment) - pi / 3;
+      final sector = geometry.adjustmentSector(adjustment);
       canvas.drawArc(
-        middle,
-        start + 0.04,
-        2 * pi / 3 - 0.08,
+        Rect.fromCircle(center: center, radius: sector.middleRadius),
+        sector.startAngle,
+        sector.sweepAngle,
         false,
         Paint()
           ..color = color
           ..style = PaintingStyle.stroke
-          ..strokeWidth = band,
+          ..strokeCap = StrokeCap.butt
+          ..strokeWidth = sector.width,
       );
     }
   }
 
   @override
   bool shouldRepaint(_WheelPainter oldDelegate) {
-    return oldDelegate.style.accent != style.accent ||
+    return oldDelegate.geometry.diameter != geometry.diameter ||
+        oldDelegate.style.accent != style.accent ||
         oldDelegate.style.surface != style.surface ||
         oldDelegate.open != open ||
         oldDelegate.supported.length != supported.length ||
