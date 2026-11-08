@@ -20,6 +20,12 @@ const _hueFamilies = [
   'E',
 ];
 
+/// Font size of the marker codes painted on the swatches, at zoom 1.
+const kMarkerLabelSize = 11.0;
+
+/// Zoom at which swatches are focused and their codes are painted.
+const kMarkerFocusZoom = 1.0;
+
 /// A swatch in untransformed ring coordinates. At zoom 1 its short side is
 /// 38 logical pixels and its code is painted at 11 logical pixels.
 class MarkerSwatchGeometry {
@@ -45,12 +51,43 @@ class MarkerRingGeometry {
   final List<String> families;
   final double innerRadius;
 
+  /// Distance between ring and bar steps. A 54x38 swatch spans at most
+  /// sqrt(54² + 38²) ≈ 66 px in any direction, so neighbors never overlap.
+  static const _step = 68.0;
+
+  /// Neutral and fluorescent cells per inner ring.
+  static const _perRing = 15;
+
   static List<MarkerSwatchGeometry> _layout(
     MarkerPalette palette,
     double innerRadius,
   ) {
     final result = <MarkerSwatchGeometry>[];
     final neutral = <MarkerColor>[];
+    for (final family in palette.families) {
+      if (!_hueFamilies.contains(family)) {
+        neutral.addAll(palette.byFamily(family));
+      }
+    }
+    // Gray and fluorescent families fill concentric rings just outside the
+    // wheel. Fifteen cells on the first ring are about 69 px apart.
+    final firstRing = innerRadius + 85.0;
+    for (var index = 0; index < neutral.length; index++) {
+      final ring = index ~/ _perRing;
+      final position = index % _perRing;
+      final radius = firstRing + ring * _step;
+      final angle = -math.pi / 2 + position * 2 * math.pi / _perRing;
+      result.add(
+        MarkerSwatchGeometry(
+          neutral[index],
+          Offset(radius * math.cos(angle), radius * math.sin(angle)),
+        ),
+      );
+    }
+    // Hue bars start beyond the last neutral ring and run outward from the
+    // darkest to the lightest color.
+    final rings = (neutral.length / _perRing).ceil();
+    final barStart = firstRing + rings * _step + _step;
     for (
       var familyIndex = 0;
       familyIndex < _hueFamilies.length;
@@ -59,9 +96,10 @@ class MarkerRingGeometry {
       final family = _hueFamilies[familyIndex];
       final colors = palette.byFamily(family).toList()
         ..sort((a, b) => _luminance(a).compareTo(_luminance(b)));
-      final angle = -math.pi / 2 + familyIndex * 2 * math.pi / 11;
+      final angle =
+          -math.pi / 2 + familyIndex * 2 * math.pi / _hueFamilies.length;
       for (var index = 0; index < colors.length; index++) {
-        final radius = innerRadius + 370.0 + index * 58.0;
+        final radius = barStart + index * _step;
         result.add(
           MarkerSwatchGeometry(
             colors[index],
@@ -69,23 +107,6 @@ class MarkerRingGeometry {
           ),
         );
       }
-    }
-    for (final family in palette.families) {
-      if (!_hueFamilies.contains(family))
-        neutral.addAll(palette.byFamily(family));
-    }
-    // Fifteen cells per ring leave more than 32 px between neighboring cells.
-    for (var index = 0; index < neutral.length; index++) {
-      final ring = index ~/ 15;
-      final position = index % 15;
-      final radius = innerRadius + 85.0 + ring * 68.0;
-      final angle = -math.pi / 2 + position * 2 * math.pi / 15;
-      result.add(
-        MarkerSwatchGeometry(
-          neutral[index],
-          Offset(radius * math.cos(angle), radius * math.sin(angle)),
-        ),
-      );
     }
     return result;
   }
@@ -157,7 +178,7 @@ class _MarkerRingState extends State<MarkerRing> {
   final _search = TextEditingController();
   Size _viewport = Size.zero;
   Offset _pan = Offset.zero;
-  double _zoom = 0.55;
+  double _zoom = _overviewZoom;
   Offset _gestureStartPan = Offset.zero;
   double _gestureStartZoom = 1;
   Offset _gestureStartFocal = Offset.zero;
@@ -181,9 +202,31 @@ class _MarkerRingState extends State<MarkerRing> {
     super.dispose();
   }
 
+  /// Zoom of the overview the ring opens with and double tap returns to.
+  static const _overviewZoom = 0.55;
+
+  Duration? _lastTapTime;
+  Offset? _lastTapPosition;
+
+  /// Whether a tap at [position] completes a double tap: within 300 ms and
+  /// 40 px of the previous tap.
+  bool _isDoubleTap(Offset position) {
+    final now = Duration(microseconds: DateTime.now().microsecondsSinceEpoch);
+    final lastTime = _lastTapTime;
+    final lastPosition = _lastTapPosition;
+    final isDouble =
+        lastTime != null &&
+        lastPosition != null &&
+        now - lastTime <= kDoubleTapTimeout &&
+        (position - lastPosition).distance <= 40;
+    _lastTapTime = isDouble ? null : now;
+    _lastTapPosition = isDouble ? null : position;
+    return isDouble;
+  }
+
   void _focus(MarkerSwatchGeometry swatch) {
     setState(() {
-      _zoom = 1;
+      _zoom = kMarkerFocusZoom;
       _pan = -swatch.center;
     });
   }
@@ -260,12 +303,20 @@ class _MarkerRingState extends State<MarkerRing> {
                 },
                 child: GestureDetector(
                   key: const ValueKey('amaze-color-ring'),
+                  // Pans from where the pointer went down, not from where the
+                  // gesture was recognized.
+                  dragStartBehavior: DragStartBehavior.down,
                   behavior: HitTestBehavior.opaque,
-                  onDoubleTap: () => setState(() {
-                    _zoom = 0.55;
-                    _pan = Offset.zero;
-                  }),
+                  // A double tap is detected here rather than with
+                  // onDoubleTap, which would delay every single tap.
                   onTapUp: (details) {
+                    if (_isDoubleTap(details.localPosition)) {
+                      setState(() {
+                        _zoom = _overviewZoom;
+                        _pan = Offset.zero;
+                      });
+                      return;
+                    }
                     final marker = _geometry.hitTestTransformed(
                       details.localPosition,
                       viewport: _viewport,
@@ -294,7 +345,7 @@ class _MarkerRingState extends State<MarkerRing> {
                     });
                   },
                   child: CustomPaint(
-                    painter: _MarkerRingPainter(
+                    painter: MarkerRingPainter(
                       geometry: _geometry,
                       pan: _pan,
                       zoom: _zoom,
@@ -317,8 +368,11 @@ class _MarkerRingState extends State<MarkerRing> {
   }
 }
 
-class _MarkerRingPainter extends CustomPainter {
-  const _MarkerRingPainter({
+/// Paints the swatches through the ring's pan and zoom. Its fields describe
+/// what is shown: search [matches] are highlighted when [dimUnmatched], and
+/// the swatch with [selectedRgb] is outlined.
+class MarkerRingPainter extends CustomPainter {
+  const MarkerRingPainter({
     required this.geometry,
     required this.pan,
     required this.zoom,
@@ -381,7 +435,7 @@ class _MarkerRingPainter extends CustomPainter {
             text: marker.code,
             style: TextStyle(
               color: darkText ? Colors.black : Colors.white,
-              fontSize: 11,
+              fontSize: kMarkerLabelSize,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -398,7 +452,7 @@ class _MarkerRingPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _MarkerRingPainter oldDelegate) =>
+  bool shouldRepaint(covariant MarkerRingPainter oldDelegate) =>
       oldDelegate.pan != pan ||
       oldDelegate.zoom != zoom ||
       oldDelegate.selectedRgb != selectedRgb ||

@@ -114,9 +114,13 @@ class _AmazeColorOverlayState extends State<_AmazeColorOverlay> {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final matches = markersFor(_preview, widget.palette);
-    final code = _pickedMarker?.code ?? matches.map((m) => m.code).join(' / ');
+    // The tapped marker is shown while the preview still has its color;
+    // otherwise every marker with the preview's exact color is shown.
+    final picked = _pickedMarker;
+    final marker = picked != null && matches.contains(picked) ? picked : null;
+    final code = marker?.code ?? matches.map((m) => m.code).join(' / ');
     final name =
-        _pickedMarker?.name ?? (matches.length == 1 ? matches.first.name : '');
+        marker?.name ?? (matches.length == 1 ? matches.first.name : '');
     return Focus(
       autofocus: true,
       onKeyEvent: (node, event) {
@@ -146,6 +150,7 @@ class _AmazeColorOverlayState extends State<_AmazeColorOverlay> {
                 width: width,
                 height: height,
                 child: Material(
+                  key: const ValueKey('amaze-color-panel'),
                   elevation: 16,
                   clipBehavior: Clip.antiAlias,
                   borderRadius: BorderRadius.circular(20),
@@ -200,8 +205,13 @@ class _AmazeColorOverlayState extends State<_AmazeColorOverlay> {
                                     code.isEmpty
                                         ? _preview.toHexString(alpha: false)
                                         : code,
+                                    key: const ValueKey('amaze-color-code'),
                                   ),
-                                  if (name.isNotEmpty) Text(name),
+                                  if (name.isNotEmpty)
+                                    Text(
+                                      name,
+                                      key: const ValueKey('amaze-color-name'),
+                                    ),
                                 ],
                               ),
                             ),
