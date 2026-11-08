@@ -1,17 +1,343 @@
-import 'dart:ui';
+import 'dart:math';
 
+import 'package:butterfly/bloc/document_bloc.dart';
+import 'package:butterfly/cubits/editor_controller.dart';
 import 'package:butterfly/cubits/settings.dart';
+import 'package:butterfly/cubits/transform.dart';
+import 'package:butterfly/handlers/handler.dart';
+import 'package:butterfly/models/defaults.dart';
+import 'package:butterfly/models/viewport.dart';
+import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly/views/amaze/shell.dart';
 import 'package:butterfly/views/amaze/tool_slots.dart';
 import 'package:butterfly/views/amaze/tool_wheel.dart';
 import 'package:butterfly/views/amaze/wheel_prefs.dart';
 import 'package:butterfly_api/butterfly_api.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lw_file_system/lw_file_system.dart';
+import 'package:material_leap/material_leap.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../helpers/mocks.dart';
 
 Tool _withId(Tool tool, String id) => tool.copyWith(id: id);
 
+/// Every length and offset of [geometry], for comparing two diameters.
+List<double> _measurements(ToolWheelGeometry geometry) {
+  List<double> point(Offset offset) => [offset.dx, offset.dy];
+  List<double> sector(WheelSector sector) => [
+    sector.innerRadius,
+    sector.outerRadius,
+  ];
+  return [
+    geometry.radius,
+    geometry.slotSize,
+    geometry.historySize,
+    geometry.slotDistance,
+    geometry.middleRadius,
+    geometry.middleInnerRadius,
+    geometry.middleGap,
+    geometry.centerRadius,
+    geometry.adjustmentDistance,
+    geometry.adjustmentSize.width,
+    geometry.adjustmentSize.height,
+    for (var slot = 0; slot < kToolSlotCount; slot++)
+      ...point(geometry.slotCenter(slot)),
+    ...point(geometry.undoCenter),
+    ...point(geometry.redoCenter),
+    for (final adjustment in ToolAdjustment.values) ...[
+      ...point(geometry.adjustmentCenter(adjustment)),
+      ...sector(geometry.adjustmentSector(adjustment)),
+    ],
+    for (var index = 0; index < 10; index++)
+      ...sector(geometry.ringSector(index)),
+  ];
+}
+
 void main() {
+  group('proportional geometry', () {
+    test('the default wheel keeps the current sizes', () {
+      const geometry = ToolWheelGeometry();
+      expect(geometry.diameter, kToolWheelDefaultDiameter);
+      expect(kToolWheelDefaultDiameter, 320);
+      expect(kToolWheelMinDiameter, 240);
+      expect(kToolWheelMaxDiameter, 480);
+      expect(geometry.slotDistance, closeTo(130, 0.5));
+      expect(geometry.middleRadius, closeTo(104, 0.5));
+      expect(geometry.centerRadius, closeTo(30, 0.5));
+      expect(geometry.adjustmentDistance, closeTo(68, 0.5));
+      expect(geometry.slotSize, closeTo(46, 0.5));
+      expect(geometry.historySize, closeTo(40, 0.5));
+      expect(geometry.adjustmentSize.width, closeTo(60, 0.5));
+      expect(geometry.adjustmentSize.height, closeTo(40, 0.5));
+      expect(geometry.middleInnerRadius, closeTo(36, 0.5));
+    });
+
+    test('every length doubles with the diameter', () {
+      final small = _measurements(const ToolWheelGeometry(diameter: 320));
+      final large = _measurements(const ToolWheelGeometry(diameter: 640));
+      expect(large, hasLength(small.length));
+      for (var i = 0; i < small.length; i++) {
+        expect(large[i], 2 * small[i], reason: 'measurement $i');
+      }
+    });
+
+    test('angles do not depend on the diameter', () {
+      const small = ToolWheelGeometry(diameter: 240);
+      const large = ToolWheelGeometry(diameter: 480);
+      for (final adjustment in ToolAdjustment.values) {
+        final a = small.adjustmentSector(adjustment);
+        final b = large.adjustmentSector(adjustment);
+        expect(b.startAngle, a.startAngle);
+        expect(b.sweepAngle, a.sweepAngle);
+      }
+    });
+  });
+
+  for (final diameter in [
+    kToolWheelMinDiameter,
+    kToolWheelDefaultDiameter,
+    kToolWheelMaxDiameter,
+  ]) {
+    group('hit test at diameter $diameter', () {
+      final geometry = ToolWheelGeometry(diameter: diameter);
+
+      test('each control owns its center point', () {
+        for (final control in geometry.controls) {
+          final point = geometry.controlCenter(control);
+          expect(geometry.hitTest(point), control, reason: '$control');
+        }
+      });
+
+      test('gaps between outer ring buttons belong to the ring', () {
+        for (var index = 0; index < 10; index++) {
+          final angle = geometry.ringAngle(index) + pi / 10;
+          final point = Offset(cos(angle), sin(angle)) * geometry.slotDistance;
+          expect(geometry.hitTest(point), WheelHit.ring, reason: '$index');
+        }
+      });
+
+      test('the gap around the center belongs to the ring', () {
+        final distance =
+            (geometry.centerRadius + geometry.middleInnerRadius) / 2;
+        for (final adjustment in ToolAdjustment.values) {
+          final angle = geometry.adjustmentAngle(adjustment);
+          final point = Offset(cos(angle), sin(angle)) * distance;
+          expect(geometry.hitTest(point), WheelHit.ring);
+        }
+      });
+
+      test('slots, undo and redo only own their circle', () {
+        final corner = Offset(geometry.slotSize, geometry.slotSize) * 0.45;
+        expect(
+          geometry.hitTest(geometry.slotCenter(0) + corner),
+          isNot(const WheelHit.slot(0)),
+        );
+        final historyCorner =
+            Offset(geometry.historySize, geometry.historySize) * 0.45;
+        expect(
+          geometry.hitTest(geometry.undoCenter + historyCorner),
+          isNot(WheelHit.undo),
+        );
+      });
+
+      test('adjustments own their whole segment', () {
+        for (final adjustment in ToolAdjustment.values) {
+          final sector = geometry.adjustmentSector(adjustment);
+          for (final t in [0.02, 0.25, 0.5, 0.75, 0.98]) {
+            final angle = sector.startAngle + sector.sweepAngle * t;
+            for (final r in [0.02, 0.5, 0.98]) {
+              final distance = sector.innerRadius + sector.width * r;
+              final point = Offset(cos(angle), sin(angle)) * distance;
+              expect(geometry.hitTest(point), WheelHit.adjustment(adjustment));
+            }
+          }
+        }
+      });
+
+      test('points beyond the rim are outside', () {
+        for (var degrees = 0; degrees < 360; degrees += 15) {
+          final angle = degrees * pi / 180;
+          final point = Offset(cos(angle), sin(angle)) * (geometry.radius + 1);
+          expect(geometry.hitTest(point), WheelHit.outside);
+        }
+        expect(
+          geometry.hitTest(Offset(0, geometry.radius)),
+          isNot(WheelHit.outside),
+        );
+      });
+
+      test('controls do not overlap', () {
+        final controls = geometry.controls;
+        final radius = geometry.radius;
+        for (var y = -radius; y <= radius; y += 1) {
+          for (var x = -radius; x <= radius; x += 1) {
+            final point = Offset(x, y);
+            final owners = controls.where(
+              (control) => geometry.controlContains(control, point),
+            );
+            expect(owners.length, lessThanOrEqualTo(1), reason: '$point');
+          }
+        }
+      });
+
+      test('controls lie inside the rim', () {
+        final circles = [
+          for (var slot = 0; slot < kToolSlotCount; slot++)
+            (geometry.slotCenter(slot), geometry.slotSize / 2),
+          (geometry.undoCenter, geometry.historySize / 2),
+          (geometry.redoCenter, geometry.historySize / 2),
+        ];
+        for (final (center, size) in circles) {
+          expect(center.distance + size, lessThanOrEqualTo(geometry.radius));
+          expect(
+            center.distance - size,
+            greaterThanOrEqualTo(geometry.middleRadius),
+          );
+        }
+        for (final adjustment in ToolAdjustment.values) {
+          final sector = geometry.adjustmentSector(adjustment);
+          expect(sector.outerRadius, lessThanOrEqualTo(geometry.radius));
+          expect(sector.innerRadius, greaterThan(geometry.centerRadius));
+        }
+        expect(geometry.centerRadius, lessThan(geometry.radius));
+      });
+    });
+  }
+
+  group('wheel taps', () {
+    setUpAll(() {
+      registerFallbackValue(const AssetLocation(path: 'fallback.bfly'));
+    });
+
+    /// Pumps the wheel layer with the first default tool of type [T] active.
+    Future<DocumentBloc> pumpWheel<T extends Tool>(WidgetTester tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final fileSystem = MockButterflyFileSystem();
+      final settings = fileSystem.settingsCubit as MockSettingsCubit;
+      when(() => settings.state)
+          .thenReturn(const ButterflySettings(autosave: false));
+      when(() => settings.stream).thenAnswer((_) => const Stream.empty());
+      when(() => settings.addRecentHistory(any())).thenAnswer((_) async {});
+      final editor = EditorController(
+        settings,
+        TransformCubit(1),
+        CameraViewport.unbaked(),
+      );
+      final window = WindowCubit(fullScreen: false);
+      final data = DocumentDefaults.createDocument(name: 'wheel');
+      final bloc = (await tester.runAsync(() async {
+        final bloc = DocumentBloc(
+          fileSystem,
+          editor,
+          window,
+          data,
+          const AssetLocation(path: 'wheel.bfly'),
+        );
+        await pumpEventQueue();
+        return bloc;
+      }))!;
+      final state = bloc.state as DocumentLoadSuccess;
+      final index = state.info.tools.indexWhere((tool) => tool is T);
+      final tools = ToolCubit(
+        ToolRuntimeState(
+          index: index,
+          handler: Handler.fromTool(state.info.tools[index]),
+        ),
+      );
+      addTearDown(() async {
+        await tester.runAsync(() async {
+          await tools.close();
+          await bloc.close();
+          await editor.close();
+          await window.close();
+        });
+      });
+      await tester.pumpWidget(
+        MultiBlocProvider(
+          providers: [
+            BlocProvider<DocumentBloc>.value(value: bloc),
+            BlocProvider<ToolCubit>.value(value: tools),
+          ],
+          child: const MaterialApp(
+            localizationsDelegates: [
+              ...AppLocalizations.localizationsDelegates,
+              LeapLocalizations.delegate,
+            ],
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: AmazeToolWheelLayer()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return bloc;
+    }
+
+    const geometry = ToolWheelGeometry();
+    const panel = ValueKey('amaze-adjustment-panel');
+
+    /// A point on the segment of [adjustment] outside its old 60x40 button.
+    Offset arcPoint(ToolAdjustment adjustment) {
+      final sector = geometry.adjustmentSector(adjustment);
+      final angle = sector.startAngle + sector.sweepAngle * 0.15;
+      final point = Offset(cos(angle), sin(angle)) * sector.middleRadius;
+      final button = Rect.fromCenter(
+        center: geometry.adjustmentCenter(adjustment),
+        width: geometry.adjustmentSize.width,
+        height: geometry.adjustmentSize.height,
+      );
+      expect(button.contains(point), isFalse);
+      expect(geometry.hitTest(point), WheelHit.adjustment(adjustment));
+      return point;
+    }
+
+    Offset wheelCenter(WidgetTester tester) {
+      return tester.getCenter(find.byKey(const ValueKey('amaze-tool-wheel')));
+    }
+
+    testWidgets('tapping the arc beside the button opens the adjustment', (
+      tester,
+    ) async {
+      await pumpWheel<PenTool>(tester);
+      for (final adjustment in ToolAdjustment.values) {
+        await tester.tapAt(wheelCenter(tester) + arcPoint(adjustment));
+        await tester.pumpAndSettle();
+        expect(find.byKey(panel), findsOneWidget, reason: '$adjustment');
+        await tester.tapAt(wheelCenter(tester) + arcPoint(adjustment));
+        await tester.pumpAndSettle();
+        expect(find.byKey(panel), findsNothing, reason: '$adjustment');
+      }
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('tapping an unsupported adjustment changes nothing', (
+      tester,
+    ) async {
+      final bloc = await pumpWheel<EraserTool>(tester);
+      final before = (bloc.state as DocumentLoadSuccess).info.tools;
+      for (final adjustment in [
+        ToolAdjustment.opacity,
+        ToolAdjustment.smoothing,
+      ]) {
+        await tester.tapAt(wheelCenter(tester) + arcPoint(adjustment));
+        await tester.pumpAndSettle();
+        await tester.tapAt(
+          wheelCenter(tester) + geometry.adjustmentCenter(adjustment),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byKey(panel), findsNothing, reason: '$adjustment');
+      }
+      expect((bloc.state as DocumentLoadSuccess).info.tools, before);
+      await tester.tapAt(wheelCenter(tester) + arcPoint(ToolAdjustment.size));
+      await tester.pumpAndSettle();
+      expect(find.byKey(panel), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   group('ToolWheelGeometry', () {
     const geometry = ToolWheelGeometry();
 
