@@ -1756,5 +1756,15 @@
   "waterful": "Waterful",
   "crosshatching": "Crosshatching",
   "inkAndBlotTextures": "Ink and blot textures",
-  "connectShapes": "Connect shapes"
+  "connectShapes": "Connect shapes",
+  "amazeSizePts": "{size} pts",
+  "@amazeSizePts": {
+    "description": "Stroke size shown in the tool wheel, in points.",
+    "placeholders": {
+      "size": {
+        "type": "String",
+        "example": "5"
+      }
+    }
+  }
 }
