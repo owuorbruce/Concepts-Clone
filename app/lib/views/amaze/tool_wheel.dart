@@ -11,7 +11,7 @@ import 'package:butterfly/visualizer/tool.dart';
 import 'package:butterfly_api/butterfly_api.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart' show BoxHitTestResult, RenderProxyBox;
-import 'package:flutter/services.dart' show HardwareKeyboard;
+import 'package:flutter/services.dart' show HapticFeedback, HardwareKeyboard;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_leap/material_leap.dart';
 import 'package:material_ui/material_ui.dart';
@@ -375,9 +375,13 @@ class _HistoryButton extends StatelessWidget {
     final enabled = redo ? bloc.canSendRedo : bloc.canSendUndo;
     final color = background ?? style.surfaceVariant;
     final iconSize = min(20.0, size * 0.55);
-    return IconButton(
+    final message = redo ? loc.redo : loc.undo;
+    // On the wheel a long press belongs to the wheel, so the tooltip must
+    // not claim it.
+    final onWheel = background != null;
+    final button = IconButton(
       key: ValueKey(redo ? 'amaze-redo' : 'amaze-undo'),
-      tooltip: redo ? loc.redo : loc.undo,
+      tooltip: onWheel ? null : message,
       onPressed: enabled ? (redo ? bloc.sendRedo : bloc.sendUndo) : null,
       style: IconButton.styleFrom(
         backgroundColor: color,
@@ -391,6 +395,12 @@ class _HistoryButton extends StatelessWidget {
       ),
       iconSize: iconSize,
       icon: AmazeIcon(redo ? AmazeIcons.redo : AmazeIcons.undo, size: iconSize),
+    );
+    if (!onWheel) return button;
+    return Tooltip(
+      message: message,
+      triggerMode: TooltipTriggerMode.manual,
+      child: button,
     );
   }
 }
@@ -464,13 +474,11 @@ class _ColorButton extends StatelessWidget {
     required this.controls,
     required this.style,
     required this.diameter,
-    this.onLongPress,
   });
 
   final _ToolControls controls;
   final AmazeStyle style;
   final double diameter;
-  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -508,7 +516,6 @@ class _ColorButton extends StatelessWidget {
           child: InkWell(
             customBorder: const CircleBorder(),
             onTap: color == null ? null : () => _openColorPicker(context),
-            onLongPress: onLongPress,
             child: content,
           ),
         ),
@@ -556,15 +563,35 @@ Widget _wheelRegion(ToolWheelGeometry geometry, WheelHit hit, Widget child) {
   );
 }
 
+/// Formats a tool size for the wheel: a whole number when the value is
+/// whole, one decimal otherwise.
+String _formatSize(double size) {
+  final fixed = size.toStringAsFixed(1);
+  return fixed.endsWith('.0') ? fixed.substring(0, fixed.length - 2) : fixed;
+}
+
 /// The size of [tool] as shown on its wedge, or null if it has none.
 String? _toolSizeLabel(Tool tool) {
   final size = tool.readAdjustment(ToolAdjustment.size);
   if (size == null) return null;
-  return formatAdjustment(ToolAdjustment.size, size);
+  return _formatSize(size);
+}
+
+/// The value of [adjustment] as shown in the center disc.
+String _discLabel(
+  AppLocalizations loc,
+  ToolAdjustment adjustment,
+  double value,
+) {
+  if (adjustment == ToolAdjustment.size) {
+    return loc.amazeSizePts(_formatSize(value));
+  }
+  return formatAdjustment(adjustment, value);
 }
 
 /// One slot wedge of the wheel: its surface, the tool icon and the tool's
-/// size. The whole wedge is the slot's button.
+/// size. The whole wedge is the slot's button. Its long press is handled by
+/// the wheel, see [ToolWheel.onHoldStart].
 class _WedgeSlot extends StatelessWidget {
   const _WedgeSlot({
     required this.slot,
@@ -579,12 +606,6 @@ class _WedgeSlot extends StatelessWidget {
   final AmazeStyle style;
   final ToolWheelGeometry geometry;
   final ValueChanged<int>? onOpenLibrary;
-
-  void _onLongPress(BuildContext context) {
-    final open = onOpenLibrary;
-    if (open != null) return open(slot);
-    _openSlotMenu(context, slot);
-  }
 
   void _onEmptyTap(BuildContext context) {
     final open = onOpenLibrary;
@@ -610,15 +631,9 @@ class _WedgeSlot extends StatelessWidget {
         ? const BorderSide(color: Color(0xDD000000), width: 1.5)
         : BorderSide(color: style.outline);
     final content = selected ? contrastingContent(opaqueFill) : style.onSurface;
-    final VoidCallback onTap;
-    final VoidCallback onLongPress;
-    if (tool == null) {
-      onTap = () => _onEmptyTap(context);
-      onLongPress = onTap;
-    } else {
-      onTap = () => _onSlotTap(context, slot);
-      onLongPress = () => _onLongPress(context);
-    }
+    final VoidCallback onTap = tool == null
+        ? () => _onEmptyTap(context)
+        : () => _onSlotTap(context, slot);
     final loc = AppLocalizations.of(context);
     final iconSize = geometry.radius * 0.16;
     final label = tool == null ? null : _toolSizeLabel(tool);
@@ -631,7 +646,6 @@ class _WedgeSlot extends StatelessWidget {
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: onTap,
-            onLongPress: onLongPress,
             child: DecoratedBox(
               key: ValueKey(('amaze-wedge', slot)),
               decoration: ShapeDecoration(
@@ -652,7 +666,6 @@ class _WedgeSlot extends StatelessWidget {
               key: ValueKey(('amaze-slot', slot)),
               behavior: HitTestBehavior.opaque,
               onTap: onTap,
-              onLongPress: onLongPress,
               child: Center(
                 child: tool == null
                     ? PhosphorIcon(
@@ -732,7 +745,7 @@ class _DiscAdjustment extends StatelessWidget {
         AmazeIcon(_adjustmentIcon(adjustment), size: iconSize, color: color),
         if (value != null)
           Text(
-            formatAdjustment(adjustment, value),
+            _discLabel(loc, adjustment, value),
             style: TextStyle(
               color: color,
               fontSize: geometry.radius * 0.085,
@@ -789,6 +802,7 @@ class _DiscAdjustment extends StatelessWidget {
           labelSize,
           Tooltip(
             message: _adjustmentName(loc, adjustment),
+            triggerMode: TooltipTriggerMode.manual,
             child: GestureDetector(
               key: ValueKey(('amaze-adjust', adjustment.name)),
               behavior: HitTestBehavior.opaque,
@@ -856,28 +870,39 @@ class _SectorBorder extends ShapeBorder {
 ///
 /// Eight wedge slots cover the outer band, with undo and redo in the gap on
 /// the left. The center disc shows the size, opacity and smoothing of the
-/// active tool around its color. Long-pressing the wheel outside its
-/// controls and dragging moves it through the ring callbacks.
+/// active tool around its color.
+///
+/// Taps go to the control under the pointer. A long press anywhere on the
+/// wheel is reported through the hold callbacks with the spot it started
+/// on; the owner decides whether it becomes a drag or that spot's long
+/// press action.
 class ToolWheel extends StatelessWidget {
   const ToolWheel({
     super.key,
     this.geometry = const ToolWheelGeometry(),
     this.openAdjustment,
     this.onAdjustmentTap,
-    this.onCollapse,
-    this.onRingLongPressStart,
-    this.onRingLongPressMove,
-    this.onRingLongPressEnd,
+    this.onHoldStart,
+    this.onHoldMove,
+    this.onHoldEnd,
+    this.holding = false,
     this.onOpenLibrary,
   });
 
   final ToolWheelGeometry geometry;
   final ToolAdjustment? openAdjustment;
   final ValueChanged<ToolAdjustment>? onAdjustmentTap;
-  final VoidCallback? onCollapse;
-  final GestureLongPressStartCallback? onRingLongPressStart;
-  final GestureLongPressMoveUpdateCallback? onRingLongPressMove;
-  final GestureLongPressEndCallback? onRingLongPressEnd;
+
+  /// Called when a long press fires, with the spot it started on.
+  final void Function(LongPressStartDetails details, WheelHit spot)?
+  onHoldStart;
+  final GestureLongPressMoveUpdateCallback? onHoldMove;
+  final GestureLongPressEndCallback? onHoldEnd;
+
+  /// Whether a long press is being held, which highlights the wheel.
+  final bool holding;
+
+  /// Opens the brush library for an empty slot that is tapped.
   final ValueChanged<int>? onOpenLibrary;
 
   @override
@@ -889,100 +914,144 @@ class ToolWheel extends StatelessWidget {
     final style = AmazeStyle.of(context);
     final surface = style.surface.withValues(alpha: kWheelSurfaceOpacity);
     final historySize = Size.square(geometry.historyRadius * 2);
+    final center = Offset(geometry.radius, geometry.radius);
+    final holdStart = onHoldStart;
     return SizedBox.square(
       key: const ValueKey('amaze-tool-wheel'),
       dimension: geometry.diameter,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: ClipOval(
-              child: GestureDetector(
-                key: const ValueKey('amaze-wheel-ring'),
-                behavior: HitTestBehavior.opaque,
-                onLongPressStart: onRingLongPressStart,
-                onLongPressMoveUpdate: onRingLongPressMove,
-                onLongPressEnd: onRingLongPressEnd,
-                child: CustomPaint(
-                  painter: _WheelPainter(style: style, geometry: geometry),
-                ),
+      child: GestureDetector(
+        key: const ValueKey('amaze-wheel-hold'),
+        onLongPressStart: holdStart == null
+            ? null
+            : (details) => holdStart(
+                details,
+                geometry.hitTest(details.localPosition - center),
               ),
-            ),
-          ),
-          _placeOnWheel(
-            geometry,
-            Offset.zero,
-            Size.square(geometry.discRadius * 2),
-            IgnorePointer(
-              child: DecoratedBox(
-                key: const ValueKey('amaze-wheel-disc'),
-                decoration: BoxDecoration(
-                  color: surface,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: style.outline),
-                ),
-              ),
-            ),
-          ),
-          for (var slot = 0; slot < kToolSlotCount; slot++)
-            Positioned.fill(
-              child: _WedgeSlot(
-                slot: slot,
-                controls: controls,
-                style: style,
-                geometry: geometry,
-                onOpenLibrary: onOpenLibrary,
-              ),
-            ),
-          for (final adjustment in ToolAdjustment.values)
-            Positioned.fill(
-              child: _DiscAdjustment(
-                adjustment: adjustment,
-                controls: controls,
-                style: style,
-                geometry: geometry,
-                open: openAdjustment == adjustment,
-                onTap: () => onAdjustmentTap?.call(adjustment),
-              ),
-            ),
-          _placeOnWheel(
-            geometry,
-            geometry.undoCenter,
-            historySize,
-            _HistoryButton(
-              redo: false,
-              style: style,
-              size: historySize.width,
-              background: surface,
-            ),
-            hit: WheelHit.undo,
-          ),
-          _placeOnWheel(
-            geometry,
-            geometry.redoCenter,
-            historySize,
-            _HistoryButton(
-              redo: true,
-              style: style,
-              size: historySize.width,
-              background: surface,
-            ),
-            hit: WheelHit.redo,
-          ),
-          _placeOnWheel(
-            geometry,
-            Offset.zero,
-            Size.square(geometry.centerRadius * 2),
-            _ColorButton(
-              controls: controls,
-              style: style,
-              diameter: geometry.centerRadius * 2,
-              onLongPress: onCollapse,
-            ),
-            hit: WheelHit.center,
-          ),
-        ],
+        onLongPressMoveUpdate: onHoldMove,
+        onLongPressEnd: onHoldEnd,
+        child: _buildStack(controls, style, surface, historySize),
       ),
     );
+  }
+
+  Widget _buildStack(
+    _ToolControls controls,
+    AmazeStyle style,
+    Color surface,
+    Size historySize,
+  ) {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: ClipOval(
+            child: GestureDetector(
+              key: const ValueKey('amaze-wheel-ring'),
+              behavior: HitTestBehavior.opaque,
+              child: CustomPaint(
+                painter: _WheelPainter(
+                  style: style,
+                  geometry: geometry,
+                  holding: holding,
+                ),
+              ),
+            ),
+          ),
+        ),
+        _placeOnWheel(
+          geometry,
+          Offset.zero,
+          Size.square(geometry.discRadius * 2),
+          IgnorePointer(
+            child: DecoratedBox(
+              key: const ValueKey('amaze-wheel-disc'),
+              decoration: BoxDecoration(
+                color: surface,
+                shape: BoxShape.circle,
+                border: Border.all(color: style.outline),
+              ),
+            ),
+          ),
+        ),
+        for (var slot = 0; slot < kToolSlotCount; slot++)
+          Positioned.fill(
+            child: _WedgeSlot(
+              slot: slot,
+              controls: controls,
+              style: style,
+              geometry: geometry,
+              onOpenLibrary: onOpenLibrary,
+            ),
+          ),
+        for (final adjustment in ToolAdjustment.values)
+          Positioned.fill(
+            child: _DiscAdjustment(
+              adjustment: adjustment,
+              controls: controls,
+              style: style,
+              geometry: geometry,
+              open: openAdjustment == adjustment,
+              onTap: () => onAdjustmentTap?.call(adjustment),
+            ),
+          ),
+        _placeOnWheel(
+          geometry,
+          geometry.undoCenter,
+          historySize,
+          _HistoryButton(
+            redo: false,
+            style: style,
+            size: historySize.width,
+            background: surface,
+          ),
+          hit: WheelHit.undo,
+        ),
+        _placeOnWheel(
+          geometry,
+          geometry.redoCenter,
+          historySize,
+          _HistoryButton(
+            redo: true,
+            style: style,
+            size: historySize.width,
+            background: surface,
+          ),
+          hit: WheelHit.redo,
+        ),
+        _placeOnWheel(
+          geometry,
+          Offset.zero,
+          Size.square(geometry.centerRadius * 2),
+          _ColorButton(
+            controls: controls,
+            style: style,
+            diameter: geometry.centerRadius * 2,
+          ),
+          hit: WheelHit.center,
+        ),
+      ],
+    );
+  }
+}
+
+/// Takes the wheel out of hit testing while a plain scroll is passed on to
+/// the canvas underneath, see [_AmazeToolWheelLayerState._passToCanvas].
+class _WheelPassThrough extends SingleChildRenderObjectWidget {
+  const _WheelPassThrough({super.child});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) {
+    return _RenderWheelPassThrough();
+  }
+}
+
+class _RenderWheelPassThrough extends RenderProxyBox {
+  /// Whether an event is being passed through the wheel right now.
+  static bool passing = false;
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) {
+    if (passing) return false;
+    return super.hitTest(result, position: position);
   }
 }
 
@@ -1034,19 +1103,38 @@ class _RenderWheelHitRegion extends RenderProxyBox {
 /// Paints the wheel's outline across the undo and redo gap, so the gap
 /// reads as part of the wheel. Wedges and the disc paint themselves.
 class _WheelPainter extends CustomPainter {
-  const _WheelPainter({required this.style, required this.geometry});
+  const _WheelPainter({
+    required this.style,
+    required this.geometry,
+    this.holding = false,
+  });
 
   final AmazeStyle style;
   final ToolWheelGeometry geometry;
 
+  /// Highlights the rim while a long press is held.
+  final bool holding;
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
+    final end = geometry.slotStartAngle(kToolSlotCount);
+    final gap = geometry.slotStartAngle(0) + 2 * pi - end;
+    // The gap behind undo and redo is part of the wheel and its drag area.
+    final gapSector = WheelSector(
+      innerRadius: geometry.wedgeInnerRadius,
+      outerRadius: geometry.radius,
+      startAngle: end,
+      sweepAngle: gap,
+    );
+    canvas.drawPath(
+      gapSector.toPath(center),
+      Paint()
+        ..color = style.surface.withValues(alpha: kWheelSurfaceOpacity / 2),
+    );
     final outline = Paint()
       ..color = style.outline
       ..style = PaintingStyle.stroke;
-    final end = geometry.slotStartAngle(kToolSlotCount);
-    final gap = geometry.slotStartAngle(0) + 2 * pi - end;
     for (final radius in [geometry.radius - 0.5, geometry.wedgeInnerRadius]) {
       canvas.drawArc(
         Rect.fromCircle(center: center, radius: radius),
@@ -1056,12 +1144,25 @@ class _WheelPainter extends CustomPainter {
         outline,
       );
     }
+    if (holding) {
+      canvas.drawCircle(
+        center,
+        geometry.radius - 1.5,
+        Paint()
+          ..color = style.accent
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3,
+      );
+    }
   }
 
   @override
   bool shouldRepaint(_WheelPainter oldDelegate) {
     return oldDelegate.geometry.diameter != geometry.diameter ||
-        oldDelegate.style.outline != style.outline;
+        oldDelegate.style.outline != style.outline ||
+        oldDelegate.style.surface != style.surface ||
+        oldDelegate.style.accent != style.accent ||
+        oldDelegate.holding != holding;
   }
 }
 
@@ -1410,6 +1511,15 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
   ToolWheelLayout _layout = const ToolWheelLayout();
   Size _bounds = Size.zero;
   bool _dragging = false;
+
+  /// Where the current hold started, or null if the wheel is not held.
+  Offset? _holdStart;
+
+  /// The spot the current hold started on.
+  WheelHit? _holdSpot;
+
+  /// Cancels a hold when the app loses focus.
+  AppLifecycleListener? _lifecycle;
   bool _overDock = false;
   Offset? _lastPointer;
   ToolAdjustment? _openAdjustment;
@@ -1440,11 +1550,17 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
       if (mounted) setState(() => _layout = layout);
     });
     GestureBinding.instance.pointerRouter.addGlobalRoute(_onGlobalPointer);
+    _lifecycle = AppLifecycleListener(
+      onStateChange: (state) {
+        if (state != AppLifecycleState.resumed) _cancelHold();
+      },
+    );
   }
 
   @override
   void dispose() {
     GestureBinding.instance.pointerRouter.removeGlobalRoute(_onGlobalPointer);
+    _lifecycle?.dispose();
     _unfade?.cancel();
     if (_scrollSave?.isActive ?? false) saveToolWheelLayout(_layout);
     _scrollSave?.cancel();
@@ -1475,7 +1591,9 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
     if (!_strokes.containsKey(event.pointer)) return;
     if (event is PointerMoveEvent) {
       final rect = _globalWheelRect;
-      final near = rect != null && rect.inflate(12).contains(event.position);
+      final near =
+          rect != null &&
+          (event.position - rect.center).distance <= rect.width / 2 + 12;
       _strokes[event.pointer] = near;
     } else if (event is PointerUpEvent || event is PointerCancelEvent) {
       _strokes.remove(event.pointer);
@@ -1601,15 +1719,19 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
     saveToolWheelLayout(_layout);
   }
 
-  /// Ctrl + mouse wheel resizes the wheel by one step per notch. A plain
-  /// scroll is left alone.
+  /// Ctrl + scroll over the wheel resizes it by the scroll distance: a
+  /// 100 px mouse notch is 16 px, and small trackpad steps resize smoothly.
+  /// A plain scroll is passed on to the canvas underneath.
   void _onPointerSignal(PointerSignalEvent event) {
     if (event is! PointerScrollEvent) return;
-    if (!HardwareKeyboard.instance.isControlPressed) return;
+    if (!HardwareKeyboard.instance.isControlPressed) {
+      _passToCanvas(event);
+      return;
+    }
     GestureBinding.instance.pointerSignalResolver.register(event, (event) {
       final dy = (event as PointerScrollEvent).scrollDelta.dy;
       if (dy == 0) return;
-      _resize(_diameter + (dy < 0 ? _scrollStep : -_scrollStep));
+      _resize(_diameter - dy * _scrollScale);
       _scrollSave?.cancel();
       _scrollSave = Timer(_scrollSaveDelay, () {
         if (mounted) saveToolWheelLayout(_layout);
@@ -1617,36 +1739,105 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
     });
   }
 
-  static const _scrollStep = 16.0;
+  /// Dispatches [event] again with the wheel left out of hit testing, so
+  /// whatever lies under the wheel receives it.
+  void _passToCanvas(PointerSignalEvent event) {
+    if (_RenderWheelPassThrough.passing) return;
+    _RenderWheelPassThrough.passing = true;
+    try {
+      GestureBinding.instance.handlePointerEvent(event.original ?? event);
+    } finally {
+      _RenderWheelPassThrough.passing = false;
+    }
+  }
+
+  /// Diameter change per pixel of scroll distance.
+  static const _scrollScale = 0.16;
   static const _scrollSaveDelay = Duration(milliseconds: 300);
 
-  void _onRingPressStart(LongPressStartDetails details) {
+  /// Distance a held pointer has to move before the wheel is dragged.
+  static const _dragSlop = 8.0;
+
+  /// A long press fired: the wheel is held. It becomes a drag once the
+  /// pointer moves; released in place it runs [spot]'s long press action.
+  void _onHoldStart(LongPressStartDetails details, WheelHit spot) {
+    HapticFeedback.lightImpact();
     setState(() {
-      _dragging = true;
-      _overDock = false;
-      _openAdjustment = null;
+      _holdSpot = spot;
+      _holdStart = details.globalPosition;
       _lastPointer = details.globalPosition;
+      _overDock = false;
     });
   }
 
-  void _onRingPressMove(LongPressMoveUpdateDetails details) {
+  void _onHoldMove(LongPressMoveUpdateDetails details) {
+    final start = _holdStart;
+    if (start == null) return;
     final pointer = details.globalPosition;
+    if (!_dragging) {
+      if ((pointer - start).distance <= _dragSlop) return;
+      setState(() {
+        _dragging = true;
+        _openAdjustment = null;
+      });
+    }
     final last = _lastPointer ?? pointer;
     _lastPointer = pointer;
     _move(pointer - last, overDock: _dockRect.contains(_toLocal(pointer)));
   }
 
-  void _onRingPressEnd(LongPressEndDetails details) {
+  void _onHoldEnd(LongPressEndDetails details) {
+    if (_holdStart == null) return;
+    final dragging = _dragging;
     final dock = _overDock;
+    final spot = _holdSpot;
+    _endHold();
+    if (!dragging) {
+      if (spot != null) _runHoldAction(spot);
+    } else if (dock) {
+      _update(_layout.copyWith(mode: ToolWheelMode.bar));
+    } else {
+      saveToolWheelLayout(_layout);
+    }
+  }
+
+  /// Ends a hold that was interrupted: the wheel stays where it was last
+  /// placed, that position is saved and nothing opens.
+  void _cancelHold() {
+    if (_holdStart == null) return;
+    _endHold();
+    saveToolWheelLayout(_layout);
+  }
+
+  void _endHold() {
     setState(() {
+      _holdStart = null;
+      _holdSpot = null;
       _dragging = false;
       _overDock = false;
       _lastPointer = null;
     });
-    if (dock) {
-      _update(_layout.copyWith(mode: ToolWheelMode.bar));
-    } else {
-      saveToolWheelLayout(_layout);
+  }
+
+  /// The long press action of the spot a hold started on, run when it is
+  /// released without moving.
+  void _runHoldAction(WheelHit spot) {
+    switch (spot.type) {
+      case WheelHitType.slot:
+        _openLibrary(spot.slot!);
+      case WheelHitType.center:
+        _update(_layout.copyWith(collapsed: true));
+      default:
+        break;
+    }
+  }
+
+  /// Watches pointers on the wheel for interruptions of a hold: a second
+  /// pointer (which turns it into a pinch) or a cancelled pointer.
+  void _onWheelPointer(PointerEvent event) {
+    if (_holdStart == null) return;
+    if (event is PointerDownEvent || event is PointerCancelEvent) {
+      _cancelHold();
     }
   }
 
@@ -1762,29 +1953,37 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
 
   /// The wheel with its pinch and Ctrl + scroll resizing.
   Widget _buildWheelGestures() {
-    return Listener(
-      onPointerSignal: _onPointerSignal,
-      child: RawGestureDetector(
-        gestures: {
-          _WheelPinchRecognizer:
-              GestureRecognizerFactoryWithHandlers<_WheelPinchRecognizer>(
-                () => _WheelPinchRecognizer(debugOwner: this),
-                (recognizer) => recognizer
-                  ..onStart = _onPinchStart
-                  ..onUpdate = _onPinchUpdate
-                  ..onEnd = _onPinchEnd,
-              ),
-        },
-        child: ToolWheel(
-          geometry: _geometry,
-          openAdjustment: _openAdjustment,
-          onAdjustmentTap: _toggleAdjustment,
-          onCollapse: () => _update(_layout.copyWith(collapsed: true)),
-          onRingLongPressStart: _onRingPressStart,
-          onRingLongPressMove: _onRingPressMove,
-          onRingLongPressEnd: _onRingPressEnd,
-          onOpenLibrary: _openLibrary,
-        ),
+    return _WheelPassThrough(
+      child: Listener(
+        onPointerSignal: _onPointerSignal,
+        onPointerDown: _onWheelPointer,
+        onPointerCancel: _onWheelPointer,
+        child: _buildPinch(),
+      ),
+    );
+  }
+
+  Widget _buildPinch() {
+    return RawGestureDetector(
+      gestures: {
+        _WheelPinchRecognizer:
+            GestureRecognizerFactoryWithHandlers<_WheelPinchRecognizer>(
+              () => _WheelPinchRecognizer(debugOwner: this),
+              (recognizer) => recognizer
+                ..onStart = _onPinchStart
+                ..onUpdate = _onPinchUpdate
+                ..onEnd = _onPinchEnd,
+            ),
+      },
+      child: ToolWheel(
+        geometry: _geometry,
+        openAdjustment: _openAdjustment,
+        onAdjustmentTap: _toggleAdjustment,
+        onHoldStart: _onHoldStart,
+        onHoldMove: _onHoldMove,
+        onHoldEnd: _onHoldEnd,
+        holding: _holdStart != null,
+        onOpenLibrary: _openLibrary,
       ),
     );
   }

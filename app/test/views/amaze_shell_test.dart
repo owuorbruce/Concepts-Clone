@@ -23,6 +23,7 @@ import 'package:butterfly/views/amaze/tool_wheel.dart';
 import 'package:butterfly/views/app_bar.dart';
 import 'package:butterfly/views/edit.dart';
 import 'package:butterfly/views/main.dart';
+import 'package:butterfly/views/view.dart';
 import 'package:butterfly/views/navigator/layers.dart';
 import 'package:butterfly/views/toolbar/view.dart';
 import 'package:butterfly/views/zoom.dart';
@@ -1109,6 +1110,321 @@ void main() {
     await tester.pumpAndSettle();
     expect(fadeOpacity(tester), 1);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a stroke near a corner of the wheel box does not fade it', (
+    tester,
+  ) async {
+    setScreen(tester, const Size(1280, 800));
+    final editor = await openEditor(tester);
+    await selectSlot(tester, editor, slotOf<PenTool>());
+    final wheel = tester.getRect(find.byKey(_wheel));
+    // Inside the bounding square, but outside the circle plus 12 px.
+    final corner = wheel.topLeft + const Offset(4, 4);
+    expect((corner - wheel.center).distance, greaterThan(wheel.width / 2 + 12));
+    final start = corner - const Offset(300, 0);
+    final gesture = await tester.startGesture(
+      start,
+      kind: PointerDeviceKind.mouse,
+      buttons: kPrimaryButton,
+    );
+    for (var i = 1; i <= 10; i++) {
+      await gesture.moveTo(start + Offset(30.0 * i, 0));
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(fadeOpacity(tester), 1);
+    }
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(fadeOpacity(tester), 1);
+    await tester.pump(const Duration(minutes: 1));
+  });
+
+  /// Presses [position] long enough for a long press, moves by [by] in
+  /// steps and releases, or cancels if [cancel].
+  Future<void> hold(
+    WidgetTester tester,
+    Offset position, {
+    Offset by = Offset.zero,
+    PointerDeviceKind kind = PointerDeviceKind.touch,
+    bool cancel = false,
+  }) async {
+    final gesture = await tester.startGesture(position, kind: kind);
+    await tester.pump(const Duration(milliseconds: 700));
+    for (var i = 0; i < 4 && by != Offset.zero; i++) {
+      await gesture.moveBy(by / 4);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    if (cancel) {
+      await gesture.cancel();
+    } else {
+      await gesture.up();
+    }
+    await tester.pumpAndSettle();
+  }
+
+  const geometry = ToolWheelGeometry();
+  Offset wheelPoint(WidgetTester tester, Offset fromCenter) {
+    return tester.getCenter(find.byKey(_wheel)) + fromCenter;
+  }
+
+  testWidgets('a long press on a slot drags, or opens the library in place', (
+    tester,
+  ) async {
+    setScreen(tester, const Size(1280, 800));
+    await openEditor(tester);
+    final pen = slotOf<PenTool>();
+    final before = tester.getRect(find.byKey(_wheel));
+
+    await hold(
+      tester,
+      tester.getCenter(slotButton(pen)),
+      by: const Offset(-40, 0),
+    );
+    final moved = tester.getRect(find.byKey(_wheel));
+    expect(moved.left, closeTo(before.left - 40, 0.5));
+    expect(moved.top, closeTo(before.top, 0.5));
+    expect(find.byKey(_library), findsNothing);
+
+    await hold(tester, tester.getCenter(slotButton(pen)));
+    expect(find.byKey(_library), findsOneWidget);
+    final name = tester.widget<Text>(
+      find.byKey(const ValueKey('amaze-library-name')),
+    );
+    expect(
+      name.data,
+      slotTool(pen).getDisplay(tester.element(find.byKey(_library))),
+    );
+    expect(tester.getRect(find.byKey(_wheel)), moved);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a long press on the center drags, or collapses in place', (
+    tester,
+  ) async {
+    setScreen(tester, const Size(1280, 800));
+    await openEditor(tester);
+    final before = tester.getRect(find.byKey(_wheel));
+
+    await hold(
+      tester,
+      wheelPoint(tester, Offset.zero),
+      by: const Offset(-40, -40),
+    );
+    final moved = tester.getRect(find.byKey(_wheel));
+    expect(moved.topLeft, before.topLeft - const Offset(40, 40));
+    expect(find.byKey(_puck), findsNothing);
+
+    await hold(tester, wheelPoint(tester, Offset.zero));
+    expect(find.byKey(_wheel), findsNothing);
+    expect(find.byKey(_puck), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a long press on an adjustment drags, or does nothing', (
+    tester,
+  ) async {
+    setScreen(tester, const Size(1280, 800));
+    final editor = await openEditor(tester);
+    await selectSlot(tester, editor, slotOf<PenTool>());
+    final size = geometry.adjustmentLabelCenter(ToolAdjustment.size);
+    final before = tester.getRect(find.byKey(_wheel));
+
+    await hold(tester, wheelPoint(tester, size), by: const Offset(-40, 0));
+    final moved = tester.getRect(find.byKey(_wheel));
+    expect(moved.left, closeTo(before.left - 40, 0.5));
+
+    for (final spot in [
+      size,
+      geometry.undoCenter,
+      Offset.fromDirection(pi, geometry.historyDistance),
+    ]) {
+      await hold(tester, wheelPoint(tester, spot));
+      expect(tester.getRect(find.byKey(_wheel)), moved, reason: '$spot');
+      expect(
+        find.byKey(const ValueKey('amaze-adjustment-panel')),
+        findsNothing,
+      );
+      expect(find.byKey(_library), findsNothing);
+      expect(find.byKey(_puck), findsNothing);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a cancelled drag keeps and saves the position', (tester) async {
+    setScreen(tester, const Size(1280, 800));
+    await openEditor(tester);
+    final pen = slotOf<PenTool>();
+    final before = tester.getRect(find.byKey(_wheel));
+
+    await hold(
+      tester,
+      tester.getCenter(slotButton(pen)),
+      by: const Offset(-80, 0),
+      cancel: true,
+    );
+    final after = tester.getRect(find.byKey(_wheel));
+    expect(after.left, closeTo(before.left - 80, 0.5));
+    expect(find.byKey(_library), findsNothing);
+    expect(find.byKey(const ValueKey('amaze-dock-target')), findsNothing);
+    expect(find.byKey(_bar), findsNothing);
+    final saved = await tester.runAsync(() async {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getDouble('amaze.toolWheel.x');
+    });
+    final freeX = 1280 - 16 - before.width;
+    expect(saved, isNotNull);
+    expect(saved! * freeX, closeTo(after.left - 8, 1));
+
+    // A cancel before moving opens nothing either.
+    await hold(tester, tester.getCenter(slotButton(pen)), cancel: true);
+    expect(find.byKey(_library), findsNothing);
+    expect(tester.getRect(find.byKey(_wheel)), after);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a stylus long press on a slot opens the library', (
+    tester,
+  ) async {
+    setScreen(tester, const Size(1280, 800));
+    await openEditor(tester);
+    await hold(
+      tester,
+      tester.getCenter(slotButton(slotOf<PenTool>())),
+      kind: PointerDeviceKind.stylus,
+    );
+    expect(find.byKey(_library), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a canvas stroke over the wheel starts no wheel gesture', (
+    tester,
+  ) async {
+    setScreen(tester, const Size(1280, 800));
+    final editor = await openEditor(tester);
+    final pen = slotOf<PenTool>();
+    await selectSlot(tester, editor, pen);
+    final index = editor.toolCubit.state.index;
+    final wheel = tester.getRect(find.byKey(_wheel));
+    final start = wheel.centerLeft - const Offset(300, 0);
+    final gesture = await tester.startGesture(start);
+    await gesture.moveTo(tester.getCenter(slotButton(pen)));
+    await tester.pump(const Duration(milliseconds: 800));
+    await gesture.moveTo(wheel.center);
+    await tester.pump(const Duration(milliseconds: 800));
+    await gesture.moveBy(const Offset(-40, -40));
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(tester.getRect(find.byKey(_wheel)), wheel);
+    expect(find.byKey(_library), findsNothing);
+    expect(find.byKey(_puck), findsNothing);
+    expect(find.byKey(const ValueKey('amaze-dock-target')), findsNothing);
+    expect(editor.toolCubit.state.index, index);
+    expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(minutes: 1));
+  });
+
+  testWidgets('a right click on the wheel does nothing and skips the canvas', (
+    tester,
+  ) async {
+    setScreen(tester, const Size(1280, 800));
+    final editor = await openEditor(tester);
+    final pen = slotOf<PenTool>();
+    await selectSlot(tester, editor, pen);
+    final viewport = tester.renderObject(find.byType(MainViewViewport));
+    bool onCanvas(HitTestEntry entry) {
+      final target = entry.target;
+      if (target is! RenderObject) return false;
+      for (RenderObject? node = target; node != null; node = node.parent) {
+        if (node == viewport) return true;
+      }
+      return false;
+    }
+
+    final bloc = observer.lastDocumentBloc!;
+    final document = (bloc.state as DocumentLoadSuccess).page;
+    final wheel = tester.getRect(find.byKey(_wheel));
+    for (final spot in [
+      tester.getCenter(slotButton(slotOf<EraserTool>())),
+      wheelPoint(tester, Offset.zero),
+      wheelPoint(tester, Offset.fromDirection(pi, geometry.historyDistance)),
+    ]) {
+      final path = tester.hitTestOnBinding(spot).path;
+      expect(path.where(onCanvas), isEmpty, reason: '$spot');
+      await tester.tapAt(
+        spot,
+        kind: PointerDeviceKind.mouse,
+        buttons: kSecondaryButton,
+      );
+      await tester.pumpAndSettle();
+    }
+    expect(editor.toolCubit.state.handler.data, isA<PenTool>());
+    expect((bloc.state as DocumentLoadSuccess).page, document);
+    expect(tester.getRect(find.byKey(_wheel)), wheel);
+    expect(find.byKey(_library), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a plain scroll over the wheel reaches the canvas', (
+    tester,
+  ) async {
+    setScreen(tester, const Size(1280, 800));
+    final editor = await openEditor(tester);
+    final wheel = tester.getRect(find.byKey(_wheel));
+    final position = editor.transformCubit.state.position;
+    final pointer = TestPointer(1, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(pointer.hover(wheel.center));
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, 100)));
+    await tester.pumpAndSettle();
+    expect(editor.transformCubit.state.position, isNot(position));
+    expect(tester.getRect(find.byKey(_wheel)), wheel);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('sizes read as points in the disc and as numbers on slots', (
+    tester,
+  ) async {
+    setScreen(tester, const Size(1280, 800));
+    final editor = await openEditor(tester);
+    final pen = slotOf<PenTool>();
+    await selectSlot(tester, editor, pen);
+    Finder slotSize() => find.byKey(ValueKey(('amaze-slot-size', pen)));
+    String disc() {
+      final label = find.descendant(
+        of: find.byKey(const ValueKey(('amaze-adjust', 'size'))),
+        matching: find.byType(Text),
+      );
+      return tester.widget<Text>(label).data!;
+    }
+
+    Future<void> setSize(double size) async {
+      final current = editor.toolCubit.state.handler.data as PenTool;
+      if (current.property.strokeWidth != size) {
+        await tester.tap(find.byKey(const ValueKey(('amaze-adjust', 'size'))));
+        await tester.pumpAndSettle();
+        final slider = find.byKey(const ValueKey('amaze-adjustment-slider'));
+        tester.widget<Slider>(slider).onChangeEnd!(size);
+        await pumpUntil(
+          tester,
+          () => (slotTool(pen) as PenTool).property.strokeWidth == size,
+          'size $size',
+        );
+        await tester.tap(find.byKey(const ValueKey(('amaze-adjust', 'size'))));
+        await tester.pumpAndSettle();
+      }
+    }
+
+    await setSize(5);
+    expect(disc(), '5 pts');
+    expect(tester.widget<Text>(slotSize()).data, '5');
+    await setSize(2.5);
+    expect(disc(), '2.5 pts');
+    expect(tester.widget<Text>(slotSize()).data, '2.5');
+    await setSize(34);
+    expect(disc(), '34 pts');
+    expect(tester.widget<Text>(slotSize()).data, '34');
+    expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(minutes: 1));
   });
 
   testWidgets('All tools shows the full tool bar', (tester) async {
