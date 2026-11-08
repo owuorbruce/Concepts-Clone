@@ -11,7 +11,8 @@ import 'package:butterfly/visualizer/tool.dart';
 import 'package:butterfly_api/butterfly_api.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart' show BoxHitTestResult, RenderProxyBox;
-import 'package:flutter/services.dart' show HapticFeedback, HardwareKeyboard;
+import 'package:flutter/services.dart'
+    show HapticFeedback, HardwareKeyboard, LogicalKeyboardKey;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_leap/material_leap.dart';
 import 'package:material_ui/material_ui.dart';
@@ -24,6 +25,7 @@ import 'slot_menu.dart';
 import 'style.dart';
 import 'tool_slots.dart';
 import 'wheel_geometry.dart';
+import 'wheel_presets.dart';
 import 'wheel_prefs.dart';
 
 export 'wheel_geometry.dart';
@@ -725,10 +727,17 @@ class _WedgeSlot extends StatelessWidget {
   }
 }
 
-/// One adjustment sector of the center disc: its icon and value. A
-/// supported adjustment can be tapped anywhere on its sector; an
-/// unsupported one is dimmed and left to the ring.
-class _DiscAdjustment extends StatelessWidget {
+/// One adjustment sector of the center disc: its icon and value.
+///
+/// A supported adjustment opens its panel when tapped anywhere on its
+/// sector. Pressing and dragging vertically right away (more than 8 px,
+/// before a long press fires) scrubs the value: up increases it, and 200 px
+/// covers the tool's range, on a log scale for size. A plain mouse wheel
+/// steps the value by 1% of the range per 100 px. Both show the value live
+/// and change the tool once, at the end of the drag or 300 ms after the
+/// last scroll; a cancelled drag changes nothing. An unsupported adjustment
+/// is dimmed and left to the ring.
+class _DiscAdjustment extends StatefulWidget {
   const _DiscAdjustment({
     required this.adjustment,
     required this.controls,
@@ -746,9 +755,153 @@ class _DiscAdjustment extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
+  State<_DiscAdjustment> createState() => _DiscAdjustmentState();
+}
+
+class _DiscAdjustmentState extends State<_DiscAdjustment> {
+  /// Vertical distance in pixels that covers the whole range.
+  static const _scrubDistance = 200.0;
+
+  /// Movement before a press becomes a scrub.
+  static const _scrubSlop = 8.0;
+
+  /// The value shown while scrubbing or scrolling, or null.
+  double? _preview;
+
+  /// The value and pointer position when the scrub started.
+  double? _scrubStart;
+  double? _scrubOriginY;
+
+  /// Applies the scrolled value shortly after the last scroll.
+  Timer? _scrollCommit;
+
+  @override
+  void dispose() {
+    _scrollCommit?.cancel();
+    super.dispose();
+  }
+
+  Tool? get _tool => widget.controls.active;
+
+  double? get _value => _tool?.readAdjustment(widget.adjustment);
+
+  /// [start] moved by [fraction] of the range, on a log scale for size.
+  double _shift(double start, double fraction) {
+    final range = _tool!.adjustmentRange(widget.adjustment);
+    if (widget.adjustment == ToolAdjustment.size) {
+      final low = log(max(range.min, 1e-6));
+      final high = log(range.max);
+      final from = log(max(start, range.min));
+      return range.clamp(exp(from + fraction * (high - low)));
+    }
+    return range.clamp(start + fraction * (range.max - range.min));
+  }
+
+  void _commit() {
+    final preview = _preview;
+    final value = _value;
+    setState(() => _preview = null);
+    if (preview == null || value == null || preview == value) return;
+    _applyAdjustment(context, widget.adjustment, preview);
+  }
+
+  void _onScrubStart(DragStartDetails details) {
+    final value = _value;
+    if (value == null) return;
+    _scrollCommit?.cancel();
+    setState(() {
+      _scrubStart = value;
+      _scrubOriginY = details.globalPosition.dy;
+      _preview = value;
+    });
+  }
+
+  void _onScrubUpdate(DragUpdateDetails details) {
+    final start = _scrubStart;
+    final origin = _scrubOriginY;
+    if (start == null || origin == null) return;
+    final fraction = (origin - details.globalPosition.dy) / _scrubDistance;
+    setState(() => _preview = _shift(start, fraction));
+  }
+
+  void _onScrubEnd(DragEndDetails details) {
+    if (_scrubStart == null) return;
+    // The drag recognizer ends a cancelled drag like a finished one.
+    if (_pointerCancelled) return _onScrubCancel();
+    _scrubStart = null;
+    _scrubOriginY = null;
+    _commit();
+  }
+
+  /// Whether the current pointer was cancelled, noticed before the drag
+  /// recognizer handles the cancel.
+  bool _pointerCancelled = false;
+
+  /// A cancelled scrub restores the start value and changes nothing.
+  void _onScrubCancel() {
+    if (_scrubStart == null) return;
+    setState(() {
+      _scrubStart = null;
+      _scrubOriginY = null;
+      _preview = null;
+    });
+  }
+
+  void _onPointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    if (HardwareKeyboard.instance.isControlPressed) return;
+    GestureBinding.instance.pointerSignalResolver.register(event, (event) {
+      final dy = (event as PointerScrollEvent).scrollDelta.dy;
+      final value = _value;
+      if (dy == 0 || value == null || _scrubStart != null) return;
+      final range = _tool!.adjustmentRange(widget.adjustment);
+      final step = -dy / 100 * 0.01 * (range.max - range.min);
+      setState(() => _preview = range.clamp((_preview ?? value) + step));
+      _scrollCommit?.cancel();
+      _scrollCommit = Timer(const Duration(milliseconds: 300), () {
+        if (mounted) _commit();
+      });
+    });
+  }
+
+  /// Taps open the panel; an immediate vertical drag scrubs the value.
+  Widget _gestures(Widget child, {Key? key}) {
+    return RawGestureDetector(
+      key: key,
+      behavior: HitTestBehavior.opaque,
+      gestures: {
+        TapGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+              () => TapGestureRecognizer(debugOwner: this),
+              (recognizer) => recognizer.onTap = widget.onTap,
+            ),
+        VerticalDragGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<VerticalDragGestureRecognizer>(
+              () => VerticalDragGestureRecognizer(debugOwner: this),
+              (recognizer) => recognizer
+                ..gestureSettings = const DeviceGestureSettings(
+                  touchSlop: _scrubSlop,
+                )
+                // Measures from where the pointer went down, not from where
+                // the drag was recognized.
+                ..dragStartBehavior = DragStartBehavior.down
+                ..onStart = _onScrubStart
+                ..onUpdate = _onScrubUpdate
+                ..onEnd = _onScrubEnd
+                ..onCancel = _onScrubCancel,
+            ),
+      },
+      child: child,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final value = controls.active?.readAdjustment(adjustment);
-    final supported = value != null;
+    final adjustment = widget.adjustment;
+    final geometry = widget.geometry;
+    final style = widget.style;
+    final value = _value;
+    final shown = _preview ?? value;
     final loc = AppLocalizations.of(context);
     final color = style.onSurface;
     final iconSize = geometry.radius * 0.11;
@@ -758,9 +911,9 @@ class _DiscAdjustment extends StatelessWidget {
       spacing: geometry.radius * 0.03,
       children: [
         AmazeIcon(_adjustmentIcon(adjustment), size: iconSize, color: color),
-        if (value != null)
+        if (shown != null)
           Text(
-            _discLabel(loc, adjustment, value),
+            _discLabel(loc, adjustment, shown),
             style: TextStyle(
               color: color,
               fontSize: geometry.radius * 0.085,
@@ -771,7 +924,7 @@ class _DiscAdjustment extends StatelessWidget {
       ],
     );
     final offset = geometry.adjustmentLabelCenter(adjustment);
-    if (!supported) {
+    if (value == null) {
       return Stack(
         children: [
           _placeOnWheel(
@@ -789,45 +942,46 @@ class _DiscAdjustment extends StatelessWidget {
       );
     }
     final hit = WheelHit.adjustment(adjustment);
-    return Stack(
-      children: [
-        _wheelRegion(
-          geometry,
-          hit,
-          GestureDetector(
-            key: ValueKey(('amaze-adjust-sector', adjustment.name)),
-            behavior: HitTestBehavior.opaque,
-            onTap: onTap,
-            child: DecoratedBox(
-              decoration: ShapeDecoration(
-                color: open
-                    ? style.accent.withValues(alpha: 0.25)
-                    : Colors.transparent,
-                shape: _SectorBorder(
-                  geometry.adjustmentSector(adjustment),
-                  BorderSide.none,
+    return Listener(
+      onPointerSignal: _onPointerSignal,
+      onPointerDown: (_) => _pointerCancelled = false,
+      onPointerCancel: (_) => _pointerCancelled = true,
+      child: Stack(
+        children: [
+          _wheelRegion(
+            geometry,
+            hit,
+            _gestures(
+              key: ValueKey(('amaze-adjust-sector', adjustment.name)),
+              DecoratedBox(
+                decoration: ShapeDecoration(
+                  color: widget.open
+                      ? style.accent.withValues(alpha: 0.25)
+                      : Colors.transparent,
+                  shape: _SectorBorder(
+                    geometry.adjustmentSector(adjustment),
+                    BorderSide.none,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-        _placeOnWheel(
-          geometry,
-          offset,
-          labelSize,
-          Tooltip(
-            message: _adjustmentName(loc, adjustment),
-            triggerMode: TooltipTriggerMode.manual,
-            child: GestureDetector(
-              key: ValueKey(('amaze-adjust', adjustment.name)),
-              behavior: HitTestBehavior.opaque,
-              onTap: onTap,
-              child: FittedBox(fit: BoxFit.scaleDown, child: label),
+          _placeOnWheel(
+            geometry,
+            offset,
+            labelSize,
+            Tooltip(
+              message: _adjustmentName(loc, adjustment),
+              triggerMode: TooltipTriggerMode.manual,
+              child: _gestures(
+                key: ValueKey(('amaze-adjust', adjustment.name)),
+                FittedBox(fit: BoxFit.scaleDown, child: label),
+              ),
             ),
+            hit: hit,
           ),
-          hit: hit,
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1278,9 +1432,12 @@ class _AdjustmentPanel extends StatefulWidget {
   State<_AdjustmentPanel> createState() => _AdjustmentPanelState();
 }
 
+/// The adjustment panel: four presets, the slider and a value field.
+///
 /// The slider shows its value live while dragging and changes the tool once,
 /// when the drag ends, so one gesture is one undo step. A cancelled drag
-/// changes nothing.
+/// changes nothing. Tapping a preset applies it; holding a preset saves the
+/// current value into it.
 class _AdjustmentPanelState extends State<_AdjustmentPanel> {
   /// The value while the slider is dragged, or null.
   double? _dragValue;
@@ -1288,9 +1445,156 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
   /// Whether the current slider pointer was cancelled.
   bool _cancelled = false;
 
+  /// The presets of the active tool's kind, once loaded.
+  List<double>? _presets;
+
+  /// The tool kind and adjustment [_presets] belong to.
+  String? _presetsFor;
+
+  final _field = TextEditingController();
+  final _fieldFocus = FocusNode();
+  String? _fieldError;
+
+  /// The tool and value the panel was last built with.
+  Tool? _tool;
+  double? _value;
+
+  @override
+  void initState() {
+    super.initState();
+    _fieldFocus.addListener(() {
+      if (!_fieldFocus.hasFocus) _submitField();
+    });
+  }
+
+  @override
+  void dispose() {
+    _field.dispose();
+    _fieldFocus.dispose();
+    super.dispose();
+  }
+
+  void _loadPresets(Tool tool) {
+    final key = '${presetToolKey(tool)}.${widget.adjustment.name}';
+    if (key == _presetsFor) return;
+    _presetsFor = key;
+    _presets = null;
+    loadPresets(tool, widget.adjustment).then((presets) {
+      if (mounted && _presetsFor == key) setState(() => _presets = presets);
+    });
+  }
+
+  /// [value] in the field's units: points, or percent.
+  String _fieldText(double value) {
+    if (widget.adjustment == ToolAdjustment.size) return _formatSize(value);
+    return _formatSize(value * 100);
+  }
+
+  double _fromField(double entered) {
+    if (widget.adjustment == ToolAdjustment.size) return entered;
+    return entered / 100;
+  }
+
+  /// Shows [value] in the field unless the user is editing it.
+  void _syncField(double value) {
+    if (_fieldFocus.hasFocus) return;
+    final text = _fieldText(value);
+    if (_field.text != text) _field.text = text;
+  }
+
+  /// Restores the field to the current value and drops any error.
+  void _resetField() {
+    final value = _value;
+    if (value != null) _field.text = _fieldText(value);
+    setState(() => _fieldError = null);
+  }
+
+  /// Applies the field's value if it is a number in the tool's range, and
+  /// shows an error otherwise.
+  void _submitField() {
+    final tool = _tool;
+    final value = _value;
+    if (tool == null || value == null || !mounted) return;
+    if (_field.text.trim() == _fieldText(value)) {
+      if (_fieldError != null) setState(() => _fieldError = null);
+      return;
+    }
+    final range = tool.adjustmentRange(widget.adjustment);
+    final entered = double.tryParse(_field.text.trim().replaceAll(',', '.'));
+    final next = entered == null ? null : _fromField(entered);
+    if (next == null || next < range.min || next > range.max) {
+      final loc = AppLocalizations.of(context);
+      setState(() {
+        _fieldError = loc.amazeValueRangeError(
+          _fieldText(range.min),
+          _fieldText(range.max),
+        );
+      });
+      return;
+    }
+    setState(() => _fieldError = null);
+    // Enter and the focus loss that follows it submit the same text.
+    if (next == value || next == _applied) return;
+    _applied = next;
+    _applyAdjustment(context, widget.adjustment, next);
+  }
+
+  /// The value the field last applied, until the tool shows it.
+  double? _applied;
+
+  void _applyPreset(double preset, double value) {
+    if (preset == value) return;
+    _applyAdjustment(context, widget.adjustment, preset);
+  }
+
+  void _savePreset(Tool tool, int index, double value) {
+    final presets = _presets;
+    if (presets == null) return;
+    final next = [...presets]..[index] = value;
+    setState(() => _presets = next);
+    savePresets(tool, widget.adjustment, next);
+  }
+
+  String _presetLabel(AppLocalizations loc, double value) {
+    if (widget.adjustment == ToolAdjustment.size) {
+      return loc.amazeSizePts(_formatSize(value));
+    }
+    return formatAdjustment(widget.adjustment, value);
+  }
+
   @override
   Widget build(BuildContext context) {
     return _ToolControlsBuilder(builder: _buildPanel);
+  }
+
+  Widget _buildPresets(Tool tool, double value, AmazeStyle style) {
+    final presets = _presets;
+    final loc = AppLocalizations.of(context);
+    return Row(
+      spacing: 6,
+      children: [
+        for (var index = 0; index < kPresetCount; index++)
+          Expanded(
+            child: Tooltip(
+              message: loc.amazePresetHint,
+              triggerMode: TooltipTriggerMode.manual,
+              child: _PresetChip(
+                key: ValueKey(('amaze-preset', index)),
+                label: presets == null ? '' : _presetLabel(loc, presets[index]),
+                selected:
+                    presets != null && presetMatches(presets[index], value),
+                style: style,
+                onTap: presets == null
+                    ? null
+                    : () => _applyPreset(presets[index], value),
+                onLongPress: presets == null
+                    ? null
+                    : () => _savePreset(tool, index, value),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   Widget _buildPanel(BuildContext context, _ToolControls controls) {
@@ -1298,15 +1602,21 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
     final tool = controls.active;
     final value = tool?.readAdjustment(adjustment);
     if (tool == null || value == null) return const SizedBox.shrink();
+    _tool = tool;
+    _value = value;
+    if (_applied == value) _applied = null;
+    _loadPresets(tool);
     final range = tool.adjustmentRange(adjustment);
     final shown = range.clamp(_dragValue ?? value);
+    _syncField(shown);
     final loc = AppLocalizations.of(context);
     final textTheme = Theme.of(context).textTheme;
+    final style = AmazeStyle.of(context);
     return AmazeSurface(
       key: const ValueKey('amaze-adjustment-panel'),
       radius: 20,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+        padding: const EdgeInsets.fromLTRB(16, 8, 8, 12),
         child: Column(
           mainAxisSize: .min,
           children: [
@@ -1332,6 +1642,10 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
                 ),
               ],
             ),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _buildPresets(tool, value, style),
+            ),
             // The slider ends a cancelled drag like a finished one, so the
             // cancel is noticed here, before the slider handles it.
             Listener(
@@ -1354,7 +1668,80 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
                 },
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: CallbackShortcuts(
+                bindings: {
+                  const SingleActivator(LogicalKeyboardKey.escape): _resetField,
+                },
+                child: TextField(
+                  key: const ValueKey('amaze-adjustment-field'),
+                  controller: _field,
+                  focusNode: _fieldFocus,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _submitField(),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: const OutlineInputBorder(),
+                    suffixText: adjustment == ToolAdjustment.size
+                        ? loc.amazeUnitPts
+                        : '%',
+                    errorText: _fieldError,
+                  ),
+                ),
+              ),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One preset of the adjustment panel.
+class _PresetChip extends StatelessWidget {
+  const _PresetChip({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.style,
+    this.onTap,
+    this.onLongPress,
+  });
+
+  final String label;
+  final bool selected;
+  final AmazeStyle style;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected ? style.onAccent : style.onSurface;
+    return Material(
+      color: selected ? style.accent : style.surfaceVariant,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: SizedBox(
+          height: 36,
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Text(
+                  label,
+                  style: TextStyle(color: color, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -1758,7 +2145,11 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
   void _onPointerSignal(PointerSignalEvent event) {
     if (event is! PointerScrollEvent) return;
     if (!HardwareKeyboard.instance.isControlPressed) {
-      _passToCanvas(event);
+      // Over a disc sector, a plain scroll steps that adjustment instead.
+      final geometry = _geometry;
+      final center = Offset(geometry.radius, geometry.radius);
+      final spot = geometry.hitTest(event.localPosition - center);
+      if (spot.type != WheelHitType.adjustment) _passToCanvas(event);
       return;
     }
     GestureBinding.instance.pointerSignalResolver.register(event, (event) {
@@ -2052,7 +2443,7 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
     bool centered = false,
   }) {
     const width = 300.0;
-    const height = 120.0;
+    const height = 230.0;
     final centerX = centered ? _bounds.width / 2 : anchor.center.dx;
     final maxLeft = max(0.0, _bounds.width - width);
     final left = (centerX - width / 2).clamp(0.0, maxLeft);

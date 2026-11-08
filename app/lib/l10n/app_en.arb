@@ -1757,6 +1757,28 @@
   "crosshatching": "Crosshatching",
   "inkAndBlotTextures": "Ink and blot textures",
   "connectShapes": "Connect shapes",
+  "amazePresetHint": "Hold to save the current value",
+  "@amazePresetHint": {
+    "description": "Tooltip on a preset of the tool wheel's adjustment panel."
+  },
+  "amazeUnitPts": "pts",
+  "@amazeUnitPts": {
+    "description": "Unit after a stroke size entered in the tool wheel, in points."
+  },
+  "amazeValueRangeError": "Enter a value from {min} to {max}",
+  "@amazeValueRangeError": {
+    "description": "Error under the value field of the tool wheel's adjustment panel.",
+    "placeholders": {
+      "min": {
+        "type": "String",
+        "example": "0.1"
+      },
+      "max": {
+        "type": "String",
+        "example": "70"
+      }
+    }
+  },
   "amazeSizePts": "{size} pts",
   "@amazeSizePts": {
     "description": "Stroke size shown in the tool wheel, in points.",
