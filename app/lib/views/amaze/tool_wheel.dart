@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:butterfly/bloc/document_bloc.dart';
@@ -8,7 +9,9 @@ import 'package:butterfly/helpers/color.dart';
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly/visualizer/tool.dart';
 import 'package:butterfly_api/butterfly_api.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart' show BoxHitTestResult, RenderProxyBox;
+import 'package:flutter/services.dart' show HardwareKeyboard;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_leap/material_leap.dart';
 import 'package:material_ui/material_ui.dart';
@@ -420,18 +423,27 @@ class _AdjustmentButton extends StatelessWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(14),
             onTap: onTap,
-            child: Column(
-              mainAxisAlignment: .center,
-              children: [
-                AmazeIcon(_adjustmentIcon(adjustment), size: 18, color: color),
-                Text(
-                  formatAdjustment(adjustment, value),
-                  style: textTheme.labelLarge?.copyWith(
+            // Shrinks the content only when a small wheel's button is too
+            // short for it.
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: .min,
+                children: [
+                  AmazeIcon(
+                    _adjustmentIcon(adjustment),
+                    size: 18,
                     color: color,
-                    fontWeight: FontWeight.w700,
                   ),
-                ),
-              ],
+                  Text(
+                    formatAdjustment(adjustment, value),
+                    style: textTheme.labelLarge?.copyWith(
+                      color: color,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -994,11 +1006,115 @@ class ToolWheelPuck extends StatelessWidget {
   }
 }
 
+/// Recognizes a pinch that starts on the wheel: two touch pointers, or a
+/// trackpad pinch. A single touch is never claimed, so taps and long presses
+/// on the wheel keep working, and a stylus is not supported at all.
+class _WheelPinchRecognizer extends OneSequenceGestureRecognizer {
+  _WheelPinchRecognizer({super.debugOwner})
+    : super(
+        supportedDevices: const {
+          PointerDeviceKind.touch,
+          PointerDeviceKind.trackpad,
+        },
+      );
+
+  VoidCallback? onStart;
+
+  /// Called with the scale since the pinch started.
+  ValueChanged<double>? onUpdate;
+
+  /// Called when the pinch ends or is cancelled.
+  VoidCallback? onEnd;
+
+  final Map<int, Offset> _touches = {};
+  double? _startDistance;
+  bool _pinching = false;
+
+  double get _distance {
+    final points = _touches.values.toList();
+    return (points[0] - points[1]).distance;
+  }
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    if (_touches.length >= 2) return;
+    startTrackingPointer(event.pointer, event.transform);
+    _touches[event.pointer] = event.position;
+    if (_touches.length < 2 || _pinching) return;
+    resolve(GestureDisposition.accepted);
+    _startDistance = max(_distance, 1.0);
+    _begin();
+  }
+
+  @override
+  void addAllowedPointerPanZoom(PointerPanZoomStartEvent event) {
+    if (_touches.isNotEmpty) return;
+    startTrackingPointer(event.pointer, event.transform);
+  }
+
+  void _begin() {
+    _pinching = true;
+    onStart?.call();
+  }
+
+  void _finish() {
+    if (_pinching) onEnd?.call();
+    _pinching = false;
+    _startDistance = null;
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    final start = _startDistance;
+    if (event is PointerMoveEvent && _touches.containsKey(event.pointer)) {
+      _touches[event.pointer] = event.position;
+      if (_pinching && start != null && _touches.length == 2) {
+        onUpdate?.call(_distance / start);
+      }
+    } else if (event is PointerPanZoomUpdateEvent) {
+      // A two-finger trackpad scroll keeps a scale of 1 and is ignored.
+      if (!_pinching && (event.scale - 1).abs() > 0.01) {
+        resolve(GestureDisposition.accepted);
+        _begin();
+      }
+      if (_pinching) onUpdate?.call(event.scale);
+    } else if (event is PointerUpEvent ||
+        event is PointerCancelEvent ||
+        event is PointerPanZoomEndEvent) {
+      _touches.remove(event.pointer);
+      _finish();
+    }
+    stopTrackingIfPointerNoLongerDown(event);
+  }
+
+  @override
+  void acceptGesture(int pointer) {}
+
+  @override
+  void rejectGesture(int pointer) {
+    // Another gesture, like a long press, owns this pointer.
+    if (_pinching) return;
+    _touches.remove(pointer);
+    stopTrackingPointer(pointer);
+  }
+
+  @override
+  void didStopTrackingLastPointer(int pointer) {
+    _finish();
+    _touches.clear();
+  }
+
+  @override
+  String get debugDescription => 'tool wheel pinch';
+}
+
 /// Places the tool wheel or the tool bar in the available space.
 ///
 /// Long-press the wheel's ring and drag to move it; dropping it on the dock
-/// target turns it into a tool bar. The mode, position (as a fraction of the
-/// free space, so it survives rotation) and collapse state are saved.
+/// target turns it into a tool bar. Pinch the wheel, or use Ctrl and the
+/// mouse wheel over it, to resize it. The mode, position (as a fraction of
+/// the free space, so it survives rotation), size and collapse state are
+/// saved.
 class AmazeToolWheelLayer extends StatefulWidget {
   const AmazeToolWheelLayer({
     super.key,
@@ -1022,6 +1138,12 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
   /// The slot the brush library is open for, if it is open.
   int? _librarySlot;
 
+  /// Diameter when the current pinch started.
+  double? _pinchStart;
+
+  /// Saves the size shortly after the last Ctrl + scroll step.
+  Timer? _scrollSave;
+
   @override
   void initState() {
     super.initState();
@@ -1030,14 +1152,35 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
     });
   }
 
+  @override
+  void dispose() {
+    if (_scrollSave?.isActive ?? false) saveToolWheelLayout(_layout);
+    _scrollSave?.cancel();
+    super.dispose();
+  }
+
   void _update(ToolWheelLayout layout) {
     setState(() => _layout = layout);
     saveToolWheelLayout(layout);
   }
 
+  /// The diameter the wheel is shown at for a [requested] one: within the
+  /// supported range and the layer, but never below the minimum.
+  double _fitDiameter(double requested) {
+    final fit = _bounds.shortestSide - 16;
+    final clamped = clampToolWheelDiameter(requested);
+    return max(kToolWheelMinDiameter, min(clamped, fit));
+  }
+
+  double get _diameter {
+    return _fitDiameter(_layout.diameter ?? widget.geometry.diameter);
+  }
+
+  ToolWheelGeometry get _geometry => ToolWheelGeometry(diameter: _diameter);
+
   Size get _wheelSize {
     if (_layout.collapsed) return const Size.square(kToolWheelPuckSize);
-    return Size.square(widget.geometry.diameter);
+    return Size.square(_diameter);
   }
 
   Offset get _fraction {
@@ -1066,21 +1209,76 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
     return box.globalToLocal(global);
   }
 
+  /// Converts a top left [position] of a box of [size] into a fraction of
+  /// the free space.
+  Offset _fractionOf(Offset position, Size size) {
+    final freeX = _bounds.width - size.width;
+    final freeY = _bounds.height - size.height;
+    return Offset(
+      freeX > 0 ? position.dx / freeX : 0,
+      freeY > 0 ? position.dy / freeY : 0,
+    );
+  }
+
   void _move(Offset delta, {bool overDock = false}) {
     final size = _wheelSize;
     final moved = _position + delta;
     final position = clampToolWheelPosition(moved, size, _bounds);
-    final freeX = _bounds.width - size.width;
-    final freeY = _bounds.height - size.height;
-    final fraction = Offset(
-      freeX > 0 ? position.dx / freeX : 0,
-      freeY > 0 ? position.dy / freeY : 0,
-    );
     setState(() {
-      _layout = _layout.copyWith(position: fraction);
+      _layout = _layout.copyWith(position: _fractionOf(position, size));
       _overDock = overDock;
     });
   }
+
+  /// Resizes the expanded wheel around its center, keeping it on screen.
+  /// The new size is saved by the caller when the gesture ends.
+  void _resize(double requested) {
+    if (_layout.collapsed || _layout.mode != ToolWheelMode.wheel) return;
+    final center = (_position & _wheelSize).center;
+    final diameter = _fitDiameter(requested);
+    if (diameter == _diameter) return;
+    final size = Size.square(diameter);
+    final topLeft = center - size.center(Offset.zero);
+    final position = clampToolWheelPosition(topLeft, size, _bounds);
+    setState(() {
+      _layout = _layout.copyWith(
+        diameter: diameter,
+        position: _fractionOf(position, size),
+      );
+    });
+  }
+
+  void _onPinchStart() => _pinchStart = _diameter;
+
+  void _onPinchUpdate(double scale) {
+    final start = _pinchStart;
+    if (start != null) _resize(start * scale);
+  }
+
+  /// Also called when the pinch is cancelled: the last size stays.
+  void _onPinchEnd() {
+    _pinchStart = null;
+    saveToolWheelLayout(_layout);
+  }
+
+  /// Ctrl + mouse wheel resizes the wheel by one step per notch. A plain
+  /// scroll is left alone.
+  void _onPointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    if (!HardwareKeyboard.instance.isControlPressed) return;
+    GestureBinding.instance.pointerSignalResolver.register(event, (event) {
+      final dy = (event as PointerScrollEvent).scrollDelta.dy;
+      if (dy == 0) return;
+      _resize(_diameter + (dy < 0 ? _scrollStep : -_scrollStep));
+      _scrollSave?.cancel();
+      _scrollSave = Timer(_scrollSaveDelay, () {
+        if (mounted) saveToolWheelLayout(_layout);
+      });
+    });
+  }
+
+  static const _scrollStep = 16.0;
+  static const _scrollSaveDelay = Duration(milliseconds: 300);
 
   void _onRingPressStart(LongPressStartDetails details) {
     setState(() {
@@ -1205,15 +1403,30 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
         key: const ValueKey('amaze-wheel-position'),
         left: position.dx,
         top: position.dy,
-        child: ToolWheel(
-          geometry: widget.geometry,
-          openAdjustment: _openAdjustment,
-          onAdjustmentTap: _toggleAdjustment,
-          onCollapse: () => _update(_layout.copyWith(collapsed: true)),
-          onRingLongPressStart: _onRingPressStart,
-          onRingLongPressMove: _onRingPressMove,
-          onRingLongPressEnd: _onRingPressEnd,
-          onOpenLibrary: _openLibrary,
+        child: Listener(
+          onPointerSignal: _onPointerSignal,
+          child: RawGestureDetector(
+            gestures: {
+              _WheelPinchRecognizer:
+                  GestureRecognizerFactoryWithHandlers<_WheelPinchRecognizer>(
+                    () => _WheelPinchRecognizer(debugOwner: this),
+                    (recognizer) => recognizer
+                      ..onStart = _onPinchStart
+                      ..onUpdate = _onPinchUpdate
+                      ..onEnd = _onPinchEnd,
+                  ),
+            },
+            child: ToolWheel(
+              geometry: _geometry,
+              openAdjustment: _openAdjustment,
+              onAdjustmentTap: _toggleAdjustment,
+              onCollapse: () => _update(_layout.copyWith(collapsed: true)),
+              onRingLongPressStart: _onRingPressStart,
+              onRingLongPressMove: _onRingPressMove,
+              onRingLongPressEnd: _onRingPressEnd,
+              onOpenLibrary: _openLibrary,
+            ),
+          ),
         ),
       ),
     );

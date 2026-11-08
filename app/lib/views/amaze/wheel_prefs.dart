@@ -1,6 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'wheel_geometry.dart';
+
 /// How the tool controls are shown.
 enum ToolWheelMode { wheel, bar }
 
@@ -11,6 +13,7 @@ class ToolWheelLayout {
     this.mode = ToolWheelMode.wheel,
     this.position,
     this.collapsed = false,
+    this.diameter,
   });
 
   final ToolWheelMode mode;
@@ -21,23 +24,34 @@ class ToolWheelLayout {
 
   final bool collapsed;
 
+  /// Diameter of the expanded wheel, or null for the default size.
+  final double? diameter;
+
   ToolWheelLayout copyWith({
     ToolWheelMode? mode,
     Offset? position,
     bool? collapsed,
+    double? diameter,
   }) {
     return ToolWheelLayout(
       mode: mode ?? this.mode,
       position: position ?? this.position,
       collapsed: collapsed ?? this.collapsed,
+      diameter: diameter ?? this.diameter,
     );
   }
+}
+
+/// Clamps [diameter] to the supported wheel sizes.
+double clampToolWheelDiameter(double diameter) {
+  return diameter.clamp(kToolWheelMinDiameter, kToolWheelMaxDiameter);
 }
 
 const _modeKey = 'amaze.toolWheel.mode';
 const _xKey = 'amaze.toolWheel.x';
 const _yKey = 'amaze.toolWheel.y';
 const _collapsedKey = 'amaze.toolWheel.collapsed';
+const _diameterKey = 'amaze.toolWheel.diameter';
 
 /// Loads the saved tool wheel layout.
 Future<ToolWheelLayout> loadToolWheelLayout() async {
@@ -47,10 +61,12 @@ Future<ToolWheelLayout> loadToolWheelLayout() async {
       : ToolWheelMode.wheel;
   final x = prefs.getDouble(_xKey);
   final y = prefs.getDouble(_yKey);
+  final diameter = prefs.getDouble(_diameterKey);
   return ToolWheelLayout(
     mode: mode,
     position: x == null || y == null ? null : Offset(x, y),
     collapsed: prefs.getBool(_collapsedKey) ?? false,
+    diameter: diameter == null ? null : clampToolWheelDiameter(diameter),
   );
 }
 
@@ -59,6 +75,8 @@ Future<void> saveToolWheelLayout(ToolWheelLayout layout) async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setString(_modeKey, layout.mode.name);
   await prefs.setBool(_collapsedKey, layout.collapsed);
+  final diameter = layout.diameter;
+  if (diameter != null) await prefs.setDouble(_diameterKey, diameter);
   final position = layout.position;
   if (position == null) return;
   await prefs.setDouble(_xKey, position.dx);
