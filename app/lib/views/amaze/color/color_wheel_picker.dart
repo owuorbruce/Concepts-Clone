@@ -1,15 +1,19 @@
 import 'dart:math' as math;
 
+import 'package:butterfly/api/file_system.dart';
+import 'package:butterfly/cubits/settings.dart';
 import 'package:butterfly/models/marker_palette.dart';
 import 'package:butterfly/services/marker_palette_loader.dart';
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_leap/material_leap.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'channel_rings.dart';
 import 'color_model.dart';
 import 'marker_ring.dart';
+import 'palette_strip.dart';
 
 sealed class AmazeColorResult {
   const AmazeColorResult();
@@ -27,13 +31,26 @@ final class AmazeEyedropperRequested extends AmazeColorResult {
 
 /// Opens a bounded overlay around the wheel. The viewport is repositioned
 /// when the wheel is near an edge, and recalculated on window size changes.
+///
+/// Recent colors default to the settings' recent colors, which are only
+/// read, and saved palettes to the packs of the [ButterflyFileSystem].
 Future<AmazeColorResult?> showAmazeColorWheel(
   BuildContext context, {
   required Offset center,
   required double innerRadius,
   required SRGBColor initial,
   Future<MarkerPalette?> Function()? paletteLoader,
+  List<SRGBColor>? recentColors,
+  AmazePaletteSource? paletteSource,
 }) async {
+  final recent =
+      recentColors ??
+      context.read<SettingsCubit?>()?.state.recentColors ??
+      const <SRGBColor>[];
+  final fileSystem = context.read<ButterflyFileSystem?>();
+  final source =
+      paletteSource ??
+      (fileSystem == null ? null : PackPaletteSource(fileSystem));
   final palette = await (paletteLoader ?? loadMarkerPalette)();
   final mode = await loadAmazeColorMode(palette: palette);
   if (!context.mounted) return null;
@@ -48,6 +65,8 @@ Future<AmazeColorResult?> showAmazeColorWheel(
       initial: initial,
       palette: palette,
       initialMode: mode,
+      recentColors: recent,
+      paletteSource: source,
     ),
   );
 }
@@ -59,6 +78,8 @@ class _AmazeColorOverlay extends StatefulWidget {
     required this.initial,
     required this.palette,
     required this.initialMode,
+    required this.recentColors,
+    required this.paletteSource,
   });
 
   final Offset center;
@@ -66,6 +87,8 @@ class _AmazeColorOverlay extends StatefulWidget {
   final SRGBColor initial;
   final MarkerPalette? palette;
   final AmazeColorMode initialMode;
+  final List<SRGBColor> recentColors;
+  final AmazePaletteSource? paletteSource;
 
   @override
   State<_AmazeColorOverlay> createState() => _AmazeColorOverlayState();
@@ -83,6 +106,13 @@ class _AmazeColorOverlayState extends State<_AmazeColorOverlay> {
     });
   }
 
+  void _previewColor(SRGBColor color) {
+    setState(() {
+      _preview = color;
+      _pickedMarker = null;
+    });
+  }
+
   void _setMode(AmazeColorMode mode) {
     setState(() => _mode = mode);
     saveAmazeColorMode(mode);
@@ -91,6 +121,9 @@ class _AmazeColorOverlayState extends State<_AmazeColorOverlay> {
   void _cancel() => Navigator.of(context).pop();
 
   void _done() => Navigator.of(context).pop(AmazePickedColor(_preview));
+
+  void _eyedropper() =>
+      Navigator.of(context).pop(const AmazeEyedropperRequested());
 
   void _showInfo() {
     final loc = AppLocalizations.of(context);
@@ -242,6 +275,14 @@ class _AmazeColorOverlayState extends State<_AmazeColorOverlay> {
                                 ),
                         ),
                         const SizedBox(height: 8),
+                        PaletteStrip(
+                          color: _preview,
+                          recentColors: widget.recentColors,
+                          source: widget.paletteSource,
+                          onPreview: _previewColor,
+                          onEyedropper: _eyedropper,
+                        ),
+                        const SizedBox(height: 4),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
