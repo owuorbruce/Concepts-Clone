@@ -200,6 +200,13 @@ Future<void> _openColorPicker(BuildContext context) async {
   settings.addRecentColors(color);
 }
 
+/// Sets [adjustment] of the active tool to [value] with one [ToolsChanged],
+/// which is one undo step.
+///
+/// The wheel's size, opacity, smoothing and color always change the active
+/// tool only. They never change selected elements, even while a selection
+/// is active. If the active tool does not support [adjustment], nothing is
+/// dispatched.
 void _applyAdjustment(
   BuildContext context,
   ToolAdjustment adjustment,
@@ -212,6 +219,14 @@ void _applyAdjustment(
   if (tool == null || tool.readAdjustment(adjustment) == null) return;
   bloc.add(ToolsChanged([tool.writeAdjustment(adjustment, value)]));
 }
+
+/// [_applyAdjustment] for tests.
+@visibleForTesting
+void applyWheelAdjustment(
+  BuildContext context,
+  ToolAdjustment adjustment,
+  double value,
+) => _applyAdjustment(context, adjustment, value);
 
 /// Document and tool state shared by the wheel and the bar.
 class _ToolControls {
@@ -1263,8 +1278,15 @@ class _AdjustmentPanel extends StatefulWidget {
   State<_AdjustmentPanel> createState() => _AdjustmentPanelState();
 }
 
+/// The slider shows its value live while dragging and changes the tool once,
+/// when the drag ends, so one gesture is one undo step. A cancelled drag
+/// changes nothing.
 class _AdjustmentPanelState extends State<_AdjustmentPanel> {
+  /// The value while the slider is dragged, or null.
   double? _dragValue;
+
+  /// Whether the current slider pointer was cancelled.
+  bool _cancelled = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1310,16 +1332,27 @@ class _AdjustmentPanelState extends State<_AdjustmentPanel> {
                 ),
               ],
             ),
-            Slider(
-              key: const ValueKey('amaze-adjustment-slider'),
-              value: shown,
-              min: range.min,
-              max: range.max,
-              onChanged: (next) => setState(() => _dragValue = next),
-              onChangeEnd: (next) {
-                setState(() => _dragValue = null);
-                _applyAdjustment(context, adjustment, next);
-              },
+            // The slider ends a cancelled drag like a finished one, so the
+            // cancel is noticed here, before the slider handles it.
+            Listener(
+              onPointerDown: (_) => _cancelled = false,
+              onPointerCancel: (_) => _cancelled = true,
+              child: Slider(
+                key: const ValueKey('amaze-adjustment-slider'),
+                value: shown,
+                min: range.min,
+                max: range.max,
+                onChanged: (next) => setState(() => _dragValue = next),
+                onChangeEnd: (next) {
+                  setState(() => _dragValue = null);
+                  if (_cancelled) {
+                    _cancelled = false;
+                    return;
+                  }
+                  if (next == value) return;
+                  _applyAdjustment(context, adjustment, next);
+                },
+              ),
             ),
           ],
         ),

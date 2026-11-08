@@ -1381,6 +1381,160 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  group('adjustments', () {
+    const slider = ValueKey('amaze-adjustment-slider');
+
+    /// Selects the pen and opens its size panel.
+    Future<(EditorController, int)> openPenSize(WidgetTester tester) async {
+      setScreen(tester, const Size(1280, 800));
+      final editor = await openEditor(tester);
+      final pen = slotOf<PenTool>();
+      await selectSlot(tester, editor, pen);
+      await tester.tap(find.byKey(const ValueKey(('amaze-adjust', 'size'))));
+      await tester.pumpAndSettle();
+      return (editor, pen);
+    }
+
+    /// Drags the size slider across ten values, then ends or cancels.
+    Future<void> dragSlider(WidgetTester tester, {bool cancel = false}) async {
+      final rect = tester.getRect(find.byKey(slider));
+      final gesture = await tester.startGesture(
+        rect.centerLeft + const Offset(40, 0),
+      );
+      await tester.pump();
+      for (var i = 0; i < 10; i++) {
+        await gesture.moveBy(const Offset(18, 0));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      if (cancel) {
+        await gesture.cancel();
+      } else {
+        await gesture.up();
+      }
+      await tester.pumpAndSettle();
+    }
+
+    double penSize(int slot) =>
+        (slotTool(slot) as PenTool).property.strokeWidth;
+
+    testWidgets('one slider drag is one undo step', (tester) async {
+      final (_, pen) = await openPenSize(tester);
+      final start = slotTool(pen);
+      final events = observer.toolsChanged;
+
+      final rect = tester.getRect(find.byKey(slider));
+      final gesture = await tester.startGesture(
+        rect.centerLeft + const Offset(40, 0),
+      );
+      await tester.pump();
+      final shown = <String>{};
+      for (var i = 0; i < 10; i++) {
+        await gesture.moveBy(const Offset(18, 0));
+        await tester.pump(const Duration(milliseconds: 16));
+        shown.add(
+          tester
+              .widget<Text>(
+                find.byKey(const ValueKey('amaze-adjustment-value')),
+              )
+              .data!,
+        );
+        // The value is previewed, but nothing is dispatched yet.
+        expect(observer.toolsChanged, events);
+      }
+      expect(shown.length, greaterThan(5));
+      await gesture.up();
+      await pumpUntil(
+        tester,
+        () => penSize(pen) != (start as PenTool).property.strokeWidth,
+        'drag',
+      );
+      await tester.pumpAndSettle();
+      final dragged = penSize(pen);
+      expect(observer.toolsChanged, events + 1);
+
+      await tester.tap(find.byKey(const ValueKey('amaze-undo')));
+      await pumpUntil(tester, () => slotTool(pen) == start, 'undo');
+      await tester.tap(find.byKey(const ValueKey('amaze-redo')));
+      await pumpUntil(tester, () => penSize(pen) == dragged, 'redo');
+      expect(tester.takeException(), isNull);
+      await tester.pump(const Duration(minutes: 1));
+    });
+
+    testWidgets('a cancelled slider drag changes nothing', (tester) async {
+      final (_, pen) = await openPenSize(tester);
+      final start = slotTool(pen);
+      final events = observer.toolsChanged;
+      final bloc = observer.lastDocumentBloc!;
+      final canUndo = bloc.canUndo;
+      String shown() => tester
+          .widget<Text>(find.byKey(const ValueKey('amaze-adjustment-value')))
+          .data!;
+      final before = shown();
+
+      await dragSlider(tester, cancel: true);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(observer.toolsChanged, events);
+      expect(slotTool(pen), start);
+      expect(bloc.canUndo, canUndo);
+      expect(shown(), before);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('size changes the tool, never the selected elements', (
+      tester,
+    ) async {
+      final (editor, pen) = await openPenSize(tester);
+      final bloc = observer.lastDocumentBloc!;
+      List<String> elements() => [
+        for (final element in (bloc.state as DocumentLoadSuccess).page.content)
+          jsonEncode(element.toJson()),
+      ];
+      final renderers = editor.rendererCubit.renderers;
+      expect(renderers, isNotEmpty);
+      editor.toolCubit.changeSelection(renderers.first);
+      await tester.pumpAndSettle();
+      expect(editor.toolCubit.state.selection, isNotNull);
+      final before = elements();
+
+      await dragSlider(tester);
+      await pumpUntil(tester, () => penSize(pen) != 5, 'size');
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(elements(), before);
+      expect(editor.toolCubit.state.handler.data, isA<PenTool>());
+      expect(tester.takeException(), isNull);
+      await tester.pump(const Duration(minutes: 1));
+    });
+
+    testWidgets('an unsupported adjustment dispatches nothing', (tester) async {
+      setScreen(tester, const Size(1280, 800));
+      final editor = await openEditor(tester);
+      final eraser = slotOf<EraserTool>();
+      await selectSlot(tester, editor, eraser);
+      final bloc = observer.lastDocumentBloc!;
+      final tools = (bloc.state as DocumentLoadSuccess).info.tools;
+      final events = observer.toolsChanged;
+      final context = tester.element(find.byKey(_wheel));
+      for (final adjustment in [
+        ToolAdjustment.opacity,
+        ToolAdjustment.smoothing,
+      ]) {
+        applyWheelAdjustment(context, adjustment, 0.5);
+      }
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(observer.toolsChanged, events);
+      expect((bloc.state as DocumentLoadSuccess).info.tools, tools);
+
+      applyWheelAdjustment(context, ToolAdjustment.size, 12);
+      await pumpUntil(
+        tester,
+        () => (slotTool(eraser) as EraserTool).strokeWidth == 12,
+        'eraser size',
+      );
+      expect(observer.toolsChanged, events + 1);
+      await tester.pump(const Duration(minutes: 1));
+    });
+  });
+
   testWidgets('sizes read as points in the disc and as numbers on slots', (
     tester,
   ) async {
@@ -1506,9 +1660,18 @@ void main() {
 class _DocumentObserver extends BlocObserver {
   DocumentBloc? lastDocumentBloc;
 
+  /// How many [ToolsChanged] events the document received.
+  int toolsChanged = 0;
+
   @override
   void onCreate(BlocBase<dynamic> bloc) {
     super.onCreate(bloc);
     if (bloc is DocumentBloc) lastDocumentBloc = bloc;
+  }
+
+  @override
+  void onEvent(Bloc<dynamic, dynamic> bloc, Object? event) {
+    super.onEvent(bloc, event);
+    if (event is ToolsChanged) toolsChanged++;
   }
 }
