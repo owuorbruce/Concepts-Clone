@@ -53,6 +53,7 @@ class EyeDropperHandler extends Handler<EyeDropperTool> {
     );
     if (handler is ColoredHandler) {
       handler.changeToolColor(context.getDocumentBloc(), color);
+      context.buildContext.read<SettingsCubit>().addRecentColors(color);
     } else {
       saveToClipboard(
         context.buildContext,

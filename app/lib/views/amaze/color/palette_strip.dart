@@ -102,6 +102,7 @@ class _PaletteStripState extends State<PaletteStrip> {
   List<NamedItem<ColorPalette>> _palettes = const [];
   int _selected = 0;
   bool _importing = false;
+  String? _importError;
 
   @override
   void initState() {
@@ -123,7 +124,10 @@ class _PaletteStripState extends State<PaletteStrip> {
   Future<void> _import() async {
     final source = widget.source;
     if (source == null || _importing) return;
-    setState(() => _importing = true);
+    setState(() {
+      _importing = true;
+      _importError = null;
+    });
     final List<String> errors;
     try {
       errors = await source.import();
@@ -131,9 +135,8 @@ class _PaletteStripState extends State<PaletteStrip> {
       if (mounted) setState(() => _importing = false);
     }
     await _load();
-    if (errors.isEmpty || !mounted) return;
-    ScaffoldMessenger.maybeOf(context)
-        ?.showSnackBar(SnackBar(content: Text(errors.join('\n'))));
+    if (!mounted || errors.isEmpty) return;
+    setState(() => _importError = errors.join('\n'));
   }
 
   Widget _swatch(Key key, SRGBColor color, String tooltip) {
@@ -195,12 +198,12 @@ class _PaletteStripState extends State<PaletteStrip> {
           ),
           _swatch(
             const ValueKey('amaze-color-white'),
-            SRGBColor.white,
+            SRGBColor.white.withValues(a: widget.color.a),
             _hex(SRGBColor.white),
           ),
           _swatch(
             const ValueKey('amaze-color-black'),
-            SRGBColor.black,
+            SRGBColor.black.withValues(a: widget.color.a),
             _hex(SRGBColor.black),
           ),
           if (widget.recentColors.isNotEmpty) ...[
@@ -219,28 +222,44 @@ class _PaletteStripState extends State<PaletteStrip> {
               ),
           ],
           divider,
-          MenuAnchor(
-            menuChildren: [
-              for (final (index, item) in _palettes.indexed)
-                MenuItemButton(
-                  key: ValueKey(('amaze-color-palette', index)),
-                  leadingIcon: index == _selected
-                      ? const PhosphorIcon(PhosphorIconsLight.check)
-                      : const SizedBox(width: 24),
-                  onPressed: () => setState(() => _selected = index),
-                  child: Text(item.name),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              MenuAnchor(
+                menuChildren: [
+                  for (final (index, item) in _palettes.indexed)
+                    MenuItemButton(
+                      key: ValueKey(('amaze-color-palette', index)),
+                      leadingIcon: index == _selected
+                          ? const PhosphorIcon(PhosphorIconsLight.check)
+                          : const SizedBox(width: 24),
+                      onPressed: () => setState(() => _selected = index),
+                      child: Text(item.name),
+                    ),
+                ],
+                builder: (context, controller, child) => TextButton.icon(
+                  key: const ValueKey('amaze-color-palette-chooser'),
+                  onPressed: _palettes.isEmpty
+                      ? null
+                      : () => controller.isOpen
+                            ? controller.close()
+                            : controller.open(),
+                  icon: const PhosphorIcon(PhosphorIconsLight.palette),
+                  label: Text(palette?.name ?? loc.palettes),
+                ),
+              ),
+              if (_importError case final error?)
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 220),
+                  child: Text(
+                    error,
+                    key: const ValueKey('amaze-color-import-error'),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
                 ),
             ],
-            builder: (context, controller, child) => TextButton.icon(
-              key: const ValueKey('amaze-color-palette-chooser'),
-              onPressed: _palettes.isEmpty
-                  ? null
-                  : () => controller.isOpen
-                        ? controller.close()
-                        : controller.open(),
-              icon: const PhosphorIcon(PhosphorIconsLight.palette),
-              label: Text(palette?.name ?? loc.palettes),
-            ),
           ),
           if (palette != null)
             for (final (index, color) in palette.item.colors.indexed)
