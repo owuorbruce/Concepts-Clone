@@ -19,6 +19,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'brush_library.dart';
+import 'color/color_wheel_picker.dart';
 import 'icons.dart';
 import 'library.dart';
 import 'slot_menu.dart';
@@ -183,23 +184,39 @@ void _moveSlot(DocumentBloc bloc, int from, int to) {
   bloc.add(ToolReordered(target.$1, target.$2));
 }
 
-Future<void> _openColorPicker(BuildContext context) async {
+Future<void> _openColorPicker(
+  BuildContext context, {
+  required Offset center,
+  required double innerRadius,
+}) async {
   final bloc = context.read<DocumentBloc>();
   final settings = context.read<SettingsCubit>();
-  final handler = context.read<ToolCubit>().state.handler;
+  final controller = context.read<EditorController>();
+  final handler = controller.toolCubit.state.handler;
   if (handler is! ColoredHandler) return;
-  final response = await showDialog<ColorPickerResponse>(
-    context: context,
-    builder: (context) => ColorPicker(
-      value: handler.getColor(),
-      suggested: settings.state.recentColors,
-    ),
+  final response = await showAmazeColorWheel(
+    context,
+    center: center,
+    innerRadius: innerRadius,
+    initial: handler.getColor(),
   );
-  if (response == null) return;
-  final color = response.toSRGB();
-  final tool = syncLibraryFill(handler.setColor(color));
-  bloc.add(ToolsChanged([tool]));
-  settings.addRecentColors(color);
+  if (!context.mounted) return;
+  switch (response) {
+    case AmazePickedColor(:final color):
+      final tool = syncLibraryFill(handler.setColor(color));
+      bloc.add(ToolsChanged([tool]));
+      settings.addRecentColors(color);
+    case AmazeEyedropperRequested():
+      await controller.toolCubit.changeTemporaryHandler(
+        context,
+        controller,
+        EyeDropperTool(),
+        bloc: bloc,
+        temporaryState: TemporaryState.removeAfterRelease,
+      );
+    case null:
+      break;
+  }
 }
 
 /// Sets [adjustment] of the active tool to [value] with one [ToolsChanged],
@@ -491,11 +508,13 @@ class _ColorButton extends StatelessWidget {
     required this.controls,
     required this.style,
     required this.diameter,
+    this.onTap,
   });
 
   final _ToolControls controls;
   final AmazeStyle style;
   final double diameter;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -532,7 +551,7 @@ class _ColorButton extends StatelessWidget {
           shape: CircleBorder(side: BorderSide(color: style.outline)),
           child: InkWell(
             customBorder: const CircleBorder(),
-            onTap: color == null ? null : () => _openColorPicker(context),
+            onTap: color == null ? null : onTap,
             child: content,
           ),
         ),
@@ -1056,6 +1075,7 @@ class ToolWheel extends StatelessWidget {
     this.onHoldEnd,
     this.holding = false,
     this.onOpenLibrary,
+    this.onColorTap,
   });
 
   final ToolWheelGeometry geometry;
@@ -1073,6 +1093,7 @@ class ToolWheel extends StatelessWidget {
 
   /// Opens the brush library for an empty slot that is tapped.
   final ValueChanged<int>? onOpenLibrary;
+  final VoidCallback? onColorTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1194,6 +1215,7 @@ class ToolWheel extends StatelessWidget {
             controls: controls,
             style: style,
             diameter: geometry.centerRadius * 2,
+            onTap: onColorTap,
           ),
           hit: WheelHit.center,
         ),
@@ -1409,7 +1431,24 @@ class AmazeToolBar extends StatelessWidget {
                   ),
                 if (controls.color != null) ...[
                   divider,
-                  _ColorButton(controls: controls, style: style, diameter: 38),
+                  Builder(
+                    builder: (buttonContext) => _ColorButton(
+                      controls: controls,
+                      style: style,
+                      diameter: 38,
+                      onTap: () {
+                        final box =
+                            buttonContext.findRenderObject() as RenderBox;
+                        _openColorPicker(
+                          buttonContext,
+                          center: box.localToGlobal(
+                            box.size.center(Offset.zero),
+                          ),
+                          innerRadius: box.size.width / 2,
+                        );
+                      },
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -2401,6 +2440,15 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
       },
       child: ToolWheel(
         geometry: _geometry,
+        onColorTap: () {
+          final rect = _globalWheelRect;
+          if (rect == null) return;
+          _openColorPicker(
+            context,
+            center: rect.center,
+            innerRadius: rect.width / 2,
+          );
+        },
         openAdjustment: _openAdjustment,
         onAdjustmentTap: _toggleAdjustment,
         onHoldStart: _onHoldStart,

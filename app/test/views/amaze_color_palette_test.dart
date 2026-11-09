@@ -28,6 +28,7 @@ class _FakeSource implements AmazePaletteSource {
 
   List<NamedItem<ColorPalette>> palettes;
   List<NamedItem<ColorPalette>> imported = const [];
+  List<String> errors = const [];
   var imports = 0;
 
   @override
@@ -37,7 +38,7 @@ class _FakeSource implements AmazePaletteSource {
   Future<List<String>> import() async {
     imports++;
     palettes = [...palettes, ...imported];
-    return const [];
+    return errors;
   }
 }
 
@@ -65,6 +66,7 @@ void main() {
   Future<Future<AmazeColorResult?>? Function()> open(
     WidgetTester tester, {
     AmazePaletteSource? source,
+    SRGBColor initial = const SRGBColor(0xFFC85028),
   }) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1;
@@ -89,7 +91,7 @@ void main() {
                       context,
                       center: const Offset(640, 400),
                       innerRadius: 80,
-                      initial: const SRGBColor(0xFFC85028),
+                      initial: initial,
                       paletteLoader: () async => palette,
                       paletteSource: source,
                     );
@@ -198,6 +200,30 @@ void main() {
     expect(find.text('Imported'), findsOneWidget);
   });
 
+  testWidgets('invalid palette import shows an inline error in the picker', (
+    tester,
+  ) async {
+    final source = _FakeSource([
+      named('Warm', [0xFFFF0000]),
+    ])..errors = ['Broken.hex: invalid palette'];
+    await open(tester, source: source);
+    final import = find.byKey(const ValueKey('amaze-color-import'));
+    await tester.ensureVisible(import);
+    await tester.tap(import);
+    await tester.pumpAndSettle();
+    final error = find.byKey(const ValueKey('amaze-color-import-error'));
+    expect(error, findsOneWidget);
+    expect(find.text('Broken.hex: invalid palette'), findsOneWidget);
+    expect(
+      find.ancestor(
+        of: error,
+        matching: find.byKey(const ValueKey('amaze-color-strip')),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byType(SnackBar), findsNothing);
+  });
+
   testWidgets('white and black only preview until Done', (tester) async {
     var result = await open(tester);
     expect(
@@ -225,6 +251,25 @@ void main() {
       _done,
     );
     expect((black as AmazePickedColor).color, SRGBColor.black);
+  });
+
+  testWidgets('white and black chips preserve preview opacity', (tester) async {
+    var result = await open(tester, initial: const SRGBColor(0x80C85028));
+    final white = await tapThen(
+      tester,
+      result,
+      const ValueKey('amaze-color-white'),
+      _done,
+    );
+    expect((white as AmazePickedColor).color.value, 0x80FFFFFF);
+    result = await open(tester, initial: const SRGBColor(0x80C85028));
+    final black = await tapThen(
+      tester,
+      result,
+      const ValueKey('amaze-color-black'),
+      _done,
+    );
+    expect((black as AmazePickedColor).color.value, 0x80000000);
   });
 
   testWidgets('a palette color clears the tapped marker code', (tester) async {

@@ -60,6 +60,7 @@ Future<AmazeColorResult?> showAmazeColorWheel(
     barrierLabel: AppLocalizations.of(context).amazeColorCancel,
     barrierColor: Colors.black54,
     pageBuilder: (context, animation, secondaryAnimation) => _AmazeColorOverlay(
+      key: ValueKey(('amaze-color-anchor', center, innerRadius)),
       center: center,
       innerRadius: innerRadius,
       initial: initial,
@@ -73,6 +74,7 @@ Future<AmazeColorResult?> showAmazeColorWheel(
 
 class _AmazeColorOverlay extends StatefulWidget {
   const _AmazeColorOverlay({
+    super.key,
     required this.center,
     required this.innerRadius,
     required this.initial,
