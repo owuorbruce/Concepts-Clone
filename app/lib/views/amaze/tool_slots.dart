@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:butterfly/models/defaults.dart';
 import 'package:butterfly_api/butterfly_api.dart';
 
@@ -17,6 +19,85 @@ List<int> slotToolIndices(List<Tool> tools) {
     if (isSlotTool(tools[i])) indices.add(i);
   }
   return indices;
+}
+
+/// The tools in the slots, in slot order, padded with null to
+/// [kToolSlotCount] entries.
+List<Tool?> slotTools(List<Tool> tools) {
+  final slots = <Tool?>[
+    for (final index in slotToolIndices(tools)) tools[index],
+  ];
+  while (slots.length < kToolSlotCount) {
+    slots.add(null);
+  }
+  return slots;
+}
+
+/// Whether [a] and [b] hold the same tools, settings and ids, in order.
+bool sameSlotTools(List<Tool?> a, List<Tool?> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    final left = a[i];
+    final right = b[i];
+    if (left == null || right == null) {
+      if (left != right) return false;
+      continue;
+    }
+    if (jsonEncode(left.toJson()) != jsonEncode(right.toJson())) return false;
+  }
+  return true;
+}
+
+/// [tools] with its slot tools replaced by [slots].
+///
+/// Undo, redo and the tools after the last slot stay where they are. A
+/// document has no gaps between slots, so the tools of [slots] are placed
+/// in order and empty entries are dropped. A slot tool whose id is already
+/// used by a tool that stays gets a new id, so ids stay unique. [slots]
+/// in the result are the tools that were placed, padded with null.
+({List<Tool> tools, List<Tool?> slots}) applySlotTools(
+  List<Tool> tools,
+  List<Tool?> slots,
+) {
+  final indices = slotToolIndices(tools);
+  final slotSet = indices.toSet();
+  final used = <String>{
+    for (var i = 0; i < tools.length; i++)
+      if (!slotSet.contains(i) && tools[i].id != null) tools[i].id!,
+  };
+  final placed = <Tool>[];
+  for (final tool in slots) {
+    if (tool == null || !isSlotTool(tool)) continue;
+    if (placed.length == kToolSlotCount) break;
+    final id = tool.id;
+    placed.add(
+      id != null && used.add(id) ? tool : tool.copyWith(id: createUniqueId()),
+    );
+  }
+  final result = <Tool>[];
+  var next = 0;
+  for (var i = 0; i < tools.length; i++) {
+    if (!slotSet.contains(i)) {
+      result.add(tools[i]);
+      continue;
+    }
+    if (next < placed.length) result.add(placed[next++]);
+    // Extra tools go right after the last slot, before any later tools.
+    if (i == indices.last) {
+      while (next < placed.length) {
+        result.add(placed[next++]);
+      }
+    }
+  }
+  // A document without slot tools gets them after undo and redo.
+  result.addAll(placed.skip(next));
+  return (
+    tools: result,
+    slots: [
+      ...placed,
+      for (var i = placed.length; i < kToolSlotCount; i++) null,
+    ],
+  );
 }
 
 /// Tools that can be assigned to a slot: the built-in presets without undo

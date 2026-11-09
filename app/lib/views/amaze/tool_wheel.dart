@@ -6,6 +6,7 @@ import 'package:butterfly/cubits/editor_controller.dart';
 import 'package:butterfly/cubits/settings.dart';
 import 'package:butterfly/handlers/handler.dart';
 import 'package:butterfly/helpers/color.dart';
+import 'package:butterfly/services/network.dart' show ClientNetworkState;
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly/visualizer/tool.dart';
 import 'package:butterfly_api/butterfly_api.dart';
@@ -28,6 +29,7 @@ import 'tool_slots.dart';
 import 'wheel_geometry.dart';
 import 'wheel_presets.dart';
 import 'wheel_prefs.dart';
+import 'wheel_slots_store.dart';
 
 export 'wheel_geometry.dart';
 
@@ -1947,6 +1949,129 @@ class _WheelPinchRecognizer extends OneSequenceGestureRecognizer {
   String get debugDescription => 'tool wheel pinch';
 }
 
+/// Keeps a document's slot tools in step with the wheel shared by every
+/// drawing ([loadWheelSlots]).
+///
+/// When a document opens, its slots are made to match the shared wheel with
+/// one [ToolsReplaced], and that step is cleared from the history. Without a
+/// shared wheel yet, the document's slots become it. Afterwards, every
+/// change to the document's slots, undo and redo included, is saved to the
+/// shared wheel. Embedded documents and collaboration clients are left
+/// alone. There is one sync per document bloc, so it outlives the wheel
+/// layer being hidden and shown again.
+class WheelSlotsSync {
+  WheelSlotsSync._(this.bloc);
+
+  static final _syncs = Expando<WheelSlotsSync>();
+
+  /// Starts syncing [bloc] if it is not synced yet. The future completes
+  /// when the sync on open is done.
+  static Future<void> attach(DocumentBloc bloc) {
+    final existing = _syncs[bloc];
+    if (existing != null) return existing._opened;
+    final sync = _syncs[bloc] = WheelSlotsSync._(bloc);
+    return sync._opened = sync._open();
+  }
+
+  /// Saves pending slot changes of [bloc] now, for example when the wheel
+  /// goes away.
+  static void flush(DocumentBloc bloc) => _syncs[bloc]?._flush();
+
+  /// How long slot changes are collected before they are saved.
+  static const saveDelay = Duration(milliseconds: 300);
+
+  final DocumentBloc bloc;
+  late Future<void> _opened;
+  StreamSubscription<DocumentState>? _subscription;
+  List<Tool>? _lastTools;
+  List<Tool?>? _lastSlots;
+  List<Tool?>? _pending;
+  Timer? _saveTimer;
+
+  bool get _allowed {
+    if (bloc.isClosed || bloc.embedding != null) return false;
+    return bloc.networkingService?.state is! ClientNetworkState;
+  }
+
+  Future<DocumentLoadSuccess?> _loaded() async {
+    final state = bloc.state;
+    if (state is DocumentLoadSuccess) return state;
+    try {
+      final loaded = await bloc.stream.firstWhere(
+        (state) => state is DocumentLoadSuccess,
+      );
+      return loaded as DocumentLoadSuccess;
+    } on StateError {
+      return null;
+    }
+  }
+
+  Future<void> _open() async {
+    if (await _loaded() == null || !_allowed) return;
+    final stored = await loadWheelSlots();
+    final current = bloc.state;
+    if (current is! DocumentLoadSuccess || !_allowed) return;
+    final tools = current.info.tools;
+    if (stored == null) {
+      await saveWheelSlots(slotTools(tools));
+    } else {
+      final applied = applySlotTools(tools, stored);
+      if (!sameSlotTools(applied.tools, tools)) {
+        final done = bloc.stream.firstWhere(
+          (state) =>
+              state is DocumentLoadSuccess &&
+              sameSlotTools(state.info.tools, applied.tools),
+        );
+        bloc.add(ToolsReplaced(applied.tools));
+        try {
+          await done;
+        } on StateError {
+          return;
+        }
+        // The shared wheel is not an edit of this drawing.
+        bloc.clearHistory();
+      }
+      // New ids for clashing tools become part of the shared wheel.
+      if (!sameSlotTools(applied.slots, stored)) {
+        await saveWheelSlots(applied.slots);
+      }
+    }
+    final state = bloc.state;
+    if (state is! DocumentLoadSuccess || bloc.isClosed) return;
+    _lastTools = state.info.tools;
+    _lastSlots = slotTools(state.info.tools);
+    _subscription = bloc.stream.listen(_onState, onDone: _close);
+  }
+
+  void _onState(DocumentState state) {
+    if (state is! DocumentLoadSuccess) return;
+    final tools = state.info.tools;
+    if (identical(tools, _lastTools)) return;
+    _lastTools = tools;
+    final slots = slotTools(tools);
+    final last = _lastSlots;
+    if (last != null && sameSlotTools(slots, last)) return;
+    _lastSlots = slots;
+    if (!_allowed) return;
+    _pending = slots;
+    _saveTimer ??= Timer(saveDelay, _flush);
+  }
+
+  void _flush() {
+    _saveTimer?.cancel();
+    _saveTimer = null;
+    final pending = _pending;
+    _pending = null;
+    if (pending != null) saveWheelSlots(pending);
+  }
+
+  void _close() {
+    _flush();
+    _subscription?.cancel();
+    _subscription = null;
+  }
+}
+
 /// Places the tool wheel or the tool bar in the available space.
 ///
 /// Long-press the wheel's ring and drag to move it; dropping it on the dock
@@ -1968,6 +2093,7 @@ class AmazeToolWheelLayer extends StatefulWidget {
 
 class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
   ToolWheelLayout _layout = const ToolWheelLayout();
+  late final DocumentBloc _bloc;
   Size _bounds = Size.zero;
   bool _dragging = false;
 
@@ -2008,6 +2134,11 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
     loadToolWheelLayout().then((layout) {
       if (mounted) setState(() => _layout = layout);
     });
+    // Rebuild once synced, so undo shows the cleared history.
+    _bloc = context.read<DocumentBloc>();
+    WheelSlotsSync.attach(_bloc).then((_) {
+      if (mounted) setState(() {});
+    });
     GestureBinding.instance.pointerRouter.addGlobalRoute(_onGlobalPointer);
     _lifecycle = AppLifecycleListener(
       onStateChange: (state) {
@@ -2018,6 +2149,7 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
 
   @override
   void dispose() {
+    WheelSlotsSync.flush(_bloc);
     GestureBinding.instance.pointerRouter.removeGlobalRoute(_onGlobalPointer);
     _lifecycle?.dispose();
     _unfade?.cancel();
