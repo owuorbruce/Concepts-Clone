@@ -218,7 +218,7 @@
   },
   "backupConnection": "Backup connection",
   "automaticBackups": "Automatic backups",
-  "automaticBackupsDescription": "Creates backups while Butterfly is running.",
+  "automaticBackupsDescription": "Creates backups while aMaze is running.",
   "backupInterval": "Backup interval",
   "backupNow": "Back up now",
   "lastBackup": "Last backup",
@@ -456,7 +456,7 @@
   "@text": {
     "description": "Text tool"
   },
-  "welcome": "Hey, this is Linwood Butterfly {codeName}",
+  "welcome": "Hey, this is aMaze {codeName}",
   "@welcome": {
     "placeholders": {
       "codeName": {
@@ -593,7 +593,7 @@
   "symmetric": "Symmetric",
   "perSide": "Per side",
   "directory": "Directory",
-  "connectionNameDescription": "Only used to identify this connection in Butterfly",
+  "connectionNameDescription": "Only used to identify this connection in aMaze",
   "connectionDirectoryDescription": "Base folder for this connection. Notes use Documents by default; change it under Advanced",
   "connectionPathDescription": "Leave empty to disable this directory type. Use . for the base folder, a relative subfolder, or an absolute path",
   "connectionPathRequired": "Choose an absolute base folder, or use absolute paths for the enabled directory types",
@@ -834,7 +834,7 @@
   },
   "shortcuts": "Shortcuts",
   "repeatedTapShortcuts": "Double and triple taps",
-  "repeatedTapShortcutsDescription": "Assigning any shortcut in this section can delay normal taps and the start of drawing for its matching input while Butterfly checks for more taps. Moving far enough resumes normal input without waiting for the tap timeout. Set both double- and triple-tap shortcuts for that input to None to remove this delay.",
+  "repeatedTapShortcutsDescription": "Assigning any shortcut in this section can delay normal taps and the start of drawing for its matching input while aMaze checks for more taps. Moving far enough resumes normal input without waiting for the tap timeout. Set both double- and triple-tap shortcuts for that input to None to remove this delay.",
   "middle": "Middle",
   "@middle": {
     "description": "Mouse button"
@@ -1644,9 +1644,9 @@
   "autosaveShowButtonDescription": "Saves automatically and also keeps the save button visible.",
   "autosaveDisabledDescription": "Only saves when you use the save command.",
   "hideCursorWhileDrawingDescription": "Hides the mouse pointer while you draw, so it does not cover your stroke.",
-  "onStartupHomeScreenDescription": "Opens the home screen when Butterfly starts.",
-  "onStartupLastNoteDescription": "Reopens your most recently used note when Butterfly starts.",
-  "onStartupNewNoteDescription": "Creates a new note when Butterfly starts.",
+  "onStartupHomeScreenDescription": "Opens the home screen when aMaze starts.",
+  "onStartupLastNoteDescription": "Reopens your most recently used note when aMaze starts.",
+  "onStartupNewNoteDescription": "Creates a new note when aMaze starts.",
   "floatingEditor": "Floating editor",
   "floatingEditorDescription": "Floats the editor controls over the canvas on wide screens.",
   "smoothNavigationDescription": "Makes panning and zooming feel smoother by simplifying the canvas while it is moving.",
@@ -1655,7 +1655,7 @@
   "verbose": "Verbose",
   "showVerboseLogsDescription": "Includes detailed diagnostic messages in the log view and console. These messages can help when troubleshooting a problem.",
   "bringMovedElementsToFrontDescription": "Places an element above overlapping elements after you move it.",
-  "persistenceDocumentStatesDescription": "Controls which parts of your workspace Butterfly remembers for each note, such as the current page, zoom, and selected tool.",
+  "persistenceDocumentStatesDescription": "Controls which parts of your workspace aMaze remembers for each note, such as the current page, zoom, and selected tool.",
   "persistentStatesEnabledDescription": "Store document state information between app sessions",
   "persistentStateCurrentPageDescription": "Remember the current page when reopening a file",
   "persistentStateViewportDescription": "Remember the viewport position, zoom and rotation for each page",
@@ -1670,18 +1670,18 @@
   "persistentStateDeleteOlderThanDaysDescription": "Delete stored states older than this many days",
   "contentViewportDescription": "Limits how far you can pan away from the content of your note.",
   "limitViewportPositiveDescription": "Keeps the canvas within the area to the right and below its starting point.",
-  "startInFullScreenDescription": "Opens Butterfly in full-screen mode when supported.",
-  "designDescription": "Changes the overall visual style of Butterfly without changing whether the app uses light or dark colors.",
-  "platformThemeDescription": "Lets you use the desktop or mobile layout instead of the layout Butterfly normally chooses for your device.",
+  "startInFullScreenDescription": "Opens aMaze in full-screen mode when supported.",
+  "designDescription": "Changes the overall visual style of aMaze without changing whether the app uses light or dark colors.",
+  "platformThemeDescription": "Lets you use the desktop or mobile layout instead of the layout aMaze normally chooses for your device.",
   "densityDescription": "Changes the spacing and size of interface elements. It does not change the size of your note content.",
   "highContrastDescription": "Uses stronger color differences to make controls and text easier to distinguish.",
-  "nativeTitleBarDescription": "Uses your operating system's standard window title bar instead of Butterfly's custom title bar.",
+  "nativeTitleBarDescription": "Uses your operating system's standard window title bar instead of aMaze's custom title bar.",
   "propertiesDescription": "Chooses where the panel for editing the selected tool or element appears.",
   "navigationRailDescription": "Shows a permanent navigation bar on wide screens for quicker access to app sections.",
   "optionsPanelPositionDescription": "Chooses whether tool options appear above or below the canvas.",
   "simpleToolbarVisibilityDescription": "Controls when the smaller, simplified toolbar appears while editing a note.",
   "penOnlyInputDescription": "Prevents accidental marks from your hand or mouse by choosing when only stylus input can draw.",
-  "showPenOnlyToggleDescription": "Shows a quick stylus-only switch in the editor after Butterfly detects a stylus.",
+  "showPenOnlyToggleDescription": "Shows a quick stylus-only switch in the editor after aMaze detects a stylus.",
   "ignorePressureDescription": "Controls whether stylus pressure changes the stroke and works around inaccurate pressure readings from some styluses.",
   "moveOnGestureDescription": "Lets multi-touch gestures move the canvas instead of interacting with note content.",
   "spreadPagesDescription": "Splits multi-page imports across separate note pages instead of placing everything on one page.",
@@ -1700,5 +1700,98 @@
   "rotationDisplayDescription": "Choose when the rotation row appears above zoom. This does not change rotation gestures or shortcuts.",
   "whenRotated": "When rotated",
   "hidden": "Hidden",
-  "rotateCanvasByDragging": "Rotate canvas by dragging"
+  "rotateCanvasByDragging": "Rotate canvas by dragging",
+  "amazeEditor": "aMaze editor",
+  "amazeEditorDescription": "Uses the aMaze editor with the tool wheel and dock. Turn off to use the classic layout.",
+  "toolWheel": "Tool wheel",
+  "allTools": "All tools",
+  "opacity": "Opacity",
+  "toolColor": "Color",
+  "toolSlot": "Slot {index}",
+  "@toolSlot": {
+    "placeholders": {
+      "index": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "toolSettings": "Tool settings",
+  "replaceTool": "Replace tool",
+  "moveToPreviousSlot": "Move to previous slot",
+  "moveToNextSlot": "Move to next slot",
+  "removeTool": "Remove tool",
+  "chooseTool": "Choose a tool",
+  "emptySlot": "Empty slot",
+  "dropForToolbar": "Drop here for a tool bar",
+  "showToolWheel": "Show tool wheel",
+  "eraserModeStroke": "Cut strokes",
+  "eraserModeStrokeDescription": "Erases only the parts of pen strokes that the eraser touches.",
+  "eraserModePath": "Whole elements",
+  "eraserModePathDescription": "Removes each stroke that the eraser touches as a whole.",
+  "toolOptions": "Tool options",
+  "zoomControls": "Zoom controls",
+  "eraseAllElementsDescription": "Also erases shapes, images, text and other elements that are not pen strokes.",
+  "brushLibrary": "Brush library",
+  "myBrushes": "My brushes",
+  "basics": "Basics",
+  "brushMarket": "Brush market",
+  "notAvailableYet": "Not available yet",
+  "slotOptions": "Slot options",
+  "fountainPen": "Fountain",
+  "dynamicPen": "Dynamic pen",
+  "fixedWidth": "Fixed width",
+  "wire": "Wire",
+  "softPencil": "Soft pencil",
+  "hardPencil": "Hard pencil",
+  "marker": "Marker",
+  "watercolor": "Watercolor",
+  "airbrush": "Airbrush",
+  "nudge": "Nudge",
+  "slice": "Slice",
+  "hardMask": "Hard mask",
+  "softMask": "Soft mask",
+  "pan": "Pan",
+  "tilingPatterns": "Tiling patterns",
+  "waterful": "Waterful",
+  "crosshatching": "Crosshatching",
+  "inkAndBlotTextures": "Ink and blot textures",
+  "connectShapes": "Connect shapes",
+  "amazeColorDone": "Done",
+  "amazeColorCancel": "Cancel",
+  "amazeColorTrademark": "COPIC is a trademark of Too Corporation. aMaze is not affiliated with or endorsed by Too Corporation. Digital colors are approximations.",
+  "amazeColorDataAttribution": "Color data: meodai/copic-colors (MIT).",
+  "amazeColorRecent": "Recent colors",
+  "amazePresetHint": "Hold to save the current value",
+  "@amazePresetHint": {
+    "description": "Tooltip on a preset of the tool wheel's adjustment panel."
+  },
+  "amazeUnitPts": "pts",
+  "@amazeUnitPts": {
+    "description": "Unit after a stroke size entered in the tool wheel, in points."
+  },
+  "amazeValueRangeError": "Enter a value from {min} to {max}",
+  "@amazeValueRangeError": {
+    "description": "Error under the value field of the tool wheel's adjustment panel.",
+    "placeholders": {
+      "min": {
+        "type": "String",
+        "example": "0.1"
+      },
+      "max": {
+        "type": "String",
+        "example": "70"
+      }
+    }
+  },
+  "amazeSizePts": "{size} pts",
+  "@amazeSizePts": {
+    "description": "Stroke size shown in the tool wheel, in points.",
+    "placeholders": {
+      "size": {
+        "type": "String",
+        "example": "5"
+      }
+    }
+  }
 }

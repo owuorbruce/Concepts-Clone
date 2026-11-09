@@ -14,6 +14,7 @@ import 'package:butterfly/models/defaults.dart';
 import 'package:butterfly_api/butterfly_api.dart';
 import 'package:butterfly/services/font.dart';
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
+import 'package:butterfly/views/amaze/shell.dart';
 import 'package:butterfly/views/app_bar.dart';
 import 'package:butterfly/views/main.dart';
 import 'package:butterfly/views/navigator/view.dart';
@@ -61,6 +62,8 @@ void main() {
   late List<MethodCall> windowManagerCalls;
 
   setUpAll(() async {
+    // These tests cover the classic Butterfly editor layout.
+    debugAmazeShellIsDefault = false;
     TestWidgetsFlutterBinding.ensureInitialized();
     registerFallbackValue(AssetLocation.empty);
     SharedPreferences.setMockInitialValues({});
@@ -89,6 +92,8 @@ void main() {
   late GoRouter router;
   late _LifecycleObserver observer;
   late BlocObserver previousObserver;
+
+  tearDownAll(() => debugAmazeShellIsDefault = null);
 
   setUp(() {
     windowManagerCalls = [];

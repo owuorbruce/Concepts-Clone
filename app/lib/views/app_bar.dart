@@ -13,6 +13,7 @@ import 'package:butterfly/dialogs/collaboration/dialog.dart';
 import 'package:butterfly/main.dart';
 import 'package:butterfly/services/import.dart';
 import 'package:butterfly/services/network.dart';
+import 'package:butterfly/views/amaze/shell.dart';
 import 'package:butterfly/views/edit.dart';
 import 'package:butterfly/visualizer/asset.dart';
 import 'package:butterfly/widgets/search.dart';
@@ -187,7 +188,7 @@ class PadAppBar extends StatelessWidget implements PreferredSizeWidget {
                   child: Card(
                     margin: EdgeInsets.zero,
                     shape: _floatingTitleShape,
-                    elevation: 6,
+                    elevation: _floatingElevation(context),
                     child: Center(child: menu),
                   ),
                 )
@@ -399,7 +400,7 @@ class _AppBarTitleState extends State<_AppBarTitle> {
                                 anchorBuilder: (context, searchButton) => Card(
                                   margin: EdgeInsets.zero,
                                   shape: _floatingTitleShape,
-                                  elevation: 6,
+                                  elevation: _floatingElevation(context),
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 12,
@@ -435,14 +436,16 @@ class _AppBarTitleState extends State<_AppBarTitle> {
                             buildWhen: (previous, current) =>
                                 previous.toolbarPosition !=
                                     current.toolbarPosition ||
-                                previous.toolbarRows != current.toolbarRows,
+                                previous.toolbarRows != current.toolbarRows ||
+                                previous.usesAmazeShell !=
+                                    current.usesAmazeShell,
                             builder: (context, settings) => Stack(
                               children: [
                                 const WindowFreeSpace<
                                   SettingsCubit,
                                   ButterflySettings
                                 >(),
-                                settings.isInline &&
+                                settings.usesInlineTools &&
                                         (!widget.floating || widget.showTools)
                                     ? Align(
                                         alignment: widget.floating
@@ -1196,4 +1199,10 @@ class MainPopupMenu extends StatelessWidget {
       },
     );
   }
+}
+
+/// The aMaze shell uses a flatter floating header than the classic editor.
+double _floatingElevation(BuildContext context) {
+  final settings = context.read<SettingsCubit>().state;
+  return settings.usesAmazeShell ? 1 : 6;
 }

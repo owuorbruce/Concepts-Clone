@@ -18,6 +18,7 @@ import 'package:butterfly/settings/data.dart';
 import 'package:butterfly/settings/backup.dart';
 import 'package:butterfly/settings/connection.dart';
 import 'package:butterfly/theme.dart';
+import 'package:butterfly/views/amaze/shell.dart';
 import 'package:butterfly/visualizer/connection.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';

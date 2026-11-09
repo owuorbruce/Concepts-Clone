@@ -180,6 +180,7 @@ flutter:
         - asset: fonts/Roboto-Italic-Variable.ttf
           style: italic
   assets:
+    - images/amaze.png
     - images/banner.png
     - images/banner.svg
     - images/file.ico
@@ -193,6 +194,8 @@ flutter:
     - fonts/Comfortaa-LICENSE.txt
     - fonts/Roboto-LICENSE.txt
     - fonts/NotoSansArabic-LICENSE.txt
+    - assets/palettes/copic_colors.json
+    - assets/palettes/copic_colors.LICENSE.txt
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

@@ -75,6 +75,7 @@ part 'hand.dart';
 part 'import.dart';
 part 'label.dart';
 part 'laser.dart';
+part 'nudge.dart';
 part 'collection.dart';
 part 'pen.dart';
 part 'eye_dropper.dart';
@@ -85,6 +86,7 @@ part 'grid.dart';
 part 'polygon.dart';
 part 'select.dart';
 part 'shape.dart';
+part 'slice.dart';
 part 'table.dart';
 part 'spacer.dart';
 part 'stamp.dart';
@@ -307,6 +309,7 @@ abstract class Handler<T> {
 
   static Handler<T> fromTool<T extends Tool>(T tool) {
     return switch (tool) {
+      HandTool() when isNudgeTool(tool) => NudgeHandler(tool),
       HandTool() => HandHandler(tool),
       SelectTool() => SelectHandler(tool),
       ImportTool() => ImportHandler(tool),
@@ -314,6 +317,9 @@ abstract class Handler<T> {
       RedoTool() => RedoHandler(tool),
       LabelTool() => LabelHandler(tool),
       PenTool() => PenHandler(tool),
+      EraserTool() when tool.displayIcon == kSliceDisplayIcon => SliceHandler(
+        tool,
+      ),
       EraserTool() => EraserHandler(tool),
       CollectionTool() => CollectionHandler(tool),
       AreaTool() => AreaHandler(tool),

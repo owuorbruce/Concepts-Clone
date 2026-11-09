@@ -10,27 +10,26 @@ class EraserToolSelection extends ToolSelection<EraserTool> {
     final loc = AppLocalizations.of(context);
     return [
       ...super.buildProperties(context),
-      ListTile(
-        title: Text(loc.mode),
-        trailing: DropdownMenu<EraserMode>(
-          initialSelection: tool.mode,
-          dropdownMenuEntries: EraserMode.values
-              .map(
-                (e) => DropdownMenuEntry(
-                  label: e.getLocalizedName(context),
-                  leadingIcon: Icon(e.icon()),
-                  value: e,
-                ),
-              )
-              .toList(),
-          onSelected: (value) {
-            if (value != null) {
-              update(
-                context,
-                selected.map((e) => e.copyWith(mode: value)).toList(),
-              );
-            }
-          },
+      RadioGroup<EraserMode>(
+        groupValue: tool.mode,
+        onChanged: (value) {
+          if (value == null) return;
+          update(
+            context,
+            selected.map((e) => e.copyWith(mode: value)).toList(),
+          );
+        },
+        child: Column(
+          children: [
+            for (final mode in EraserMode.values)
+              RadioListTile<EraserMode>(
+                key: ValueKey(('eraser-mode', mode.name)),
+                value: mode,
+                secondary: PhosphorIcon(mode.icon()),
+                title: Text(_eraserModeTitle(loc, mode)),
+                subtitle: Text(_eraserModeDescription(loc, mode)),
+              ),
+          ],
         ),
       ),
       ExactSlider(
@@ -82,6 +81,7 @@ class EraserToolSelection extends ToolSelection<EraserTool> {
       CheckboxListTile(
         value: tool.eraseElements,
         title: Text(loc.eraseAllElements),
+        subtitle: Text(loc.eraseAllElementsDescription),
         secondary: const PhosphorIcon(PhosphorIconsLight.image),
         onChanged: (value) => update(
           context,
@@ -100,4 +100,18 @@ class EraserToolSelection extends ToolSelection<EraserTool> {
     }
     return super.insert(element);
   }
+}
+
+String _eraserModeTitle(AppLocalizations loc, EraserMode mode) {
+  return switch (mode) {
+    .stroke => loc.eraserModeStroke,
+    .path => loc.eraserModePath,
+  };
+}
+
+String _eraserModeDescription(AppLocalizations loc, EraserMode mode) {
+  return switch (mode) {
+    .stroke => loc.eraserModeStrokeDescription,
+    .path => loc.eraserModePathDescription,
+  };
 }
