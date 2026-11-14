@@ -12,8 +12,8 @@ import 'package:material_leap/material_leap.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-const _done = ValueKey('amaze-color-done');
 const _channels = ValueKey('amaze-color-channels');
+const _rings = ValueKey('amaze-color-rings');
 
 ValueKey<(String, String)> _field(ColorChannel channel) =>
     ValueKey(('amaze-color-field', channel.name));
@@ -59,41 +59,32 @@ void main() {
       expect(layout.channelAt(layout.center), isNull);
       expect(layout.channelAt(Offset.zero), isNull);
     });
+
+    test('the arcs stay clear of the controls around the tool wheel', () {
+      const clear = 224.0;
+      final side = ChannelRingLayout.sideFor(clear);
+      final layout = ChannelRingLayout(
+        channelsOf(AmazeColorMode.hsl),
+        Size.square(side),
+      );
+      for (var degrees = 0; degrees < 360; degrees += 15) {
+        final direction = Offset.fromDirection(degrees * math.pi / 180);
+        expect(
+          layout.channelAt(layout.center + direction * (clear - 1)),
+          isNull,
+        );
+        expect(
+          layout.channelAt(layout.center + direction * (clear + 14)),
+          ColorChannel.alpha,
+        );
+      }
+    });
   });
 
-  /// An app with a button that opens the picker.
-  (Widget, Future<AmazeColorResult?>? Function()) harness({
-    required MarkerPalette? data,
-    required SRGBColor initial,
-  }) {
-    Future<AmazeColorResult?>? result;
-    final app = MaterialApp(
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: Scaffold(
-        body: Builder(
-          builder: (context) => Center(
-            child: FilledButton(
-              key: const ValueKey('open-color'),
-              onPressed: () {
-                result = showAmazeColorWheel(
-                  context,
-                  center: const Offset(640, 400),
-                  innerRadius: 80,
-                  initial: initial,
-                  paletteLoader: () async => data,
-                );
-              },
-              child: const Text('Open'),
-            ),
-          ),
-        ),
-      ),
-    );
-    return (app, () => result);
-  }
+  late List<SRGBColor> picks;
+  late List<SRGBColor?> closed;
 
-  Future<Future<AmazeColorResult?>? Function()> open(
+  Future<void> open(
     WidgetTester tester, {
     bool noData = false,
     SRGBColor initial = const SRGBColor(0xFFC85028),
@@ -102,14 +93,45 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    final (app, result) = harness(
-      data: noData ? null : palette,
-      initial: initial,
+    picks = [];
+    closed = [];
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => Align(
+              alignment: Alignment.topLeft,
+              child: FilledButton(
+                key: const ValueKey('open-color'),
+                onPressed: () => showAmazeColorWheel(
+                  context,
+                  center: const Offset(640, 400),
+                  innerRadius: 160,
+                  initial: initial,
+                  paletteLoader: () async => noData ? null : palette,
+                  onPick: picks.add,
+                  onClosed: closed.add,
+                  onEyedropper: () {},
+                ),
+                child: const Text('Open'),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
-    await tester.pumpWidget(app);
     await tester.tap(find.byKey(const ValueKey('open-color')));
     await tester.pumpAndSettle();
-    return result;
+  }
+
+  Future<void> close(WidgetTester tester) async {
+    // Escape in a field only reverts it, so the tool wheel's center is
+    // tapped instead.
+    await tester.tapAt(const Offset(640, 400));
+    await tester.pumpAndSettle();
+    expect(find.byKey(_rings), findsNothing);
   }
 
   Future<void> selectMode(WidgetTester tester, AmazeColorMode mode) async {
@@ -134,28 +156,15 @@ void main() {
     return tester.widget<TextField>(field).controller!.text;
   }
 
-  Future<SRGBColor> done(
-    WidgetTester tester,
-    Future<AmazeColorResult?>? Function() result,
-  ) async {
-    await tester.tap(find.byKey(_done));
-    await tester.pumpAndSettle();
-    return (await result() as AmazePickedColor).color;
-  }
-
-  testWidgets('dragging the hue handle changes hue and keeps S and L', (
-    tester,
-  ) async {
-    final result = await open(tester, noData: true);
-    final before = rgbToHsl(const SRGBColor(0xFFC85028));
-    final state = painter(tester);
-    final layout = state.layout;
+  /// Drags the hue handle 120° round in twelve steps without releasing.
+  Future<TestGesture> dragHue(WidgetTester tester, double from) async {
+    final layout = painter(tester).layout;
     final origin = tester.getTopLeft(find.byKey(_channels));
-    final start = origin + layout.handleOf(ColorChannel.hue, before.hue);
-    final target = before.hue + 120;
-    final gesture = await tester.startGesture(start);
+    final gesture = await tester.startGesture(
+      origin + layout.handleOf(ColorChannel.hue, from),
+    );
     for (var i = 1; i <= 12; i++) {
-      final angle = layout.angleOf(ColorChannel.hue, before.hue + 10.0 * i);
+      final angle = layout.angleOf(ColorChannel.hue, from + 10.0 * i);
       await gesture.moveTo(
         origin +
             layout.center +
@@ -163,9 +172,20 @@ void main() {
                 layout.radiusOf(ColorChannel.hue),
       );
       await tester.pump();
-      // The preview follows the drag live.
-      expect(painter(tester).values[ColorChannel.hue], isNot(before.hue));
+      // The arcs follow the drag live.
+      expect(painter(tester).values[ColorChannel.hue], isNot(from));
     }
+    return gesture;
+  }
+
+  testWidgets('a hue drag applies once, on release, and keeps S and L', (
+    tester,
+  ) async {
+    await open(tester, noData: true);
+    final before = rgbToHsl(const SRGBColor(0xFFC85028));
+    final target = before.hue + 120;
+    final gesture = await dragHue(tester, before.hue);
+    expect(picks, isEmpty, reason: 'nothing is applied during the drag');
     await gesture.up();
     await tester.pumpAndSettle();
 
@@ -175,21 +195,54 @@ void main() {
     expect(values[ColorChannel.lightness], closeTo(before.lightness, 1e-9));
     expect(fieldText(tester, ColorChannel.hue), '${target.round()}');
 
-    // Picking works without marker data.
-    final picked = rgbToHsl(await done(tester, result));
+    // Picking works without marker data, as one step.
+    expect(picks, hasLength(1));
+    final picked = rgbToHsl(picks.single);
     expect(picked.hue, closeTo(target, 1));
     expect(picked.saturation, closeTo(before.saturation, 1));
     expect(picked.lightness, closeTo(before.lightness, 1));
+    expect(find.byKey(_rings), findsOneWidget);
+    await close(tester);
+    expect(closed, [picks.single]);
+  });
+
+  testWidgets('a cancelled channel drag changes nothing', (tester) async {
+    await open(tester, noData: true);
+    final before = rgbToHsl(const SRGBColor(0xFFC85028));
+    final gesture = await dragHue(tester, before.hue);
+    await gesture.cancel();
+    await tester.pumpAndSettle();
+    expect(picks, isEmpty);
+    expect(painter(tester).color.value, 0xFFC85028);
+    expect(painter(tester).values[ColorChannel.hue], closeTo(before.hue, 1e-9));
+    expect(fieldText(tester, ColorChannel.hue), '${before.hue.round()}');
+    await close(tester);
+    expect(closed, [null]);
+  });
+
+  testWidgets('a tap beside the arcs closes; the controls gap does not', (
+    tester,
+  ) async {
+    await open(tester, noData: true);
+    // Just outside the tool wheel, where the controls are.
+    await tester.tapAt(const Offset(640 - 172, 400));
+    await tester.pumpAndSettle();
+    expect(find.byKey(_rings), findsOneWidget);
+    // In the middle of the tool wheel.
+    await tester.tapAt(const Offset(640, 400));
+    await tester.pumpAndSettle();
+    expect(find.byKey(_rings), findsNothing);
+    expect(closed, [null]);
   });
 
   testWidgets('a typed R of 255 applies on Enter', (tester) async {
-    final result = await open(tester);
+    await open(tester);
     await selectMode(tester, AmazeColorMode.rgb);
     await tester.enterText(find.byKey(_field(ColorChannel.red)), '255');
     await tester.testTextInput.receiveAction(TextInputAction.next);
     await tester.pumpAndSettle();
     expect(painter(tester).color.value, 0xFFFF5028);
-    expect((await done(tester, result)).value, 0xFFFF5028);
+    expect(picks.map((c) => c.value), [0xFFFF5028]);
   });
 
   testWidgets('a typed value applies when the field loses focus', (
@@ -198,26 +251,28 @@ void main() {
     await open(tester);
     await selectMode(tester, AmazeColorMode.rgb);
     await tester.enterText(find.byKey(_field(ColorChannel.green)), '10');
+    expect(picks, isEmpty);
     await tester.tap(find.byKey(_field(ColorChannel.blue)));
     await tester.pumpAndSettle();
     expect(painter(tester).color.value, 0xFFC80A28);
+    expect(picks.map((c) => c.value), [0xFFC80A28]);
   });
 
   testWidgets('R of 300 shows an error and does not apply', (tester) async {
-    final result = await open(tester);
+    await open(tester);
     await selectMode(tester, AmazeColorMode.rgb);
     await tester.enterText(find.byKey(_field(ColorChannel.red)), '300');
     await tester.testTextInput.receiveAction(TextInputAction.next);
     await tester.pumpAndSettle();
     expect(find.text('Enter a value from 0 to 255'), findsOneWidget);
     expect(painter(tester).color.value, 0xFFC85028);
-    expect((await done(tester, result)).value, 0xFFC85028);
+    expect(picks, isEmpty);
   });
 
   testWidgets('Escape in a field reverts it and keeps the picker open', (
     tester,
   ) async {
-    final result = await open(tester);
+    await open(tester);
     await selectMode(tester, AmazeColorMode.rgb);
     await tester.enterText(find.byKey(_field(ColorChannel.red)), '300');
     await tester.testTextInput.receiveAction(TextInputAction.next);
@@ -228,19 +283,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(fieldText(tester, ColorChannel.red), '200');
     expect(find.text('Enter a value from 0 to 255'), findsNothing);
-    expect(find.byKey(_done), findsOneWidget);
+    expect(find.byKey(_rings), findsOneWidget);
     // Leaving the reverted field applies nothing.
     await tester.tap(find.byKey(_field(ColorChannel.green)));
     await tester.pumpAndSettle();
-    expect((await done(tester, result)).value, 0xFFC85028);
+    expect(picks, isEmpty);
   });
 
   testWidgets('the alpha field changes only alpha', (tester) async {
-    final result = await open(tester, noData: true);
+    await open(tester, noData: true);
     await tester.enterText(find.byKey(_field(ColorChannel.alpha)), '50');
     await tester.testTextInput.receiveAction(TextInputAction.next);
     await tester.pumpAndSettle();
-    expect((await done(tester, result)).value, 0x80C85028);
+    expect(picks.map((c) => c.value), [0x80C85028]);
   });
 
   testWidgets('switching HSL, RGB and HSL keeps the color', (tester) async {
@@ -252,7 +307,7 @@ void main() {
         b: random.nextInt(256),
         a: random.nextInt(256),
       );
-      final result = await open(tester, noData: true, initial: initial);
+      await open(tester, noData: true, initial: initial);
       final hsl = {
         for (final c in channelsOf(AmazeColorMode.hsl)) c: fieldText(tester, c),
       };
@@ -268,22 +323,19 @@ void main() {
           reason: '$key of $initial',
         );
       }
-      final picked = await done(tester, result);
-      for (final (a, b) in [
-        (picked.r, initial.r),
-        (picked.g, initial.g),
-        (picked.b, initial.b),
-        (picked.a, initial.a),
-      ]) {
-        expect((a - b).abs(), lessThanOrEqualTo(1), reason: '$initial');
-      }
+      // Switching modes applies nothing.
+      expect(picks, isEmpty);
+      await close(tester);
+      expect(closed, [null]);
     }
   });
 
   testWidgets('the last mode is remembered', (tester) async {
-    var result = await open(tester);
+    await open(tester);
+    expect(find.byKey(const ValueKey('amaze-color-ring')), findsOneWidget);
     await selectMode(tester, AmazeColorMode.rgb);
-    await done(tester, result);
+    expect(find.byKey(const ValueKey('amaze-color-ring')), findsNothing);
+    await close(tester);
     expect(
       (await SharedPreferences.getInstance()).getString(
         kAmazeColorModePreference,
@@ -291,12 +343,51 @@ void main() {
       'rgb',
     );
 
-    result = await open(tester);
-    final rgb = tester.widget<ChoiceChip>(
-      find.byKey(const ValueKey('amaze-color-mode-rgb')),
-    );
-    expect(rgb.selected, isTrue);
+    await open(tester);
     expect(find.byKey(_field(ColorChannel.red)), findsOneWidget);
-    await done(tester, result);
+    expect(find.byKey(const ValueKey('amaze-color-ring')), findsNothing);
+    await close(tester);
+  });
+
+  testWidgets('arcs, fields and controls are on screen in the middle', (
+    tester,
+  ) async {
+    await open(tester, noData: true);
+    const screen = Rect.fromLTWH(0, 0, 1280, 800);
+    Rect rect(Key key) => tester.getRect(find.byKey(key));
+    expect(screen.contains(rect(_channels).topLeft), isTrue);
+    expect(screen.contains(rect(_channels).bottomRight), isTrue);
+    final fields = rect(const ValueKey('amaze-color-fields'));
+    expect(screen.contains(fields.topLeft), isTrue);
+    expect(screen.contains(fields.bottomRight), isTrue);
+    expect(fields.overlaps(rect(_channels)), isFalse);
+    for (final key in [
+      'amaze-color-mode-hsl',
+      'amaze-color-mode-rgb',
+      'amaze-color-more',
+      'amaze-color-eyedropper',
+      'amaze-color-white',
+      'amaze-color-black',
+    ]) {
+      final control = rect(ValueKey(key));
+      final layout = painter(tester).layout;
+      final origin = rect(_channels).topLeft;
+      for (final corner in [
+        control.topLeft,
+        control.topRight,
+        control.bottomLeft,
+        control.bottomRight,
+      ]) {
+        expect(layout.channelAt(corner - origin), isNull, reason: key);
+        expect(
+          (corner - const Offset(640, 400)).distance,
+          greaterThan(160),
+          reason: key,
+        );
+      }
+    }
+    expect(find.byKey(const ValueKey('amaze-color-done')), findsNothing);
+    expect(find.byKey(const ValueKey('amaze-color-cancel')), findsNothing);
+    expect(find.byKey(const ValueKey('amaze-color-panel')), findsNothing);
   });
 }

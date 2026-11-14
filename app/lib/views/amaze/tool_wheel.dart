@@ -188,37 +188,41 @@ void _moveSlot(DocumentBloc bloc, int from, int to) {
 
 Future<void> _openColorPicker(
   BuildContext context, {
-  required Offset center,
+  required Offset? center,
   required double innerRadius,
+  Rect? Function()? anchor,
 }) async {
   final bloc = context.read<DocumentBloc>();
   final settings = context.read<SettingsCubit>();
   final controller = context.read<EditorController>();
   final handler = controller.toolCubit.state.handler;
   if (handler is! ColoredHandler) return;
-  final response = await showAmazeColorWheel(
+  await showAmazeColorWheel(
     context,
     center: center,
     innerRadius: innerRadius,
+    anchor: anchor,
     initial: handler.getColor(),
-  );
-  if (!context.mounted) return;
-  switch (response) {
-    case AmazePickedColor(:final color):
-      final tool = syncLibraryFill(handler.setColor(color));
-      bloc.add(ToolsChanged([tool]));
-      settings.addRecentColors(color);
-    case AmazeEyedropperRequested():
-      await controller.toolCubit.changeTemporaryHandler(
+    // Every pick is one ToolsChanged, which is one undo step.
+    onPick: (color) {
+      final handler = controller.toolCubit.state.handler;
+      if (handler is! ColoredHandler) return;
+      bloc.add(ToolsChanged([syncLibraryFill(handler.setColor(color))]));
+    },
+    onClosed: (color) {
+      if (color != null) settings.addRecentColors(color);
+    },
+    onEyedropper: () {
+      if (!context.mounted) return;
+      controller.toolCubit.changeTemporaryHandler(
         context,
         controller,
         EyeDropperTool(),
         bloc: bloc,
         temporaryState: TemporaryState.removeAfterRelease,
       );
-    case null:
-      break;
-  }
+    },
+  );
 }
 
 /// Sets [adjustment] of the active tool to [value] with one [ToolsChanged],
@@ -1438,17 +1442,13 @@ class AmazeToolBar extends StatelessWidget {
                       controls: controls,
                       style: style,
                       diameter: 38,
-                      onTap: () {
-                        final box =
-                            buttonContext.findRenderObject() as RenderBox;
-                        _openColorPicker(
-                          buttonContext,
-                          center: box.localToGlobal(
-                            box.size.center(Offset.zero),
-                          ),
-                          innerRadius: box.size.width / 2,
-                        );
-                      },
+                      // The bar has no wheel to draw around, so the color
+                      // wheel opens in the middle of the screen.
+                      onTap: () => _openColorPicker(
+                        buttonContext,
+                        center: null,
+                        innerRadius: kToolWheelDefaultDiameter / 2,
+                      ),
                     ),
                   ),
                 ],
@@ -2579,6 +2579,7 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
             context,
             center: rect.center,
             innerRadius: rect.width / 2,
+            anchor: () => mounted ? _globalWheelRect : null,
           );
         },
         openAdjustment: _openAdjustment,

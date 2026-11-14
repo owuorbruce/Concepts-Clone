@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:butterfly/api/file_system.dart';
 import 'package:butterfly/api/open.dart';
+import 'package:butterfly/models/marker_palette.dart';
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly_api/butterfly_api.dart';
 import 'package:material_leap/material_leap.dart';
@@ -75,34 +76,42 @@ class PackPaletteSource implements AmazePaletteSource {
   }
 }
 
-/// White and black chips, recent colors, a saved palette with a chooser,
-/// palette import and the eyedropper. Colors only go to [onPreview].
-class PaletteStrip extends StatefulWidget {
-  const PaletteStrip({
+/// The sheet behind the picker's "more" button: find a marker by code or
+/// name, recent colors, a saved palette with a chooser and import, and the
+/// marker data notice. Import errors are shown in the sheet.
+class AmazeColorMoreSheet extends StatefulWidget {
+  const AmazeColorMoreSheet({
     super.key,
     required this.color,
+    required this.markers,
     required this.recentColors,
     required this.source,
-    required this.onPreview,
-    required this.onEyedropper,
+    required this.onColor,
+    required this.onMarker,
   });
 
-  /// The previewed color, outlined wherever it appears.
+  /// The current color, outlined wherever it appears.
   final SRGBColor color;
+
+  /// The marker palette to search, or null if there is none.
+  final MarkerPalette? markers;
   final List<SRGBColor> recentColors;
   final AmazePaletteSource? source;
-  final ValueChanged<SRGBColor> onPreview;
-  final VoidCallback onEyedropper;
+  final ValueChanged<SRGBColor> onColor;
+  final ValueChanged<MarkerColor> onMarker;
 
   @override
-  State<PaletteStrip> createState() => _PaletteStripState();
+  State<AmazeColorMoreSheet> createState() => _AmazeColorMoreSheetState();
 }
 
-class _PaletteStripState extends State<PaletteStrip> {
+class _AmazeColorMoreSheetState extends State<AmazeColorMoreSheet> {
   List<NamedItem<ColorPalette>> _palettes = const [];
   int _selected = 0;
   bool _importing = false;
   String? _importError;
+  String _query = '';
+
+  static const _maxResults = 6;
 
   @override
   void initState() {
@@ -139,31 +148,34 @@ class _PaletteStripState extends State<PaletteStrip> {
     setState(() => _importError = errors.join('\n'));
   }
 
-  Widget _swatch(Key key, SRGBColor color, String tooltip) {
+  List<MarkerColor> get _results {
+    final markers = widget.markers;
+    if (markers == null || _query.trim().isEmpty) return const [];
+    return markers.search(_query).take(_maxResults).toList();
+  }
+
+  Widget _swatch(Key key, SRGBColor color) {
     final selected = color == widget.color;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Tooltip(
-        message: tooltip,
-        child: InkResponse(
-          key: key,
-          onTap: () => widget.onPreview(color),
-          radius: 20,
-          child: SizedBox.square(
-            dimension: 36,
-            child: Center(
-              child: Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  color: Color(color.value),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: selected
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.black38,
-                    width: selected ? 3 : 1,
-                  ),
+    return Tooltip(
+      message: color.toHexString(alpha: color.a != 255),
+      child: InkResponse(
+        key: key,
+        onTap: () => widget.onColor(color),
+        radius: 22,
+        child: SizedBox.square(
+          dimension: 40,
+          child: Center(
+            child: Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: Color(color.value),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.black38,
+                  width: selected ? 3 : 1,
                 ),
               ),
             ),
@@ -173,108 +185,126 @@ class _PaletteStripState extends State<PaletteStrip> {
     );
   }
 
-  String _hex(SRGBColor color) => color.toHexString(alpha: color.a != 255);
-
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
+    final theme = Theme.of(context);
     final palette = _palettes.isEmpty ? null : _palettes[_selected];
-    final divider = Container(
-      width: 1,
-      height: 28,
-      margin: const EdgeInsets.symmetric(horizontal: 6),
-      color: Theme.of(context).dividerColor,
-    );
+    final results = _results;
     return SingleChildScrollView(
-      key: const ValueKey('amaze-color-strip'),
-      scrollDirection: Axis.horizontal,
-      child: Row(
+      key: const ValueKey('amaze-color-more-sheet'),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          IconButton(
-            key: const ValueKey('amaze-color-eyedropper'),
-            tooltip: loc.eyeDropper,
-            onPressed: widget.onEyedropper,
-            icon: const PhosphorIcon(PhosphorIconsLight.eyedropper),
-          ),
-          _swatch(
-            const ValueKey('amaze-color-white'),
-            SRGBColor.white.withValues(a: widget.color.a),
-            _hex(SRGBColor.white),
-          ),
-          _swatch(
-            const ValueKey('amaze-color-black'),
-            SRGBColor.black.withValues(a: widget.color.a),
-            _hex(SRGBColor.black),
-          ),
-          if (widget.recentColors.isNotEmpty) ...[
-            divider,
-            Tooltip(
-              message: loc.amazeColorRecent,
-              child: const PhosphorIcon(
-                PhosphorIconsLight.clockCounterClockwise,
-              ),
-            ),
-            for (final (index, color) in widget.recentColors.indexed)
-              _swatch(
-                ValueKey(('amaze-color-recent', index)),
-                color,
-                _hex(color),
-              ),
-          ],
-          divider,
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              MenuAnchor(
-                menuChildren: [
-                  for (final (index, item) in _palettes.indexed)
-                    MenuItemButton(
-                      key: ValueKey(('amaze-color-palette', index)),
-                      leadingIcon: index == _selected
-                          ? const PhosphorIcon(PhosphorIconsLight.check)
-                          : const SizedBox(width: 24),
-                      onPressed: () => setState(() => _selected = index),
-                      child: Text(item.name),
-                    ),
-                ],
-                builder: (context, controller, child) => TextButton.icon(
-                  key: const ValueKey('amaze-color-palette-chooser'),
-                  onPressed: _palettes.isEmpty
-                      ? null
-                      : () => controller.isOpen
-                            ? controller.close()
-                            : controller.open(),
-                  icon: const PhosphorIcon(PhosphorIconsLight.palette),
-                  label: Text(palette?.name ?? loc.palettes),
+          if (widget.markers != null) ...[
+            TextField(
+              key: const ValueKey('amaze-color-find'),
+              decoration: InputDecoration(
+                labelText: loc.amazeColorFind,
+                prefixIcon: const PhosphorIcon(
+                  PhosphorIconsLight.magnifyingGlass,
                 ),
+                isDense: true,
               ),
-              if (_importError case final error?)
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 220),
-                  child: Text(
-                    error,
-                    key: const ValueKey('amaze-color-import-error'),
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
+              onChanged: (value) => setState(() => _query = value),
+              onSubmitted: (_) {
+                final first = results.firstOrNull;
+                if (first != null) widget.onMarker(first);
+              },
+            ),
+            for (final marker in results)
+              ListTile(
+                key: ValueKey(('amaze-color-find-result', marker.code)),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: Color(marker.color.value),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.black26),
+                  ),
+                ),
+                title: Text('${marker.code}  ${marker.name}'),
+                onTap: () => widget.onMarker(marker),
+              ),
+            const SizedBox(height: 12),
+          ],
+          if (widget.recentColors.isNotEmpty) ...[
+            Text(loc.amazeColorRecent, style: theme.textTheme.labelLarge),
+            Wrap(
+              children: [
+                for (final (index, color) in widget.recentColors.indexed)
+                  _swatch(ValueKey(('amaze-color-recent', index)), color),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+          if (widget.source != null) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: MenuAnchor(
+                      menuChildren: [
+                        for (final (index, item) in _palettes.indexed)
+                          MenuItemButton(
+                            key: ValueKey(('amaze-color-palette', index)),
+                            leadingIcon: index == _selected
+                                ? const PhosphorIcon(PhosphorIconsLight.check)
+                                : const SizedBox(width: 24),
+                            onPressed: () => setState(() => _selected = index),
+                            child: Text(item.name),
+                          ),
+                      ],
+                      builder: (context, controller, child) => TextButton.icon(
+                        key: const ValueKey('amaze-color-palette-chooser'),
+                        onPressed: _palettes.isEmpty
+                            ? null
+                            : () => controller.isOpen
+                                  ? controller.close()
+                                  : controller.open(),
+                        icon: const PhosphorIcon(PhosphorIconsLight.palette),
+                        label: Text(palette?.name ?? loc.palettes),
+                      ),
                     ),
                   ),
                 ),
-            ],
-          ),
-          if (palette != null)
-            for (final (index, color) in palette.item.colors.indexed)
-              _swatch(
-                ValueKey(('amaze-color-palette-color', index)),
-                color,
-                _hex(color),
-              ),
-          if (widget.source != null)
-            IconButton(
-              key: const ValueKey('amaze-color-import'),
-              tooltip: loc.import,
-              onPressed: _importing ? null : _import,
-              icon: const PhosphorIcon(PhosphorIconsLight.downloadSimple),
+                IconButton(
+                  key: const ValueKey('amaze-color-import'),
+                  tooltip: loc.import,
+                  onPressed: _importing ? null : _import,
+                  icon: const PhosphorIcon(PhosphorIconsLight.downloadSimple),
+                ),
+              ],
             ),
+            if (_importError case final error?)
+              Text(
+                error,
+                key: const ValueKey('amaze-color-import-error'),
+                style: TextStyle(color: theme.colorScheme.error),
+              ),
+            if (palette != null)
+              Wrap(
+                children: [
+                  for (final (index, color) in palette.item.colors.indexed)
+                    _swatch(
+                      ValueKey(('amaze-color-palette-color', index)),
+                      color,
+                    ),
+                ],
+              ),
+            const SizedBox(height: 8),
+          ],
+          Text(
+            '${loc.amazeColorTrademark}\n${loc.amazeColorDataAttribution}',
+            key: const ValueKey('amaze-color-info'),
+            style: theme.textTheme.bodySmall,
+          ),
         ],
       ),
     );

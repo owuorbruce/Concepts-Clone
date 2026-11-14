@@ -13,6 +13,7 @@ import 'package:butterfly/models/defaults.dart';
 import 'package:butterfly/services/font.dart';
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly/theme.dart';
+import 'package:butterfly/views/amaze/color/marker_ring.dart';
 import 'package:butterfly/views/amaze/dock.dart';
 import 'package:butterfly/views/amaze/library.dart';
 import 'package:butterfly/handlers/handler.dart';
@@ -771,10 +772,11 @@ void main() {
 
     await tester.tap(find.byKey(_color));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('amaze-color-panel')), findsOneWidget);
+    expect(find.byKey(const ValueKey('amaze-color-ring')), findsOneWidget);
     expect(find.byType(ColorPicker), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('amaze-color-cancel')));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('amaze-color-ring')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -1394,11 +1396,11 @@ void main() {
   });
 
   group('color picker hook', () {
-    const panel = ValueKey('amaze-color-panel');
-    const done = ValueKey('amaze-color-done');
+    const ring = ValueKey('amaze-color-ring');
+    const screen = Size(1280, 800);
 
     Future<(EditorController, int)> openPen(WidgetTester tester) async {
-      setScreen(tester, const Size(1280, 800));
+      setScreen(tester, screen);
       final editor = await openEditor(tester);
       final pen = slotOf<PenTool>();
       await selectSlot(tester, editor, pen);
@@ -1408,41 +1410,112 @@ void main() {
     Future<void> openPicker(WidgetTester tester) async {
       await tester.tap(find.byKey(_color));
       await tester.pumpAndSettle();
-      expect(find.byKey(panel), findsOneWidget);
+      expect(find.byKey(ring), findsOneWidget);
       expect(find.byType(ColorPicker), findsNothing);
     }
 
-    testWidgets('center opens the radial picker; R29 is one undo step', (
+    MarkerWheelPainter painter(WidgetTester tester) {
+      return tester.widget<CustomPaint>(find.byKey(ring)).painter!
+          as MarkerWheelPainter;
+    }
+
+    int penColor(int pen) =>
+        (slotTool(pen) as PenTool).property.paint.previewColor.value;
+
+    /// Spins [code]'s swatch on screen by dragging the gray ring, then
+    /// taps it.
+    Future<void> tapCode(WidgetTester tester, String code) async {
+      var state = painter(tester);
+      final geometry = state.geometry;
+      final swatch = geometry.byCode(code)!;
+      final target = MarkerRingGeometry.rotationToShow(
+        swatch,
+        center: state.center,
+        screen: screen,
+        from: state.rotation,
+      )!;
+      final angle = target - state.rotation;
+      if (angle != 0) {
+        final radius = (geometry.ringInner + geometry.ringOuter) / 2;
+        final bounds = (Offset.zero & screen).deflate(4);
+        final start = [
+          for (var i = 0; i < 72; i++)
+            state.center + Offset.fromDirection(i * pi / 36, radius),
+        ].firstWhere(bounds.contains);
+        final arm = start - state.center;
+        final gesture = await tester.startGesture(start);
+        final steps = (angle.abs() / (4 * pi / 180)).ceil() + 2;
+        var time = Duration.zero;
+        Offset at(int step) =>
+            state.center +
+            Offset.fromDirection(
+              arm.direction + angle * step / steps,
+              arm.distance,
+            );
+        for (var step = 1; step <= steps; step++) {
+          time += const Duration(milliseconds: 16);
+          await gesture.moveTo(at(step), timeStamp: time);
+        }
+        // Resting before the release leaves no speed to fling with.
+        for (var i = 0; i < 3; i++) {
+          time += const Duration(milliseconds: 200);
+          await gesture.moveTo(at(steps), timeStamp: time);
+        }
+        await gesture.up(timeStamp: time);
+        await tester.pumpAndSettle();
+      }
+      state = painter(tester);
+      await tester.tapAt(
+        geometry.positionOf(
+          swatch,
+          center: state.center,
+          rotation: state.rotation,
+        ),
+      );
+      await tester.pump();
+    }
+
+    Future<void> closePicker(WidgetTester tester) async {
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byKey(ring), findsNothing);
+    }
+
+    testWidgets('a tap on R29, then B29, is one undo step each', (
       tester,
     ) async {
       final (_, pen) = await openPen(tester);
-      final before = slotTool(pen);
+      final color = penColor(pen);
+      final recent = currentSettings.recentColors;
       final events = observer.toolsChanged;
       await openPicker(tester);
-      await tester.enterText(
-        find.byKey(const ValueKey('amaze-color-search')),
-        'R29',
-      );
-      await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.pumpAndSettle();
-      expect(find.text('R29'), findsWidgets);
       expect(observer.toolsChanged, events);
-      await tester.tap(find.byKey(done));
-      await pumpUntil(
-        tester,
-        () =>
-            (slotTool(pen) as PenTool).property.paint.previewColor.value ==
-            0xFFEF0047,
-        'R29 color',
-      );
+
+      await tapCode(tester, 'R29');
+      await pumpUntil(tester, () => penColor(pen) == 0xFFEF0047, 'R29 color');
       expect(observer.toolsChanged, events + 1);
-      expect(currentSettings.recentColors.first.value, 0xFFEF0047);
+      expect(find.byKey(ring), findsOneWidget, reason: 'the picker stays');
+
+      await tapCode(tester, 'B29');
+      await pumpUntil(tester, () => penColor(pen) != 0xFFEF0047, 'B29 color');
+      final b29 = penColor(pen);
+      expect(observer.toolsChanged, events + 2);
+      expect(find.byKey(ring), findsOneWidget);
+      // Recent colors only change when the picker closes.
+      expect(currentSettings.recentColors, recent);
+
+      await closePicker(tester);
+      expect(currentSettings.recentColors, [SRGBColor(b29), ...recent]);
+      expect(observer.toolsChanged, events + 2);
+
       await tester.tap(find.byKey(const ValueKey('amaze-undo')));
-      await pumpUntil(tester, () => slotTool(pen) == before, 'color undo');
+      await pumpUntil(tester, () => penColor(pen) == 0xFFEF0047, 'B29 undo');
+      await tester.tap(find.byKey(const ValueKey('amaze-undo')));
+      await pumpUntil(tester, () => penColor(pen) == color, 'R29 undo');
       await tester.pump(const Duration(minutes: 1));
     });
 
-    testWidgets('cancel leaves the pen and recent colors alone', (
+    testWidgets('closing without a pick leaves the pen and recent colors', (
       tester,
     ) async {
       final (_, pen) = await openPen(tester);
@@ -1450,19 +1523,78 @@ void main() {
       final recent = currentSettings.recentColors;
       final events = observer.toolsChanged;
       await openPicker(tester);
-      await tester.tap(find.byKey(const ValueKey('amaze-color-white')));
-      await tester.tap(find.byKey(const ValueKey('amaze-color-cancel')));
-      await tester.pumpAndSettle();
+      await closePicker(tester);
       expect(observer.toolsChanged, events);
       expect(slotTool(pen), before);
       expect(currentSettings.recentColors, recent);
       await tester.pump(const Duration(minutes: 1));
     });
 
+    testWidgets('a pointer on the canvas closes the picker and draws nothing', (
+      tester,
+    ) async {
+      final (editor, pen) = await openPen(tester);
+      final bloc = observer.lastDocumentBloc!;
+      int elements() => (bloc.state as DocumentLoadSuccess).page.content.length;
+      final before = elements();
+      final recent = currentSettings.recentColors;
+      await openPicker(tester);
+      await tapCode(tester, 'R29');
+      await pumpUntil(tester, () => penColor(pen) == 0xFFEF0047, 'R29 color');
+
+      final state = painter(tester);
+      Offset? outside;
+      for (var x = 4.0; x < screen.width && outside == null; x += 12) {
+        for (var y = 80.0; y < screen.height - 80; y += 12) {
+          final local = Offset(x, y) - state.center;
+          if (local.distance > state.geometry.ringOuter + 40 &&
+              !state.geometry.containsWheel(local, rotation: state.rotation)) {
+            outside = Offset(x, y);
+            break;
+          }
+        }
+      }
+      expect(outside, isNotNull, reason: 'some canvas is left uncovered');
+      final gesture = await tester.startGesture(outside!);
+      await tester.pumpAndSettle();
+      expect(find.byKey(ring), findsNothing);
+      for (var i = 1; i <= 6; i++) {
+        await gesture.moveBy(const Offset(10, 6));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 1));
+      expect(elements(), before, reason: 'the closing pointer draws nothing');
+      expect(editor.toolCubit.state.handler.data, isA<PenTool>());
+      expect(currentSettings.recentColors, [
+        const SRGBColor(0xFFEF0047),
+        ...recent,
+      ]);
+      await tester.pump(const Duration(minutes: 1));
+    });
+
+    testWidgets('a tap on the center dot closes the picker', (tester) async {
+      final (_, pen) = await openPen(tester);
+      final recent = currentSettings.recentColors;
+      final events = observer.toolsChanged;
+      await openPicker(tester);
+      await tapCode(tester, 'R29');
+      await pumpUntil(tester, () => penColor(pen) == 0xFFEF0047, 'R29 color');
+      await tester.tapAt(tester.getCenter(find.byKey(_wheel)));
+      await tester.pumpAndSettle();
+      expect(find.byKey(ring), findsNothing);
+      expect(observer.toolsChanged, events + 1);
+      expect(currentSettings.recentColors, [
+        const SRGBColor(0xFFEF0047),
+        ...recent,
+      ]);
+      await tester.pump(const Duration(minutes: 1));
+    });
+
     for (final diameter in [null, 400.0]) {
-      testWidgets('picker anchor matches the wheel at ${diameter ?? 320}', (
-        tester,
-      ) async {
+      testWidgets('the wheel is drawn around the tool wheel at '
+          '${diameter ?? 320}', (tester) async {
         if (diameter != null) {
           SharedPreferences.setMockInitialValues({
             'amaze.toolWheel.diameter': diameter,
@@ -1475,28 +1607,30 @@ void main() {
           closeTo(diameter ?? kToolWheelDefaultDiameter, 0.001),
         );
         await openPicker(tester);
-        expect(
-          find.byKey(
-            ValueKey(('amaze-color-anchor', wheel.center, wheel.width / 2)),
-          ),
-          findsOneWidget,
-        );
+        final state = painter(tester);
+        expect(state.center, wheel.center);
+        expect(state.holeRadius, wheel.width / 2);
+        expect(state.geometry.innerRadius, wheel.width / 2);
+        await closePicker(tester);
       });
     }
 
-    testWidgets('bar color button opens the same picker at its center', (
+    testWidgets('the bar color button opens the wheel mid-screen', (
       tester,
     ) async {
       SharedPreferences.setMockInitialValues({'amaze.toolWheel.mode': 'bar'});
-      await openPen(tester);
-      final button = tester.getRect(find.byKey(_color));
+      final (_, pen) = await openPen(tester);
+      final events = observer.toolsChanged;
       await openPicker(tester);
-      expect(
-        find.byKey(
-          ValueKey(('amaze-color-anchor', button.center, button.width / 2)),
-        ),
-        findsOneWidget,
-      );
+      final state = painter(tester);
+      expect(state.center, screen.center(Offset.zero));
+      expect(state.holeRadius, 0);
+      expect(find.byKey(const ValueKey('amaze-color-center')), findsOneWidget);
+      await tapCode(tester, 'R29');
+      await pumpUntil(tester, () => penColor(pen) == 0xFFEF0047, 'R29 color');
+      expect(observer.toolsChanged, events + 1);
+      await closePicker(tester);
+      await tester.pump(const Duration(minutes: 1));
     });
 
     testWidgets('eyedropper samples once, records recents and restores pen', (
@@ -1504,19 +1638,9 @@ void main() {
     ) async {
       final (editor, pen) = await openPen(tester);
       await openPicker(tester);
-      await tester.enterText(
-        find.byKey(const ValueKey('amaze-color-search')),
-        'R29',
-      );
-      await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.tap(find.byKey(done));
-      await pumpUntil(
-        tester,
-        () =>
-            (slotTool(pen) as PenTool).property.paint.previewColor.value ==
-            0xFFEF0047,
-        'R29 pen setup',
-      );
+      await tapCode(tester, 'R29');
+      await pumpUntil(tester, () => penColor(pen) == 0xFFEF0047, 'R29 setup');
+      await closePicker(tester);
       final before = slotTool(pen);
       final events = observer.toolsChanged;
       final recent = currentSettings.recentColors;
@@ -1527,6 +1651,7 @@ void main() {
         () => editor.toolCubit.state.temporaryHandler is EyeDropperHandler,
         'eyedropper activation',
       );
+      expect(find.byKey(ring), findsNothing);
       expect(observer.toolsChanged, events);
       expect(currentSettings.recentColors, recent);
       await tester.tapAt(const Offset(300, 260));
@@ -1587,11 +1712,14 @@ void main() {
       );
       await tester.tap(find.byKey(_color));
       await tester.pumpAndSettle();
-      expect(find.byKey(panel), findsNothing);
+      expect(find.byKey(ring), findsNothing);
+      expect(find.byKey(const ValueKey('amaze-color-mode-hsl')), findsNothing);
       await tester.pump(const Duration(minutes: 1));
     });
 
-    testWidgets('white chip keeps the pen at 50% opacity', (tester) async {
+    testWidgets('a swatch, white and black keep the pen at 50% opacity', (
+      tester,
+    ) async {
       final (_, pen) = await openPen(tester);
       applyWheelAdjustment(
         tester.element(find.byKey(_wheel)),
@@ -1605,16 +1733,88 @@ void main() {
       );
       final events = observer.toolsChanged;
       await openPicker(tester);
+      await tapCode(tester, 'R29');
+      await pumpUntil(tester, () => penColor(pen) == 0x80EF0047, 'R29 at 50%');
       await tester.tap(find.byKey(const ValueKey('amaze-color-white')));
-      await tester.tap(find.byKey(done));
       await pumpUntil(
         tester,
-        () =>
-            (slotTool(pen) as PenTool).property.paint.previewColor.value ==
-            0x80FFFFFF,
+        () => penColor(pen) == 0x80FFFFFF,
         'white at 50% opacity',
       );
+      await tester.tap(find.byKey(const ValueKey('amaze-color-black')));
+      await pumpUntil(
+        tester,
+        () => penColor(pen) == 0x80000000,
+        'black at 50% opacity',
+      );
+      expect(observer.toolsChanged, events + 3);
+      expect(find.byKey(ring), findsOneWidget);
+      await closePicker(tester);
+      await tester.pump(const Duration(minutes: 1));
+    });
+
+    testWidgets('an RGB channel drag is one undo step on release', (
+      tester,
+    ) async {
+      SharedPreferences.setMockInitialValues({'amaze.color.mode': 'rgb'});
+      final (_, pen) = await openPen(tester);
+      final color = penColor(pen);
+      final events = observer.toolsChanged;
+      await tester.tap(find.byKey(_color));
+      await tester.pumpAndSettle();
+      const channels = ValueKey('amaze-color-channels');
+      expect(find.byKey(channels), findsOneWidget);
+      // The red arc is the outermost; drag along it from its left side.
+      final arcs = tester.getRect(find.byKey(channels));
+      final radius = arcs.width / 2 - 13;
+      Offset onRed(double degrees) =>
+          arcs.center + Offset.fromDirection(degrees * pi / 180, radius);
+
+      // A stretch of the arc that is on screen and clear of the fields,
+      // wherever the wheel is.
+      final bounds = (Offset.zero & screen).deflate(4);
+      final fields = tester
+          .getRect(find.byKey(const ValueKey('amaze-color-fields')))
+          .inflate(4);
+      bool free(Offset point) =>
+          bounds.contains(point) && !fields.contains(point);
+      final from =
+          [for (var degrees = 130.0; degrees <= 340; degrees += 10) degrees]
+              .firstWhere(
+                (degrees) => [
+                  for (var step = 0.0; step <= 60; step += 10)
+                    onRed(degrees + step),
+                ].every(free),
+              );
+      Future<TestGesture> drag() async {
+        final gesture = await tester.startGesture(onRed(from));
+        for (var step = 10.0; step <= 60; step += 10) {
+          await gesture.moveTo(onRed(from + step));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        return gesture;
+      }
+
+      var gesture = await drag();
+      expect(observer.toolsChanged, events, reason: 'nothing while dragging');
+      await gesture.cancel();
+      await tester.pumpAndSettle();
+      expect(observer.toolsChanged, events, reason: 'cancel changes nothing');
+      expect(penColor(pen), color);
+
+      gesture = await drag();
+      expect(observer.toolsChanged, events);
+      await gesture.up();
+      await pumpUntil(tester, () => penColor(pen) != color, 'red change');
+      expect(penColor(pen) & 0xFF00FFFF, color & 0xFF00FFFF);
       expect(observer.toolsChanged, events + 1);
+      // The picker stays open after a drag; a pointer outside it only
+      // closes it, so it is closed before the undo button is tapped.
+      expect(find.byKey(channels), findsOneWidget);
+      await closePicker(tester);
+      expect(find.byKey(channels), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('amaze-undo')));
+      await pumpUntil(tester, () => penColor(pen) == color, 'channel undo');
       await tester.pump(const Duration(minutes: 1));
     });
   });
