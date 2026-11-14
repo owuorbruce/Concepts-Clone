@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
-import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart' show BoxHitTestResult, RenderProxyBox;
 import 'package:flutter/services.dart';
 import 'package:material_leap/material_leap.dart';
 import 'package:material_ui/material_ui.dart';
@@ -66,6 +66,18 @@ class ChannelRingLayout {
   static const _start = 120 * math.pi / 180;
   static const _sweep = 300 * math.pi / 180;
 
+  /// Side of the square whose innermost arc leaves a circle of
+  /// [clearRadius] free.
+  static double sideFor(double clearRadius, {int channels = 4}) {
+    return 2 *
+        (clearRadius +
+            band / 2 +
+            _gap / 2 +
+            (channels - 1) * (band + _gap) +
+            band / 2 +
+            4);
+  }
+
   Offset get center => size.center(Offset.zero);
 
   double get outerRadius => math.max(0, size.shortestSide / 2 - band / 2 - 4);
@@ -116,19 +128,34 @@ class ChannelRingLayout {
   }
 }
 
-/// HSL or RGB arcs with draggable handles, an alpha arc and a numeric field
-/// per channel. Every change only updates the preview through [onPreview].
+/// HSL or RGB arcs around [center] with draggable handles, an alpha arc and
+/// a numeric field per channel. It fills its parent and only its arcs and
+/// fields take pointers.
+///
+/// A drag shows its color through [onPreview] and applies it once through
+/// [onCommit] when it is released; a cancelled drag previews the color it
+/// started with. A field applies through [onCommit] on Enter.
 class ChannelRings extends StatefulWidget {
   const ChannelRings({
     super.key,
     required this.mode,
     required this.color,
+    required this.center,
+    required this.clearRadius,
     required this.onPreview,
+    required this.onCommit,
   });
 
   final AmazeColorMode mode;
   final SRGBColor color;
+
+  /// Center of the arcs in the parent.
+  final Offset center;
+
+  /// Radius around [center] the arcs stay out of.
+  final double clearRadius;
   final ValueChanged<SRGBColor> onPreview;
+  final ValueChanged<SRGBColor> onCommit;
 
   @override
   State<ChannelRings> createState() => _ChannelRingsState();
@@ -142,7 +169,19 @@ class _ChannelRingsState extends State<ChannelRings> {
   /// The color [_hsl] was last synchronized with.
   late SRGBColor _hslColor = widget.color;
 
+  /// The latest color sent to the parent.
+  late SRGBColor _latest = widget.color;
+
+  int? _pointer;
   ColorChannel? _dragging;
+  SRGBColor? _dragStart;
+  HslChannels? _dragStartHsl;
+
+  @override
+  void didUpdateWidget(ChannelRings oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _latest = widget.color;
+  }
 
   HslChannels get _currentHsl {
     if (widget.color != _hslColor) {
@@ -200,77 +239,198 @@ class _ChannelRingsState extends State<ChannelRings> {
       _hsl = rgbToHsl(next);
     }
     _hslColor = next;
+    _latest = next;
     setState(() {});
     if (next != color) widget.onPreview(next);
   }
 
-  void _onPointer(
-    ChannelRingLayout layout,
-    Offset position, {
-    bool start = false,
-  }) {
-    if (start) _dragging = layout.channelAt(position);
-    final channel = _dragging;
+  void _onDown(ChannelRingLayout layout, PointerDownEvent event) {
+    if (_pointer != null) return;
+    final channel = layout.channelAt(event.localPosition);
     if (channel == null) return;
-    _set(channel, layout.valueAt(channel, position));
+    _pointer = event.pointer;
+    _dragging = channel;
+    _dragStart = widget.color;
+    _dragStartHsl = _currentHsl;
+    _set(channel, layout.valueAt(channel, event.localPosition));
+  }
+
+  void _onMove(ChannelRingLayout layout, PointerMoveEvent event) {
+    final channel = _dragging;
+    if (event.pointer != _pointer || channel == null) return;
+    _set(channel, layout.valueAt(channel, event.localPosition));
+  }
+
+  void _onEnd(PointerEvent event, {required bool cancelled}) {
+    if (event.pointer != _pointer) return;
+    final start = _dragStart!;
+    final startHsl = _dragStartHsl!;
+    _pointer = null;
+    _dragging = null;
+    _dragStart = null;
+    _dragStartHsl = null;
+    if (cancelled) {
+      setState(() {
+        _hsl = startHsl;
+        _hslColor = start;
+        _latest = start;
+      });
+      widget.onPreview(start);
+    } else if (_latest != start) {
+      widget.onCommit(_latest);
+    }
+  }
+
+  void _applyField(ColorChannel channel, int value) {
+    final before = _latest;
+    _set(channel, value.toDouble());
+    if (_latest != before) widget.onCommit(_latest);
   }
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final channels = channelsOf(widget.mode);
-    return Column(
-      children: [
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final layout = ChannelRingLayout(channels, constraints.biggest);
-              return GestureDetector(
-                key: const ValueKey('amaze-color-channels'),
-                behavior: HitTestBehavior.opaque,
-                dragStartBehavior: DragStartBehavior.down,
-                onPanDown: (details) =>
-                    _onPointer(layout, details.localPosition, start: true),
-                onPanUpdate: (details) =>
-                    _onPointer(layout, details.localPosition),
-                onPanEnd: (_) => _dragging = null,
-                onPanCancel: () => _dragging = null,
-                child: CustomPaint(
-                  painter: ChannelRingsPainter(
-                    layout: layout,
-                    color: widget.color,
-                    hsl: _currentHsl,
-                    values: {
-                      for (final channel in channels) channel: valueOf(channel),
-                    },
-                  ),
-                  child: const SizedBox.expand(),
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: WrapAlignment.center,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final screen = constraints.biggest;
+        final side = ChannelRingLayout.sideFor(
+          widget.clearRadius,
+          channels: channels.length,
+        );
+        final layout = ChannelRingLayout(channels, Size.square(side));
+        final arcs = Rect.fromCenter(
+          center: widget.center,
+          width: side,
+          height: side,
+        );
+        final fields = _fieldsRect(screen, arcs);
+        return Stack(
+          clipBehavior: Clip.none,
           children: [
-            for (final channel in channels)
-              SizedBox(
-                width: 92,
-                child: _ChannelField(
-                  key: ValueKey(('amaze-color-field', channel.name)),
-                  label: channel.label(loc),
-                  value: valueOf(channel).round(),
-                  max: channel.max.round(),
-                  onApply: (value) => _set(channel, value.toDouble()),
+            Positioned.fromRect(
+              rect: arcs,
+              child: _ArcHitBox(
+                layout: layout,
+                child: Listener(
+                  key: const ValueKey('amaze-color-channels'),
+                  onPointerDown: (event) => _onDown(layout, event),
+                  onPointerMove: (event) => _onMove(layout, event),
+                  onPointerUp: (event) => _onEnd(event, cancelled: false),
+                  onPointerCancel: (event) => _onEnd(event, cancelled: true),
+                  child: CustomPaint(
+                    painter: ChannelRingsPainter(
+                      layout: layout,
+                      color: widget.color,
+                      hsl: _currentHsl,
+                      values: {
+                        for (final channel in channels)
+                          channel: valueOf(channel),
+                      },
+                    ),
+                    child: const SizedBox.expand(),
+                  ),
                 ),
               ),
+            ),
+            Positioned(
+              left: fields.left,
+              top: fields.top,
+              width: fields.width,
+              child: Material(
+                key: const ValueKey('amaze-color-fields'),
+                elevation: 2,
+                borderRadius: BorderRadius.circular(12),
+                color: Theme.of(context).colorScheme.surface,
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final channel in channels)
+                        SizedBox(
+                          width: _fieldWidth,
+                          child: _ChannelField(
+                            key: ValueKey(('amaze-color-field', channel.name)),
+                            label: channel.label(loc),
+                            value: valueOf(channel).round(),
+                            max: channel.max.round(),
+                            onApply: (value) => _applyField(channel, value),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ],
-        ),
-      ],
+        );
+      },
     );
+  }
+
+  static const _fieldWidth = 92.0;
+
+  /// Where the block of fields goes: beside, below or above the arcs,
+  /// wherever it is fully on [screen]; otherwise below, moved on screen.
+  Rect _fieldsRect(Size screen, Rect arcs) {
+    const margin = 8.0;
+    const size = Size(2 * _fieldWidth + 24, 136);
+    final bounds = (Offset.zero & screen).deflate(margin);
+    final center = arcs.center;
+    final candidates = [
+      Offset(arcs.right + margin, center.dy - size.height / 2),
+      Offset(arcs.left - margin - size.width, center.dy - size.height / 2),
+      Offset(center.dx - size.width / 2, arcs.bottom + margin),
+      Offset(center.dx - size.width / 2, arcs.top - margin - size.height),
+    ];
+    for (final origin in candidates) {
+      final rect = origin & size;
+      if (bounds.contains(rect.topLeft) && bounds.contains(rect.bottomRight)) {
+        return rect;
+      }
+    }
+    final origin = candidates[2];
+    return Offset(
+          origin.dx.clamp(
+            bounds.left,
+            math.max(bounds.left, bounds.right - size.width),
+          ),
+          origin.dy.clamp(
+            bounds.top,
+            math.max(bounds.top, bounds.bottom - size.height),
+          ),
+        ) &
+        size;
+  }
+}
+
+/// Lets pointers through everywhere except on the arcs of [layout].
+class _ArcHitBox extends SingleChildRenderObjectWidget {
+  const _ArcHitBox({required this.layout, super.child});
+
+  final ChannelRingLayout layout;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderArcHitBox(layout);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderArcHitBox renderObject) {
+    renderObject.arcs = layout;
+  }
+}
+
+class _RenderArcHitBox extends RenderProxyBox {
+  _RenderArcHitBox(this.arcs);
+
+  ChannelRingLayout arcs;
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) {
+    if (arcs.channelAt(position) == null) return false;
+    return super.hitTest(result, position: position);
   }
 }
 
@@ -320,6 +480,20 @@ class ChannelRingsPainter extends CustomPainter {
       const steps = 12;
       final colors = [for (var i = 0; i <= steps; i++) _at(channel, i / steps)];
       final rect = Rect.fromCircle(center: center, radius: radius);
+      // A light backing keeps the arcs readable on any canvas.
+      canvas.drawArc(
+        rect,
+        start,
+        end - start,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = ChannelRingLayout.band + 3
+          ..strokeCap = channel == ColorChannel.hue
+              ? StrokeCap.butt
+              : StrokeCap.round
+          ..color = const Color(0xE6FFFFFF),
+      );
       final paint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = ChannelRingLayout.band
