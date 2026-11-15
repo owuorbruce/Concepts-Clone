@@ -619,16 +619,41 @@ String? _toolSizeLabel(Tool tool) {
   return _formatSize(size);
 }
 
-/// The value of [adjustment] as shown in the center disc.
+/// Smallest font size of the text on the wheel.
+const _kMinWheelTextSize = 9.0;
+
+/// The value of [adjustment] as shown in the center disc. A [compact] label
+/// has no unit, for small wheels.
 String _discLabel(
   AppLocalizations loc,
   ToolAdjustment adjustment,
-  double value,
-) {
+  double value, {
+  bool compact = false,
+}) {
   if (adjustment == ToolAdjustment.size) {
-    return loc.amazeSizePts(_formatSize(value));
+    final size = _formatSize(value);
+    return compact ? size : loc.amazeSizePts(size);
   }
-  return formatAdjustment(adjustment, value);
+  final text = formatAdjustment(adjustment, value);
+  return compact && text.endsWith('%')
+      ? text.substring(0, text.length - 1)
+      : text;
+}
+
+/// Width of [text] in [style] as it would be laid out in [context].
+double _textWidth(BuildContext context, String text, TextStyle style) {
+  final painter = TextPainter(
+    text: TextSpan(
+      text: text,
+      style: DefaultTextStyle.of(context).style.merge(style),
+    ),
+    textDirection: TextDirection.ltr,
+    textScaler: MediaQuery.textScalerOf(context),
+    maxLines: 1,
+  )..layout();
+  final width = painter.width;
+  painter.dispose();
+  return width;
 }
 
 /// One slot wedge of the wheel: its surface, the tool icon and the tool's
@@ -679,6 +704,13 @@ class _WedgeSlot extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final iconSize = geometry.radius * 0.16;
     final label = tool == null ? null : _toolSizeLabel(tool);
+    final fontSize = max(_kMinWheelTextSize, geometry.radius * 0.075);
+    // On a small wheel the size number keeps its smallest font and grows
+    // relative to the wedge; the icon moves in by as much to stay clear.
+    final iconCenter = polarOffset(
+      geometry.slotSector(slot).middleAngle,
+      geometry.wedgeIconDistance - (fontSize - geometry.radius * 0.075),
+    );
     final hit = WheelHit.slot(slot);
     return Stack(
       children: [
@@ -699,7 +731,7 @@ class _WedgeSlot extends StatelessWidget {
         ),
         _placeOnWheel(
           geometry,
-          geometry.slotIconCenter(slot),
+          iconCenter,
           Size.square(geometry.radius * 0.3),
           Tooltip(
             message: tool?.getDisplay(context) ?? loc.emptySlot,
@@ -730,7 +762,10 @@ class _WedgeSlot extends StatelessWidget {
           _placeOnWheel(
             geometry,
             geometry.slotLabelCenter(slot),
-            Size(geometry.radius * 0.3, geometry.radius * 0.12),
+            Size(
+              geometry.radius * 0.4,
+              max(geometry.radius * 0.12, fontSize + 2),
+            ),
             IgnorePointer(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
@@ -739,7 +774,7 @@ class _WedgeSlot extends StatelessWidget {
                   key: ValueKey(('amaze-slot-size', slot)),
                   style: TextStyle(
                     color: content,
-                    fontSize: geometry.radius * 0.075,
+                    fontSize: fontSize,
                     fontWeight: FontWeight.w600,
                     height: 1,
                   ),
@@ -930,22 +965,32 @@ class _DiscAdjustmentState extends State<_DiscAdjustment> {
     final loc = AppLocalizations.of(context);
     final color = style.onSurface;
     final iconSize = geometry.radius * 0.11;
-    final labelSize = Size(geometry.radius * 0.36, geometry.radius * 0.16);
+    final spacing = geometry.radius * 0.03;
+    // The size sector at the top has room for a wider label.
+    final labelSize = Size(
+      geometry.radius * (adjustment == ToolAdjustment.size ? 0.5 : 0.36),
+      max(geometry.radius * 0.16, _kMinWheelTextSize + 2),
+    );
+    final textStyle = TextStyle(
+      color: color,
+      fontSize: max(_kMinWheelTextSize, geometry.radius * 0.085),
+      fontWeight: FontWeight.w700,
+      height: 1,
+    );
+    String? text;
+    if (shown != null) {
+      text = _discLabel(loc, adjustment, shown);
+      final room = labelSize.width - iconSize - spacing;
+      if (_textWidth(context, text, textStyle) > room) {
+        text = _discLabel(loc, adjustment, shown, compact: true);
+      }
+    }
     final label = Row(
       mainAxisSize: .min,
-      spacing: geometry.radius * 0.03,
+      spacing: spacing,
       children: [
         AmazeIcon(_adjustmentIcon(adjustment), size: iconSize, color: color),
-        if (shown != null)
-          Text(
-            _discLabel(loc, adjustment, shown),
-            style: TextStyle(
-              color: color,
-              fontSize: geometry.radius * 0.085,
-              fontWeight: FontWeight.w700,
-              height: 1,
-            ),
-          ),
+        if (text != null) Text(text, style: textStyle),
       ],
     );
     final offset = geometry.adjustmentLabelCenter(adjustment);
@@ -1447,7 +1492,11 @@ class AmazeToolBar extends StatelessWidget {
                       onTap: () => _openColorPicker(
                         buttonContext,
                         center: null,
-                        innerRadius: kToolWheelDefaultDiameter / 2,
+                        innerRadius:
+                            defaultToolWheelDiameter(
+                              MediaQuery.sizeOf(buttonContext),
+                            ) /
+                            2,
                       ),
                     ),
                   ),
@@ -2078,14 +2127,10 @@ class WheelSlotsSync {
 /// target turns it into a tool bar. Pinch the wheel, or use Ctrl and the
 /// mouse wheel over it, to resize it. The mode, position (as a fraction of
 /// the free space, so it survives rotation), size and collapse state are
-/// saved.
+/// saved. Until a size is saved, the wheel follows the layer with
+/// [defaultToolWheelDiameter].
 class AmazeToolWheelLayer extends StatefulWidget {
-  const AmazeToolWheelLayer({
-    super.key,
-    this.geometry = const ToolWheelGeometry(),
-  });
-
-  final ToolWheelGeometry geometry;
+  const AmazeToolWheelLayer({super.key});
 
   @override
   State<AmazeToolWheelLayer> createState() => _AmazeToolWheelLayerState();
@@ -2222,7 +2267,7 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
   }
 
   double get _diameter {
-    return _fitDiameter(_layout.diameter ?? widget.geometry.diameter);
+    return _fitDiameter(_layout.diameter ?? defaultToolWheelDiameter(_bounds));
   }
 
   ToolWheelGeometry get _geometry => ToolWheelGeometry(diameter: _diameter);

@@ -19,7 +19,10 @@ import 'package:butterfly/views/amaze/tool_wheel.dart';
 import 'package:butterfly/views/amaze/wheel_prefs.dart';
 import 'package:butterfly/views/main.dart';
 import 'package:butterfly_api/butterfly_api.dart';
+import 'package:butterfly/views/amaze/icons.dart';
+import 'package:butterfly/views/amaze/tool_slots.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -30,6 +33,7 @@ import 'package:lw_sysapi/lw_sysapi.dart';
 import 'package:material_leap/material_leap.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../helpers/mocks.dart';
@@ -42,6 +46,9 @@ const _centered = <String, Object>{
   'amaze.toolWheel.x': 0.5,
   'amaze.toolWheel.y': 0.5,
 };
+
+/// [_centered] with a saved size of 320.
+const _saved320 = <String, Object>{..._centered, _diameterKey: 320.0};
 
 /// Loads the bundled fonts, so text has its real size.
 Future<void> _loadFonts() async {
@@ -98,7 +105,7 @@ void main() {
     /// [layer] (the whole 1280x800 screen by default).
     Future<void> pumpLayer(
       WidgetTester tester, {
-      Map<String, Object> prefs = _centered,
+      Map<String, Object> prefs = _saved320,
       Size? layer,
     }) async {
       tester.view.physicalSize = const Size(1280, 800);
@@ -236,12 +243,41 @@ void main() {
     });
 
     testWidgets('a plain scroll leaves the size alone', (tester) async {
-      await pumpLayer(tester);
+      await pumpLayer(tester, prefs: _centered);
       final center = wheel(tester).center;
       await _scroll(tester, center, -100, notches: 3, control: false);
       await _scroll(tester, center, 100, notches: 3, control: false);
-      expect(wheel(tester).width, 320);
+      expect(wheel(tester).width, 176);
       expect(await savedDiameter(tester), isNull);
+    });
+
+    testWidgets('a pinch stops at the smallest size', (tester) async {
+      await pumpLayer(tester);
+      final center = wheel(tester).center;
+      final first = await tester.startGesture(
+        center - const Offset(100, 0),
+        pointer: 1,
+        kind: PointerDeviceKind.touch,
+      );
+      final second = await tester.startGesture(
+        center + const Offset(100, 0),
+        pointer: 2,
+        kind: PointerDeviceKind.touch,
+      );
+      await tester.pump();
+      for (var i = 0; i < 9; i++) {
+        await first.moveBy(const Offset(10, 0));
+        await second.moveBy(const Offset(-10, 0));
+        await tester.pump();
+      }
+      // The fingers are 20 apart instead of 200.
+      expect(wheel(tester).width, kToolWheelMinDiameter);
+      expect(wheel(tester).center, _near(center));
+      await first.up();
+      await second.up();
+      await tester.pumpAndSettle();
+      expect(await savedDiameter(tester), kToolWheelMinDiameter);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('a two-finger pinch on the wheel resizes it', (tester) async {
@@ -266,7 +302,8 @@ void main() {
       // The fingers are 160 apart instead of 120.
       expect(wheel(tester).width, closeTo(320 * 160 / 120, 0.01));
       expect(wheel(tester).center, _near(center));
-      expect(await savedDiameter(tester), isNull);
+      // The size is saved when the pinch ends, not while it moves.
+      expect(await savedDiameter(tester), 320);
 
       for (var i = 0; i < 10; i++) {
         await first.moveBy(const Offset(-20, 0));
@@ -341,7 +378,11 @@ void main() {
     ) async {
       await pumpLayer(
         tester,
-        prefs: {'amaze.toolWheel.x': 1.0, 'amaze.toolWheel.y': 1.0},
+        prefs: {
+          'amaze.toolWheel.x': 1.0,
+          'amaze.toolWheel.y': 1.0,
+          _diameterKey: 320.0,
+        },
       );
       final before = wheel(tester);
       await _scroll(tester, before.center, -100, notches: 5, control: true);
@@ -403,7 +444,7 @@ void main() {
       expect(wheel(tester).width, 368);
     });
 
-    testWidgets('a small layer limits the size, but not below 240', (
+    testWidgets('a small layer limits the size, but not below 160', (
       tester,
     ) async {
       await pumpLayer(
@@ -437,14 +478,145 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('a layer smaller than the minimum keeps 240', (tester) async {
-      await pumpLayer(tester, layer: const Size(200, 200));
+    testWidgets('a layer smaller than the minimum keeps 160', (tester) async {
+      await pumpLayer(tester, layer: const Size(120, 120));
       expect(wheel(tester).width, kToolWheelMinDiameter);
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('without a saved size the wheel follows the layer', (
+      tester,
+    ) async {
+      await pumpLayer(tester, prefs: _centered);
+      expect(wheel(tester).width, 176);
+      tester.view.physicalSize = const Size(1920, 1080);
+      await tester.pumpAndSettle();
+      expect(wheel(tester).width, 238);
+      tester.view.physicalSize = const Size(800, 1280);
+      await tester.pumpAndSettle();
+      expect(wheel(tester).width, 176);
+      expect(await savedDiameter(tester), isNull);
+      expect(tester.takeException(), isNull);
+    });
+
+    for (final (saved, shown) in [
+      (320.0, 320.0),
+      (200.0, 200.0),
+      (100.0, 160.0),
+    ]) {
+      testWidgets('a saved $saved is shown at $shown on any screen', (
+        tester,
+      ) async {
+        await pumpLayer(tester, prefs: {..._centered, _diameterKey: saved});
+        expect(wheel(tester).width, shown);
+        tester.view.physicalSize = const Size(1920, 1080);
+        await tester.pumpAndSettle();
+        expect(wheel(tester).width, shown);
+        tester.view.physicalSize = const Size(800, 1280);
+        await tester.pumpAndSettle();
+        expect(wheel(tester).width, shown);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    for (final diameter in [160.0, 176.0, 240.0, 320.0, 480.0]) {
+      testWidgets('nothing on a $diameter wheel overlaps or is too small', (
+        tester,
+      ) async {
+        await pumpLayer(tester, prefs: {..._centered, _diameterKey: diameter});
+        expect(tester.takeException(), isNull);
+        final bounds = wheel(tester);
+        expect(bounds.width, diameter);
+        final texts = _wheelTexts(tester);
+        expect(texts, isNotEmpty);
+        for (final (text, rect, fontSize) in texts) {
+          final reason = '"$text" at $diameter';
+          expect(fontSize, greaterThanOrEqualTo(9 - 1e-6), reason: reason);
+          expect(bounds.inflate(1e-6).contains(rect.topLeft), isTrue);
+          expect(bounds.inflate(1e-6).contains(rect.bottomRight), isTrue);
+        }
+        Rect byKey(String value) => tester.getRect(find.byKey(ValueKey(value)));
+        final controls = <String, Rect>{
+          for (final (text, rect, _) in texts) '"$text" at $rect': rect,
+          'undo': byKey('amaze-undo'),
+          'redo': byKey('amaze-redo'),
+          for (var slot = 0; slot < kToolSlotCount; slot++)
+            'slot $slot icon': _iconRect(
+              tester,
+              ValueKey(('amaze-slot', slot)),
+            ),
+          for (final adjustment in ToolAdjustment.values)
+            '${adjustment.name} icon': _iconRect(
+              tester,
+              ValueKey(('amaze-adjust', adjustment.name)),
+            ),
+        };
+        final entries = controls.entries.toList();
+        for (var i = 0; i < entries.length; i++) {
+          for (var j = i + 1; j < entries.length; j++) {
+            final (a, b) = (entries[i], entries[j]);
+            expect(
+              a.value.deflate(0.5).overlaps(b.value.deflate(0.5)),
+              isFalse,
+              reason: '${a.key} overlaps ${b.key} at $diameter',
+            );
+          }
+        }
+        // Nothing covers the color dot.
+        final geometry = ToolWheelGeometry(diameter: diameter);
+        final center = bounds.center;
+        for (final entry in entries) {
+          final rect = entry.value;
+          final nearest = Offset(
+            center.dx.clamp(rect.left, rect.right),
+            center.dy.clamp(rect.top, rect.bottom),
+          );
+          expect(
+            (nearest - center).distance,
+            greaterThan(geometry.centerRadius),
+            reason: '${entry.key} at $diameter',
+          );
+        }
+      });
+    }
   });
 
   _canvasTests();
+}
+
+/// Every text on the tool wheel: its content, where it is painted and its
+/// font size as painted, after any scaling to fit.
+List<(String, Rect, double)> _wheelTexts(WidgetTester tester) {
+  final finder = find.descendant(
+    of: find.byKey(_wheel),
+    matching: find.byType(RichText),
+  );
+  return [
+    for (final element in finder.evaluate())
+      // Icons are glyphs of an icon font; they are checked as icons.
+      if (element.findAncestorWidgetOfExactType<Icon>() == null)
+        if (element.renderObject case final RenderParagraph paragraph)
+          (
+            paragraph.text.toPlainText(),
+            MatrixUtils.transformRect(
+              paragraph.getTransformTo(null),
+              Offset.zero & paragraph.textSize,
+            ),
+            paragraph.textScaler.scale(paragraph.text.style?.fontSize ?? 14) *
+                paragraph.getTransformTo(null).getMaxScaleOnAxis(),
+          ),
+  ];
+}
+
+/// Where the icon inside the widget keyed [key] is painted.
+Rect _iconRect(WidgetTester tester, Key key) {
+  final icon = find.descendant(
+    of: find.byKey(key),
+    matching: find.byWidgetPredicate(
+      (widget) => widget is AmazeIcon || widget is PhosphorIcon,
+    ),
+  );
+  return tester.getRect(icon.first);
 }
 
 /// Matches an offset within half a pixel.
@@ -619,6 +791,7 @@ void _canvasTests() {
     testWidgets('resizing over the wheel leaves the canvas alone', (
       tester,
     ) async {
+      SharedPreferences.setMockInitialValues({_diameterKey: 320.0});
       final editor = await openEditor(tester);
       final transform = editor.transformCubit.state;
       final elements = (observer.lastDocumentBloc!.state as DocumentLoadSuccess)

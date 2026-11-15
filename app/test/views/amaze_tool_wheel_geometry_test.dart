@@ -69,7 +69,7 @@ void main() {
     test('lengths are fractions of the outer radius', () {
       const geometry = ToolWheelGeometry();
       expect(geometry.diameter, kToolWheelDefaultDiameter);
-      expect(kToolWheelMinDiameter, 240);
+      expect(kToolWheelMinDiameter, 160);
       expect(kToolWheelMaxDiameter, 480);
       final r = geometry.radius;
       expect(r, 160);
@@ -81,6 +81,27 @@ void main() {
       expect(geometry.historyDistance, closeTo(0.80 * r, 1e-9));
       expect(geometry.wedgeIconDistance, closeTo(0.78 * r, 1e-9));
       expect(geometry.wedgeLabelDistance, closeTo(0.92 * r, 1e-9));
+    });
+
+    test('the default size is 22% of the shorter side', () {
+      expect(defaultToolWheelDiameter(const Size(1280, 800)), 176);
+      expect(defaultToolWheelDiameter(const Size(800, 1280)), 176);
+      expect(defaultToolWheelDiameter(const Size(1920, 1080)), 238);
+      expect(defaultToolWheelDiameter(const Size(400, 800)), 160);
+      expect(defaultToolWheelDiameter(const Size(3000, 2400)), 480);
+      expect(defaultToolWheelDiameter(Size.zero), 160);
+      expect(defaultToolWheelDiameter(Size.infinite), 160);
+    });
+
+    test('wedges are at least 36 px across at the smallest size', () {
+      const geometry = ToolWheelGeometry(diameter: kToolWheelMinDiameter);
+      for (var slot = 0; slot < kToolSlotCount; slot++) {
+        final sector = geometry.slotSector(slot);
+        expect(
+          sector.middleRadius * sector.sweepAngle,
+          greaterThanOrEqualTo(36),
+        );
+      }
     });
 
     test('every length doubles with the diameter', () {
@@ -145,6 +166,8 @@ void main() {
 
   for (final diameter in [
     kToolWheelMinDiameter,
+    176.0,
+    240.0,
     kToolWheelDefaultDiameter,
     kToolWheelMaxDiameter,
   ]) {
@@ -283,7 +306,10 @@ void main() {
 
     /// Pumps the wheel layer with the first default tool of type [T] active.
     Future<DocumentBloc> pumpWheel<T extends Tool>(WidgetTester tester) async {
-      SharedPreferences.setMockInitialValues({});
+      // A saved 320 px wheel, the size of the geometry the taps aim at.
+      SharedPreferences.setMockInitialValues({
+        'amaze.toolWheel.diameter': 320.0,
+      });
       final fileSystem = MockButterflyFileSystem();
       final settings = fileSystem.settingsCubit as MockSettingsCubit;
       when(() => settings.state)

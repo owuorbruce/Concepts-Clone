@@ -35,6 +35,10 @@ const kMarkerMinLabelSize = 9.0;
 /// Inner radius of the gray ring, in tool wheel radii, when there is room.
 const kMarkerRingRatio = 3.0;
 
+/// Smallest inner radius of the gray ring, in logical pixels: room for the
+/// controls inside it and 28 px wide columns outside it.
+const kMarkerMinRingRadius = 330.0;
+
 /// Preference holding the wheel's angle in radians.
 const kAmazeColorAnglePreference = 'amaze.color.angle';
 
@@ -140,7 +144,8 @@ class MarkerSwatchGeometry {
 /// hit testing. Its radii are multiples of the tool wheel's radius.
 ///
 /// The gray families form a ring whose inner edge is [ringRatio] tool wheel
-/// radii out; their darkest shades are thicker. Fluorescent and other
+/// radii out (by default [fullRingRatio]); their darkest shades are
+/// thicker. Fluorescent and other
 /// non-hue colors form a thinner arc just inside it. Each hue family is a
 /// block of radial columns outside the ring, one column per first digit of
 /// the code, with the darkest color nearest the center.
@@ -148,9 +153,9 @@ class MarkerRingGeometry {
   MarkerRingGeometry(
     MarkerPalette palette, {
     this.innerRadius = 160,
-    this.ringRatio = kMarkerRingRatio,
+    double? ringRatio,
     this.spread = 1,
-  }) {
+  }) : ringRatio = ringRatio ?? fullRingRatio(innerRadius) {
     _layoutRing(palette);
     _layoutInnerArc(palette);
     _layoutBars(palette);
@@ -207,11 +212,16 @@ class MarkerRingGeometry {
     spread,
   )!;
 
+  /// The gray ring of the full-size layout, in tool wheel radii:
+  /// [kMarkerRingRatio], but never inside [kMarkerMinRingRadius].
+  static double fullRingRatio(double innerRadius) =>
+      math.max(kMarkerRingRatio, kMarkerMinRingRadius / innerRadius);
+
   /// The smallest gray ring, in tool wheel radii, that leaves room for the
   /// controls inside it and 28 px wide columns outside it.
   static double minRingRatio(double innerRadius) => math.min(
-    kMarkerRingRatio,
-    math.max(innerRadius + 200, 330) / innerRadius,
+    fullRingRatio(innerRadius),
+    math.max(innerRadius + 200, kMarkerMinRingRadius) / innerRadius,
   );
 
   void _layoutRing(MarkerPalette palette) {
@@ -481,12 +491,11 @@ class MarkerRingGeometry {
     required Offset center,
     required Size screen,
   }) {
+    final full = fullRingRatio(innerRadius);
     final smallest = minRingRatio(innerRadius);
     final candidates = [
-      for (final spread in const [1.0, 0.75, 0.5, 0.25, 0.0])
-        (kMarkerRingRatio, spread),
-      for (var ratio = kMarkerRingRatio - 0.1; ratio > smallest; ratio -= 0.1)
-        (ratio, 0.0),
+      for (final spread in const [1.0, 0.75, 0.5, 0.25, 0.0]) (full, spread),
+      for (var ratio = full - 0.1; ratio > smallest; ratio -= 0.1) (ratio, 0.0),
       (smallest, 0.0),
     ];
     late MarkerRingGeometry geometry;

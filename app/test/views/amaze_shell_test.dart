@@ -47,6 +47,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../helpers/mocks.dart';
 
 const _wheel = ValueKey('amaze-tool-wheel');
+const _savedDiameterKey = 'amaze.toolWheel.diameter';
 const _bar = ValueKey('amaze-tool-bar');
 const _color = ValueKey('amaze-color');
 const _puck = ValueKey('amaze-tool-wheel-puck');
@@ -147,7 +148,10 @@ void main() {
   late BlocObserver previousObserver;
 
   setUp(() {
-    SharedPreferences.setMockInitialValues({});
+    // A saved 320 px wheel, so the wheel matches the default geometry the
+    // tests aim at. The size without a saved one is tested in
+    // amaze_wheel_resize_test.dart.
+    SharedPreferences.setMockInitialValues({_savedDiameterKey: 320.0});
     settingsCubit = MockSettingsCubit();
     currentSettings = _amaze;
     fileSystem = MockButterflyFileSystem(settingsCubit: settingsCubit);
@@ -1594,17 +1598,21 @@ void main() {
 
     for (final diameter in [null, 400.0]) {
       testWidgets('the wheel is drawn around the tool wheel at '
-          '${diameter ?? 320}', (tester) async {
-        if (diameter != null) {
-          SharedPreferences.setMockInitialValues({
-            'amaze.toolWheel.diameter': diameter,
-          });
-        }
+          '${diameter ?? 'the default size'}', (tester) async {
+        SharedPreferences.setMockInitialValues({_savedDiameterKey: ?diameter});
         await openPen(tester);
         final wheel = tester.getRect(find.byKey(_wheel));
         expect(
           wheel.width,
-          closeTo(diameter ?? kToolWheelDefaultDiameter, 0.001),
+          closeTo(
+            diameter ??
+                defaultToolWheelDiameter(
+                  tester.getSize(
+                    find.byKey(const ValueKey('amaze-wheel-layer')),
+                  ),
+                ),
+            0.001,
+          ),
         );
         await openPicker(tester);
         final state = painter(tester);
@@ -1625,6 +1633,8 @@ void main() {
       final state = painter(tester);
       expect(state.center, screen.center(Offset.zero));
       expect(state.holeRadius, 0);
+      // The default wheel size for 1280x800 is 176.
+      expect(state.geometry.innerRadius, 88);
       expect(find.byKey(const ValueKey('amaze-color-center')), findsOneWidget);
       await tapCode(tester, 'R29');
       await pumpUntil(tester, () => penColor(pen) == 0xFFEF0047, 'R29 color');
