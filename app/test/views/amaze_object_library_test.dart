@@ -105,8 +105,9 @@ void main() {
     WidgetTester tester,
     List<ObjectPack> packs, {
     bool editable = true,
+    double height = 1600,
   }) async {
-    tester.view.physicalSize = const Size(1280, 1600);
+    tester.view.physicalSize = Size(1280, height);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final placed = <ObjectEntry>[];
@@ -168,7 +169,7 @@ void main() {
           .getNamedComponents()
           .length;
 
-      final packs = await loadObjectPacks(fs);
+      final packs = await loadObjectPacks(fs, bundled: const []);
 
       final core = packs.firstWhere((p) => p.id == kCorePackFileName);
       final user = packs.firstWhere((p) => p.id == 'Furniture.bfly');
@@ -197,7 +198,10 @@ void main() {
       expect(packs.map((p) => p.id), contains('Furniture.bfly'));
       expect(packs.map((p) => p.id), isNot(contains(startsWith('bundled:'))));
 
-      expect(await loadObjectPacks(_FailingFileSystem()), isEmpty);
+      expect(
+        await loadObjectPacks(_FailingFileSystem(), bundled: const []),
+        isEmpty,
+      );
     });
 
     test('an empty pack is hidden', () async {
@@ -205,7 +209,7 @@ void main() {
       final system = fs.buildPackSystem();
       await system.initialize();
       await system.createFile('Empty.bfly', _packData('Empty', {}));
-      final packs = await loadObjectPacks(fs);
+      final packs = await loadObjectPacks(fs, bundled: const []);
       expect(packs.map((p) => p.id), isNot(contains('Empty.bfly')));
     });
 
@@ -228,6 +232,55 @@ void main() {
       await pumpPanel(tester, []);
       expect(find.text('No objects yet'), findsOneWidget);
     });
+  });
+
+  testWidgets('the bundled furniture pack comes first with 12 categories', (
+    tester,
+  ) async {
+    const id = '${kBundledObjectPackPrefix}assets/object_packs/furniture.bfly';
+    expect(kBundledObjectPacks, ['assets/object_packs/furniture.bfly']);
+    final fs = MockButterflyFileSystem();
+    final system = fs.buildPackSystem();
+    final packs = (await tester.runAsync(() async {
+      await system.initialize();
+      await system.createFile(
+        'Furniture.bfly',
+        _packData('A user pack', {'Sofa': _component()}),
+      );
+      return loadObjectPacks(fs);
+    }))!;
+    final furniture = packs.first;
+    expect(furniture.id, id);
+    expect(furniture.name, 'Furniture (to scale)');
+    expect(furniture.source, ObjectPackSource.bundled);
+    expect(furniture.editable, isFalse);
+    expect(furniture.objects, hasLength(96));
+
+    // Tall enough that every heading of the pack is built.
+    await pumpPanel(tester, packs, height: 12000);
+    final headers = find.byWidgetPredicate((widget) {
+      final key = widget.key;
+      return key is ValueKey<(String, String)> &&
+          key.value.$1 == 'amaze-object-pack';
+    });
+    final firstHeader = headers
+        .evaluate()
+        .map((e) => e.widget.key)
+        .reduce(
+          (a, b) =>
+              tester.getTopLeft(find.byKey(a!)).dy <=
+                  tester.getTopLeft(find.byKey(b!)).dy
+              ? a
+              : b,
+        );
+    expect(firstHeader, const ValueKey(('amaze-object-pack', id)));
+    final headings = find.byWidgetPredicate((widget) {
+      final key = widget.key;
+      return key is ValueKey<(String, String, String)> &&
+          key.value.$1 == 'amaze-object-category' &&
+          key.value.$2 == id;
+    });
+    expect(headings, findsNWidgets(12));
   });
 
   testWidgets('categories follow uncategorized objects in first-seen order', (

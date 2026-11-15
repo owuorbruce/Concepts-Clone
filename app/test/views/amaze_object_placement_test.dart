@@ -141,6 +141,9 @@ void main() {
     setUp(() {
       SharedPreferences.setMockInitialValues({
         'amaze.toolWheel.diameter': 320.0,
+        // List the test pack before the bundled furniture pack, so its tile
+        // is built on screen.
+        'amaze.objects.favoritePacks': ['Furniture.bfly'],
       });
       settingsCubit = MockSettingsCubit();
       fileSystem = MockButterflyFileSystem(settingsCubit: settingsCubit);
