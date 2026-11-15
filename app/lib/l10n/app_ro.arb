@@ -44,6 +44,22 @@
   "zoomIn": "Zoom in",
   "zoomOut": "Zoom out",
   "resetZoom": "Reset zoom",
+  "calibratedZoom": "Zoom calibrat",
+  "calibratedZoomDescription": "Utilizați calibrarea afișajului astfel încât 100% zoom să se potrivească cu dimensiunea tipărită a documentului.",
+  "calibrateDisplay": "Calibrează afișajul",
+  "displayCalibrationDescription": "Măsurați linia dintre cele două marcaje finale cu o riglă și introduceți lungimea în milimetri, pentru a calibra acest ecran. Calibrați din nou după schimbarea ecranului sau a scalării acestuia.",
+  "measuredLength": "Lungime măsurată",
+  "displayCalibrationInvalid": "Introduceți o lungime pozitivă în intervalul de zoom acceptat.",
+  "displayCalibrationQuestion": "Cum doriţi să vă calibraţi afişajul?",
+  "matchKnownLength": "Potrivește o lungime cunoscută",
+  "measureReference": "Măsuraţi linia",
+  "enterDisplayData": "Introduceţi datele de afişare",
+  "displayCalibrationAdjustDescription": "Setați o lungime cunoscută, apoi reglați linia până când distanța dintre semnele de sfârșit se potrivește cu rigla sau cu obiectul de referință. Utilizaţi o lungime mai scurtă dacă nu se potriveşte pe ecran.",
+  "knownLength": "Lungime cunoscută",
+  "displayCalibrationDataDescription": "Introdu densitatea fizică a pixelilor afișajului tău. Raportul pixel al dispozitivului curent este detectat automat.",
+  "physicalPixelDensity": "Densitatea fizică a pixelului",
+  "devicePixelRatio": "Raport pixel dispozitiv",
+  "displayCalibrationSettingsDescription": "Potriviți o lungime cunoscută, măsurați o referință sau introduceți PPI. Salvat pentru afișare și scalare. Recalibrați după schimbarea afișajelor.",
   "strokeWidth": "Lățimea conturului",
   "strokeStyle": "Stil stâlp",
   "dashLength": "Lungime defrișare",
@@ -577,13 +593,25 @@
   "@url": {
     "description": "URL field"
   },
-  "webDavUrlDescription": "URL-ul complet WebDAV furnizat de furnizorul de stocare",
+  "webDavUrlDescription": "Copiați adresa completă WebDAV de pe furnizorul de stocare. Pentru Nextcloud, deschideți setările fișierelor și copiați URL-ul WebDAV.\n\nExemplu: https://cloud.example.com/remote.php/dav/files/USERNAME/",
+  "connectionUsernameDescription": "Introduceți numele de conectare pentru contul WebDAV. Pentru o adresă URL Nextcloud care se termină în /fișiere/USERNAME/, utilizați valoarea afișată în locul USERNAME.",
+  "connectionPasswordDescription": "Folosiți parola WebDAV sau o parolă a aplicației de la furnizor. Pentru Nextcloud, deschideți setările personale → Securitate, creați o parolă a aplicației numită Butterfly, și lipiți-o aici.",
+  "connectionSyncRootDescription": "Păstrați disponibil offline întregul dosar de documente, inclusiv subdosarele sale. De exemplu, activați acest lucru pentru a accesa toate notele fără conexiune la internet.",
+  "deleteConnection": "Ştergeţi conexiunea",
+  "deleteConnectionDescription": "Eliminați conexiunea \"{name}\" din Butterfly? Fișierele stocate în această conexiune nu vor fi șterse.",
+  "@deleteConnectionDescription": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "connect": "Conectează-te",
   "username": "Nume",
   "password": "Parolă",
   "authenticationPassword": "Parola de autentificare",
   "documentEncryptionPassword": "Parola de criptare document",
-  "documentEncryptionPasswordDescription": "Criptează documentele stocate în această conexiune. Lăsați gol pentru a le păstra necriptate",
+  "documentEncryptionPasswordDescription": "Alegeți o parolă separată pentru criptarea documentelor create în această conexiune. Utilizați aceeași parolă pe celelalte dispozitive pentru a le deschide. Lăsați gol pentru a păstra documentele noi necriptate.\n\nExemplu: utilizați o parolă de acces pe care o puteți păstra în managerul de parole.",
   "documentEncryptionEnabled": "Criptare document activată",
   "reauthenticate": "Reauthenticate",
   "addDocumentEncryptionPassword": "Adăugați parola de criptare a documentului",
@@ -593,9 +621,10 @@
   "symmetric": "Simetric",
   "perSide": "Pe parte",
   "directory": "Director",
-  "connectionNameDescription": "Folosit doar pentru a identifica această conexiune în Butterfly",
-  "connectionDirectoryDescription": "Dosarul de bază pentru această conexiune. Notele utilizează documentele în mod implicit; modificați-l în Avansat",
-  "connectionPathDescription": "Lăsați gol pentru a dezactiva acest tip de folder. Utilizați . pentru folderul de bază, un subdirector relativ, sau o cale absolută",
+  "connectionNameDescription": "Alegeți un nume pentru a recunoaște această conexiune în Butterfly. Nu redenumește niciun dosar pe dispozitivul sau serverul dumneavoastră.\n\nExemplu: Nextcloud.",
+  "connectionDirectoryDescription": "Alegeți un folder de bază în interiorul stocării WebDAV, de exemplu Butterfly. Notele sunt stocate în subdosarul său de documente în mod implicit. Modificați numele subdosarelor sub Advanced.",
+  "localConnectionDirectoryDescription": "Alegeți un dosar de bază pe acest dispozitiv cu butonul de dosar sau introduceți calea completă, de exemplu /path/to/folder sau C:\\path\\to\\folder. Notele sunt stocate în subdosarul său de documente în mod implicit. Modificați numele subdosarelor sub Advanced.",
+  "connectionPathDescription": "Alegeți unde să fie stocat acest tip de conținut. De exemplu, documentele utilizează un subdosar al dosarului de bază, . folosește directorul de bază în sine, iar o valoare goală dezactivează acest tip. De asemenea, puteți introduce o cale completă. Pentru o conexiune locală fără un dosar de bază, fiecare tip activat necesită o cale completă.",
   "connectionPathRequired": "Alegeți un dosar de bază absolută, sau folosiți căi absolute pentru tipurile de directoare activate",
   "connectionAlreadyExists": "Există deja o conexiune cu acest nume. Alegeți un alt nume",
   "documentsDirectory": "Dosar documente",
@@ -608,6 +637,8 @@
     "description": "Icon property"
   },
   "connectionIconDescription": "URL opțional al unei imagini pentru a fi folosită ca pictogramă de conexiune",
+  "chooseConnectionIcon": "Alege imaginea",
+  "invalidConnectionIcon": "Alege o imagine validă",
   "update": "Actualizare",
   "@update": {
     "description": "Update action"
@@ -794,6 +825,8 @@
     "description": "Note object"
   },
   "packs": "Pachete",
+  "textures": "Texturi",
+  "fonts": "Fonturi",
   "@packs": {
     "description": "Asset pack"
   },
@@ -1704,15 +1737,57 @@
   "temporaryOnMobile": "Temporar pe mobil",
   "cameraControlsVisibilityDescription": "Arată comenzile de mărire și rotație temporar pe mobil, ascunde-le, arată-le temporar pe toate dispozitivele sau arată-le întotdeauna. Controalele temporare dispar după 5 secunde fără a mări zooming-ul, a roti sau a interacţiona cu controalele.",
   "zoomPanelControls": "Aspectul comenzilor camerei foto",
-  "zoomPanelControlsDescription": "Alegeţi comenzile pentru zoom şi rotaţie. Butoanele de resetare rămân disponibile în fiecare layout.",
+  "zoomPanelControlsDescription": "Afișează glisoarele, câmpurile de text și butoanele independent pentru zoom și rotație. Deselectează toate opțiunile pentru a păstra doar butoanele de resetare.",
   "zoomPanelFull": "Complet (slider, text field and buttons)",
   "zoomPanelSliderInput": "Camp glisare si text",
   "zoomPanelSlider": "Slider",
   "zoomPanelInputButtons": "Câmp text și butoane",
   "zoomPanelInput": "Camp text",
+  "zoomPanelButtons": "Butoane",
+  "zoomPanelResetOnly": "Numai resetare",
   "rotationDisplay": "Afișare rotație",
   "rotationDisplayDescription": "Alegeți când rândul de rotație apare deasupra micșorării. Acest lucru nu schimbă gesturile de rotație sau scurtăturile.",
   "whenRotated": "Când este rotit",
   "hidden": "Hidden",
-  "rotateCanvasByDragging": "Rotiți pânza prin tragere"
+  "rotateCanvasByDragging": "Rotiți pânza prin tragere",
+  "proportionalResizing": "Redimensionare proporțională",
+  "currentView": "Vizualizare curentă",
+  "images": "Images",
+  "exportAs": "Exportă ca",
+  "moreOptions": "Mai multe opțiuni",
+  "saveExportSelection": "Salvează selecția curentă…",
+  "managePresets": "Gestionează presetările…",
+  "addExport": "Adaugă export",
+  "noExportItems": "Adaugă pagini sau zone la export.",
+  "collapsePreview": "Restrânge previzualizarea",
+  "expandPreview": "Extinde previzualizarea",
+  "exportRegion": "Regiune",
+  "exportItems": "Exportă produsele",
+  "vectorAndPdf": "Vector & PDF",
+  "otherImages": "Alte imagini",
+  "applySettingsToAll": "Aplică setările tuturor",
+  "allPagesInNote": "Toate paginile în notă",
+  "allAreasOnPage": "Toate zonele de pe pagina curentă",
+  "allAreasInNote": "Toate zonele în notă",
+  "iconExportSize": "ICO și CUR necesită o lățime și înălțime de cel mult 256 pixeli. Reduceți dimensiunea sau calitatea.",
+  "pvrExportSize": "RVP necesită o imagine pătrată cu dimensiuni de cel puțin 8 × 8 pixeli,",
+  "pdfExportSummary": "{count, plural, =1{1 pagină · Un PDF} other{{count} pagini · Un PDF}}",
+  "@pdfExportSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "imageExportSummary": "{count, plural, =1{1 {format} image} other{{count} {format} images}}",
+  "@imageExportSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "format": {
+        "type": "String"
+      }
+    }
+  }
 }

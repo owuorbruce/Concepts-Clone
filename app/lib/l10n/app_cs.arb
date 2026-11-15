@@ -44,6 +44,22 @@
   "zoomIn": "Přiblížit",
   "zoomOut": "Oddálit",
   "resetZoom": "Resetovat zoom",
+  "calibratedZoom": "Kalibrovaný zoom",
+  "calibratedZoomDescription": "Použít kalibraci displeje tak, aby 100 % přiblížení odpovídalo velikosti dokumentu v tištěné podobě.",
+  "calibrateDisplay": "Kalibrace displeje",
+  "displayCalibrationDescription": "Změřte čáru mezi oběma koncovými značkami pomocí pravítka a zadejte její délku v milimetrech, aby bylo možné tuto obrazovku kalibrovat. Znovu kalibrovat po změně displeje nebo jeho škálování.",
+  "measuredLength": "Měřená délka",
+  "displayCalibrationInvalid": "Zadejte kladnou délku v podporovaném rozsahu přiblížení.",
+  "displayCalibrationQuestion": "Jak chcete kalibrovat displej?",
+  "matchKnownLength": "Porovnat známou délku",
+  "measureReference": "Měřit čáru",
+  "enterDisplayData": "Zadejte zobrazovací data",
+  "displayCalibrationAdjustDescription": "Nastavte známou délku, poté upravte čáru tak, aby vzdálenost mezi jejími koncovými znaky odpovídala tvému pravidlu nebo referenčnímu objektu. Pokud se nevejde na obrazovku, použijte kratší délku.",
+  "knownLength": "Známá délka",
+  "displayCalibrationDataDescription": "Zadejte fyzickou hustotu pixelů vašeho displeje. Poměr obrazových bodů aktuálního pohledu je rozpoznán automaticky.",
+  "physicalPixelDensity": "Fyzická hustota pixelů",
+  "devicePixelRatio": "Poměr pixelů zařízení",
+  "displayCalibrationSettingsDescription": "Porovnej známou délku, změř referenci nebo zadej PPI. Uloženo pro tento displej a škálování. Přepočítávej po změně zobrazení.",
   "strokeWidth": "Šířka",
   "strokeStyle": "Styl tahů",
   "dashLength": "Délka pomlčky",
@@ -577,13 +593,25 @@
   "@url": {
     "description": "URL field"
   },
-  "webDavUrlDescription": "Úplná URL WebDAV poskytnutá poskytovatelem úložiště",
+  "webDavUrlDescription": "Zkopírujte úplnou webDAV adresu od poskytovatele úložiště. Pro Nextcloud otevřete nastavení souborů a zkopírujte URL WebDAV.\n\nPříklad: https://cloud.example.com/remote.php/dav/files/USERNAME/",
+  "connectionUsernameDescription": "Zadejte přihlašovací jméno pro váš webDAV účet. Pro Nextcloud URL končící v /files/USERNAME/, použijte hodnotu zobrazenou místo USERNAME.",
+  "connectionPasswordDescription": "Použijte své WebDAV heslo nebo heslo aplikace od poskytovatele. Pro Nextcloud, otevřete osobní nastavení → Bezpečnost, vytvořte heslo aplikace s názvem Butterfly a vložte jej zde.",
+  "connectionSyncRootDescription": "Ponechte celý adresář dokumentů k dispozici offline, včetně jeho podsložek. Povolte například přístup ke všem poznámkám bez připojení k internetu.",
+  "deleteConnection": "Odstranit připojení",
+  "deleteConnectionDescription": "Odstranit připojení \"{name}\" z Butterfly? Soubory uložené v tomto připojení nebudou smazány.",
+  "@deleteConnectionDescription": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "connect": "Připojit",
   "username": "Uživatelské jméno",
   "password": "Heslo",
   "authenticationPassword": "Autentizační heslo",
   "documentEncryptionPassword": "Šifrovací heslo dokumentu",
-  "documentEncryptionPasswordDescription": "Šifrování dokumentů uložených v tomto připojení. Ponechte prázdné pro jejich nezašifrování",
+  "documentEncryptionPasswordDescription": "Vyberte samostatné heslo pro zašifrování dokumentů vytvořených v tomto připojení. Použijte stejné heslo na ostatních zařízeních pro jejich otevření. Ponechte prázdné pro nešifrování nových dokumentů.\n\nPříklad: použijte přístupovou frázi, kterou si můžete ponechat ve správci hesel.",
   "documentEncryptionEnabled": "Šifrování dokumentů povoleno",
   "reauthenticate": "Reauthenticate",
   "addDocumentEncryptionPassword": "Přidat šifrovací heslo dokumentu",
@@ -593,9 +621,10 @@
   "symmetric": "Symetrický",
   "perSide": "Na straně",
   "directory": "Adresář",
-  "connectionNameDescription": "Používá se pouze k identifikaci tohoto připojení v Butterfly",
-  "connectionDirectoryDescription": "Základní složka pro toto připojení. Poznámky používají ve výchozím nastavení dokumenty; změňte ji v rámci Pokročilého rozhraní",
-  "connectionPathDescription": "Ponechte prázdné pro vypnutí tohoto typu adresáře. Použijte . Pro základní složku, relativní podsložku nebo absolutní cestu",
+  "connectionNameDescription": "Vyberte název pro rozpoznání tohoto připojení v Butterfly. Nepřejmenuje žádné složky na vašem zařízení nebo serveru.\n\nPříklad: Nextcloud.",
+  "connectionDirectoryDescription": "Vyberte základní složku v úložišti WebDAV, například Butterfly. Poznámky jsou ve výchozím nastavení uloženy v podsložce Dokumenty. Změňte názvy podsložek v pokročilých složkách.",
+  "localConnectionDirectoryDescription": "Vyberte základní složku na tomto zařízení pomocí tlačítka složky, nebo zadejte celou cestu, například /path/to/folder nebo C:\\path\\to\\folder. Poznámky jsou ve výchozím nastavení uloženy v podsložce Dokumenty. Změňte názvy podsložek v pokročilých složkách.",
+  "connectionPathDescription": "Zvolte, kde chcete uložit tento typ obsahu. Například dokumenty používají podsložku základní složky, . používá základní složku a zakázá prázdnou hodnotu tohoto typu. Můžete také zadat celou cestu. Pro lokální připojení bez základní složky každý povolený typ potřebuje úplnou cestu.",
   "connectionPathRequired": "Vyberte absolutní základní složku nebo použijte absolutní cesty pro povolené typy adresářů",
   "connectionAlreadyExists": "Spojení s tímto názvem již existuje. Zvolte jiný název",
   "documentsDirectory": "Adresář dokumentů",
@@ -608,6 +637,8 @@
     "description": "Icon property"
   },
   "connectionIconDescription": "Volitelná URL adresa obrázku, který lze použít jako ikonu připojení",
+  "chooseConnectionIcon": "Vybrat obrázek",
+  "invalidConnectionIcon": "Vyberte platný obrázek",
   "update": "Aktualizace",
   "@update": {
     "description": "Update action"
@@ -794,6 +825,8 @@
     "description": "Note object"
   },
   "packs": "Balíčky",
+  "textures": "Textury",
+  "fonts": "Písma",
   "@packs": {
     "description": "Asset pack"
   },
@@ -1704,15 +1737,57 @@
   "temporaryOnMobile": "Dočasně na mobilním zařízení",
   "cameraControlsVisibilityDescription": "Zobrazit ovládací prvky přiblížení a otáčení dočasně na mobilu, skrýt, dočasně je zobrazit na všech zařízeních, nebo je vždy zobrazovat. Dočasné kontroly zmizí po 5 sekundách bez přiblížení, otáčení nebo interakce s ovládacími prvky.",
   "zoomPanelControls": "Rozložení ovládání kamery",
-  "zoomPanelControlsDescription": "Vyberte ovládací prvky pro přiblížení a otáčení. Tlačítka pro obnovení zůstanou k dispozici v každém rozložení.",
+  "zoomPanelControlsDescription": "Zobrazit posuvníky, textová pole a tlačítka nezávisle pro přiblížení a otáčení. Zrušte výběr všech možností pro zachování pouze tlačítek pro obnovení.",
   "zoomPanelFull": "Plná (posuvník, textové pole a tlačítka)",
   "zoomPanelSliderInput": "Posuvník a textové pole",
   "zoomPanelSlider": "Posuvník",
   "zoomPanelInputButtons": "Textové pole a tlačítka",
   "zoomPanelInput": "Textové pole",
+  "zoomPanelButtons": "Klávesové hudební nástroje",
+  "zoomPanelResetOnly": "Pouze obnovit",
   "rotationDisplay": "Zobrazení rotace",
   "rotationDisplayDescription": "Zvolte, kdy se řádek otáčení objeví nad přiblížením. To nemění gesta nebo zkratky.",
   "whenRotated": "Při otočení",
   "hidden": "Hidden",
-  "rotateCanvasByDragging": "Otočit plátno přetažením"
+  "rotateCanvasByDragging": "Otočit plátno přetažením",
+  "proportionalResizing": "Přiměřená změna velikosti",
+  "currentView": "Aktuální zobrazení",
+  "images": "Images",
+  "exportAs": "Exportovat jako",
+  "moreOptions": "Další možnosti",
+  "saveExportSelection": "Uložit aktuální výběr…",
+  "managePresets": "Spravovat předvolby…",
+  "addExport": "Přidat export",
+  "noExportItems": "Přidat stránky nebo oblasti pro export.",
+  "collapsePreview": "Sbalit náhled",
+  "expandPreview": "Rozbalit náhled",
+  "exportRegion": "Oblasti",
+  "exportItems": "Exportovat položky",
+  "vectorAndPdf": "Vektorový & PDF",
+  "otherImages": "Ostatní obrázky",
+  "applySettingsToAll": "Použít nastavení pro všechny",
+  "allPagesInNote": "Všechny stránky v poznámce",
+  "allAreasOnPage": "Všechny oblasti na aktuální stránce",
+  "allAreasInNote": "Všechny oblasti uvedené v poznámce",
+  "iconExportSize": "ICO a CUR vyžadují šířku a výšku pixelů nejvýše 256 zmenšení velikosti nebo kvality.",
+  "pvrExportSize": "PVR vyžaduje čtvercový obraz o rozměrech dvou pixelů, a to nejméně 8 × 8.",
+  "pdfExportSummary": "{count, plural, =1{1 stránka · Jeden PDF} other{{count} stránky · Jeden PDF}}",
+  "@pdfExportSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "imageExportSummary": "{count, plural, =1{1 {format} image} other{{count} {format} images}}",
+  "@imageExportSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "format": {
+        "type": "String"
+      }
+    }
+  }
 }

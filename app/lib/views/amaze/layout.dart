@@ -1,10 +1,14 @@
 import 'package:butterfly/cubits/editor_controller.dart';
+import 'package:butterfly/cubits/transform.dart';
 import 'package:butterfly/views/edit.dart';
 import 'package:butterfly/views/toolbar/view.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'dock.dart';
+import 'objects/object_library.dart';
+import 'objects/object_placement.dart';
+import 'objects/object_store.dart';
 import 'tool_wheel.dart';
 import 'wheel_prefs.dart';
 
@@ -64,7 +68,36 @@ class _AmazeEditorLayoutState extends State<AmazeEditorLayout> {
     });
   }
 
+  bool _showObjects = false;
+  final _canvasKey = GlobalKey();
+
   void _toggleAllTools() => setState(() => _showAllTools = !_showAllTools);
+
+  void _toggleObjects() {
+    if (_showObjects) return _closeObjects();
+    setState(() => _showObjects = true);
+  }
+
+  void _closeObjects() {
+    if (!_showObjects) return;
+    setState(() => _showObjects = false);
+    // Give the keyboard back to the canvas shortcuts.
+    context.read<EditorController>().focusNode.requestFocus();
+  }
+
+  void _placeObject(ObjectEntry entry) {
+    if (!widget.editable) return;
+    addObjectToCanvas(context, entry, visibleCanvasCenter(context));
+  }
+
+  void _dropObject(DragTargetDetails<ObjectEntry> details) {
+    if (!widget.editable) return;
+    final box = _canvasKey.currentContext?.findRenderObject();
+    if (box is! RenderBox) return;
+    final local = box.globalToLocal(details.offset);
+    final world = context.read<TransformCubit>().state.localToGlobal(local);
+    addObjectToCanvas(context, details.data, world);
+  }
 
   void _setPanels(AmazePanels panels) {
     setState(() => _panels = panels);
@@ -91,7 +124,12 @@ class _AmazeEditorLayoutState extends State<AmazeEditorLayout> {
     ];
     return Stack(
       children: [
-        widget.viewport,
+        DragTarget<ObjectEntry>(
+          onWillAcceptWithDetails: (_) => widget.editable,
+          onAcceptWithDetails: _dropObject,
+          builder: (context, candidates, rejected) =>
+              KeyedSubtree(key: _canvasKey, child: widget.viewport),
+        ),
         widget.selectionListener,
         SafeArea(
           child: Row(
@@ -110,6 +148,8 @@ class _AmazeEditorLayoutState extends State<AmazeEditorLayout> {
                       onToggleToolOptions: _toggleToolOptions,
                       showZoom: _panels.zoom,
                       onToggleZoom: _toggleZoom,
+                      showObjects: _showObjects,
+                      onToggleObjects: _toggleObjects,
                     ),
                   ),
                 ),
@@ -144,6 +184,13 @@ class _AmazeEditorLayoutState extends State<AmazeEditorLayout> {
               padding: EdgeInsets.all(8),
               child: AmazeToolWheelLayer(key: ValueKey('amaze-wheel-layer')),
             ),
+          ),
+        if (chrome)
+          ObjectLibraryLayer(
+            open: _showObjects,
+            editable: widget.editable,
+            onClose: _closeObjects,
+            onPlace: _placeObject,
           ),
       ],
     );
