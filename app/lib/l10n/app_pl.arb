@@ -44,6 +44,22 @@
   "zoomIn": "Powiększ",
   "zoomOut": "Pomniejsz",
   "resetZoom": "Resetuj powiększenie",
+  "calibratedZoom": "Skalibrowane powiększenie",
+  "calibratedZoomDescription": "Użyj kalibracji wyświetlacza, aby 100% powiększenie odpowiadało wydrukowanemu rozmiarowi dokumentu.",
+  "calibrateDisplay": "Kalibracja wyświetlacza",
+  "displayCalibrationDescription": "Zmierzyć linię między dwoma znakami końcowymi linią i wprowadzić jej długość w milimetrach w celu skalibrowania tego wyświetlacza. Skalibruj ponownie po zmianie wyświetlacza lub jego skalowania.",
+  "measuredLength": "Zmierzona długość",
+  "displayCalibrationInvalid": "Wprowadź dodatnią długość w obsługiwanym zakresie powiększenia.",
+  "displayCalibrationQuestion": "Jak chcesz skalibrować ekran?",
+  "matchKnownLength": "Dopasuj znaną długość",
+  "measureReference": "Pomiar linii",
+  "enterDisplayData": "Wprowadź dane wyświetlane",
+  "displayCalibrationAdjustDescription": "Ustaw znaną długość, a następnie dostosuj linię aż do momentu, gdy odległość między punktami końcowymi będzie odpowiadała Twojemu linijce lub obiektowi odniesienia. Użyj krótszej długości, jeśli nie pasuje do ekranu.",
+  "knownLength": "Znana długość",
+  "displayCalibrationDataDescription": "Wprowadź fizyczną gęstość pikseli. Wskaźnik pikseli bieżącego widoku jest wykrywany automatycznie.",
+  "physicalPixelDensity": "Fizyczna gęstość pikseli",
+  "devicePixelRatio": "Stosunek pikseli urządzenia",
+  "displayCalibrationSettingsDescription": "Dopasuj znaną długość, mierz odniesienie lub wprowadź PPI. Zapisane dla tego wyświetlacza i skalowania. Ponownie skalibruj po zmianie wyświetlaczy.",
   "strokeWidth": "Szerokość obrysu",
   "strokeStyle": "Styl obrysu",
   "dashLength": "Długość kreski",
@@ -577,13 +593,25 @@
   "@url": {
     "description": "URL field"
   },
-  "webDavUrlDescription": "Pełny adres URL WebDAV dostarczony przez dostawcę pamięci",
+  "webDavUrlDescription": "Skopiuj pełny adres WebDAV od dostawcy pamięci. Dla Nextcloud otwórz ustawienia plików i skopiuj adres URL WebDAV.\n\nPrzykład: https://cloud.example.com/remote.php/dav/files/USERNAME/",
+  "connectionUsernameDescription": "Wprowadź nazwę użytkownika dla konta WebDAV. Dla adresu URL Nextcloud kończącego się w /files/USERNAME/, użyj wartości pokazanej zamiast USERNAME.",
+  "connectionPasswordDescription": "Użyj hasła WebDAV lub hasła aplikacji od dostawcy. Dla Nextcloud otwórz osobiste ustawienia → Bezpieczeństwo, utwórz hasło aplikacji Butterfly i wklej je tutaj.",
+  "connectionSyncRootDescription": "Zachowaj cały katalog dokumentów dostępny w trybie offline, w tym jego podfoldery. Na przykład włącz ten katalog aby uzyskać dostęp do wszystkich notatek bez połączenia internetowego.",
+  "deleteConnection": "Usuń połączenie",
+  "deleteConnectionDescription": "Usunąć połączenie \"{name}\" z Motylki? Pliki przechowywane w tym połączeniu nie zostaną usunięte.",
+  "@deleteConnectionDescription": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "connect": "Połącz",
   "username": "Nazwa użytkownika",
   "password": "Hasło",
   "authenticationPassword": "Hasło uwierzytelniania",
   "documentEncryptionPassword": "Hasło szyfrowania dokumentów",
-  "documentEncryptionPasswordDescription": "Szyfruje dokumenty przechowywane w tym powiązaniu. Pozostaw puste, aby zachować je niezaszyfrowane",
+  "documentEncryptionPasswordDescription": "Wybierz oddzielne hasło, aby zaszyfrować dokumenty utworzone w tym powiązaniu. Użyj tego samego hasła na innych urządzeniach, aby je otworzyć. Pozostaw puste, aby zachować niezszyfrowane nowe dokumenty.\n\nPrzykład: użyj hasła, które możesz zachować w menedżerze haseł.",
   "documentEncryptionEnabled": "Szyfrowanie dokumentów włączone",
   "reauthenticate": "Reauthenticate",
   "addDocumentEncryptionPassword": "Dodaj hasło szyfrowania dokumentów",
@@ -593,9 +621,10 @@
   "symmetric": "Symetryczny",
   "perSide": "Na stronę",
   "directory": "Katalog",
-  "connectionNameDescription": "Używane tylko do identyfikacji tego połączenia w Motylce",
-  "connectionDirectoryDescription": "Folder podstawowy dla tego połączenia. Notatki domyślnie używają dokumentów; zmień go w Zaawansowanym",
-  "connectionPathDescription": "Pozostaw puste, aby wyłączyć ten typ katalogu. Użyj . dla folderu podstawowego, podfolderu względnego lub ścieżki bezwzględnej",
+  "connectionNameDescription": "Wybierz nazwę, aby rozpoznać to połączenie w Butterfly. Nie zmienia nazwy żadnych folderów na Twoim urządzeniu lub serwerze.\n\nPrzykład: Nextcloud.",
+  "connectionDirectoryDescription": "Wybierz folder podstawowy wewnątrz pamięci WebDAV, na przykład Butterfly. Notatki są domyślnie przechowywane w podfolderze dokumentów. Zmień nazwy podfolderów w Zaawansowane.",
+  "localConnectionDirectoryDescription": "Wybierz folder podstawowy na tym urządzeniu z przyciskiem folderu lub wprowadź jego pełną ścieżkę, na przykład /path/to/folder lub C:\\path\\to\\folder. Notatki są domyślnie przechowywane w podfolderze dokumentów. Zmień nazwy podfolderów w Zaawansowane.",
+  "connectionPathDescription": "Wybierz, gdzie przechowywać ten typ treści. Na przykład dokumenty używają podfolderu bazowego. używa samego folderu podstawowego, a pusta wartość wyłącza ten typ. Możesz również wprowadzić pełną ścieżkę. Dla połączenia lokalnego bez folderu podstawowego każdy włączony typ wymaga pełnej ścieżki.",
   "connectionPathRequired": "Wybierz katalog bezwzględny lub użyj ścieżek bezwzględnych dla włączonych typów katalogów",
   "connectionAlreadyExists": "Połączenie o tej nazwie już istnieje. Wybierz inną nazwę",
   "documentsDirectory": "Katalog dokumentów",
@@ -608,6 +637,8 @@
     "description": "Icon property"
   },
   "connectionIconDescription": "Opcjonalny adres URL obrazu do użycia jako ikona połączenia",
+  "chooseConnectionIcon": "Wybierz obraz",
+  "invalidConnectionIcon": "Wybierz poprawny plik obrazu",
   "update": "Aktualizuj",
   "@update": {
     "description": "Update action"
@@ -794,6 +825,8 @@
     "description": "Note object"
   },
   "packs": "Pakiety",
+  "textures": "Tekstury",
+  "fonts": "Czcionki",
   "@packs": {
     "description": "Asset pack"
   },
@@ -1704,15 +1737,57 @@
   "temporaryOnMobile": "Tymczasowe na urządzeniu mobilnym",
   "cameraControlsVisibilityDescription": "Pokaż czasowo kontrolę powiększenia i obracania na urządzeniach mobilnych, ukryj je, pokaż je tymczasowo na wszystkich urządzeniach lub zawsze pokazuj je. Tymczasowe sterowanie zanika po 5 sekundach bez powiększania, obracania się lub interakcji z urządzeniami sterującymi.",
   "zoomPanelControls": "Układ kontrolny kamery",
-  "zoomPanelControlsDescription": "Wybierz ustawienia powiększania i obracania. Przyciski resetowania pozostają dostępne w każdym układze.",
+  "zoomPanelControlsDescription": "Pokaż suwaki, pola tekstowe i przyciski niezależnie dla powiększenia i obracania. Odznacz wszystkie opcje, aby zachować tylko przyciski resetowania.",
   "zoomPanelFull": "Pełna (suwak, pole tekstowe i przyciski)",
   "zoomPanelSliderInput": "Suwak i pole tekstowe",
   "zoomPanelSlider": "Suwak",
   "zoomPanelInputButtons": "Pole tekstowe i przyciski",
   "zoomPanelInput": "Pole tekstowe",
+  "zoomPanelButtons": "Przyciski",
+  "zoomPanelResetOnly": "Tylko resetuj",
   "rotationDisplay": "Obrót ekranu",
   "rotationDisplayDescription": "Wybierz, kiedy wiersz obrotu pojawi się nad powiększeniem. Nie zmienia to gestów obrotu ani skrótów.",
   "whenRotated": "Po obracaniu",
   "hidden": "Hidden",
-  "rotateCanvasByDragging": "Obróć płótno przeciągając"
+  "rotateCanvasByDragging": "Obróć płótno przeciągając",
+  "proportionalResizing": "Proporcjonalny rozmiar",
+  "currentView": "Bieżący widok",
+  "images": "Images",
+  "exportAs": "Eksportuj jako",
+  "moreOptions": "Więcej opcji",
+  "saveExportSelection": "Zapisz bieżący wybór…",
+  "managePresets": "Zarządzaj ustawieniami…",
+  "addExport": "Dodaj eksport",
+  "noExportItems": "Dodaj strony lub obszary do eksportu.",
+  "collapsePreview": "Zwiń podgląd",
+  "expandPreview": "Rozwiń podgląd",
+  "exportRegion": "Region",
+  "exportItems": "Eksportuj elementy",
+  "vectorAndPdf": "Wektor i PDF",
+  "otherImages": "Inne obrazy",
+  "applySettingsToAll": "Zastosuj ustawienia do wszystkich",
+  "allPagesInNote": "Wszystkie strony w notatki",
+  "allAreasOnPage": "Wszystkie obszary na bieżącej stronie",
+  "allAreasInNote": "Wszystkie obszary z uwagą",
+  "iconExportSize": "ICO i CUR wymagają szerokości i wysokości piksela nie więcej niż 256. Zmniejsz rozmiar lub jakość.",
+  "pvrExportSize": "PVR wymaga kwadratowego obrazu o mocy dwóch pikseli, co najmniej 8 × 8.",
+  "pdfExportSummary": "{count, plural, =1{1 strona · Jeden PDF} other{{count} Strony · Jeden PDF}}",
+  "@pdfExportSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "imageExportSummary": "{count, plural, =1{1 {format} image} other{{count} {format} images}}",
+  "@imageExportSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "format": {
+        "type": "String"
+      }
+    }
+  }
 }
