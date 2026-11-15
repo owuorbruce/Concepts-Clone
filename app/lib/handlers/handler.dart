@@ -55,6 +55,7 @@ import '../selections/selection.dart';
 import '../services/asset.dart';
 import '../services/import.dart';
 import '../theme.dart';
+import '../views/amaze/objects/object_placement.dart';
 import '../views/toolbar/color.dart';
 import '../views/toolbar/components.dart';
 import '../views/toolbar/label.dart';

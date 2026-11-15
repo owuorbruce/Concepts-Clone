@@ -1867,5 +1867,11 @@
         "type": "String"
       }
     }
-  }
+  },
+  "amazeObjects": "Objects",
+  "amazeSearchObjects": "Search objects",
+  "amazeFavorites": "Favorites",
+  "amazeNoObjectsFound": "No objects found",
+  "amazeNoObjectsYet": "No objects yet",
+  "amazeObjectReadOnly": "This drawing can't be edited"
 }

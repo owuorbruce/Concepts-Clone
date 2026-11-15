@@ -5,6 +5,7 @@ import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly/views/navigator/view.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'icons.dart';
 import 'style.dart';
@@ -26,6 +27,8 @@ class AmazeDock extends StatelessWidget {
     required this.onToggleToolOptions,
     required this.showZoom,
     required this.onToggleZoom,
+    this.showObjects = false,
+    this.onToggleObjects,
   });
 
   final bool large;
@@ -36,6 +39,12 @@ class AmazeDock extends StatelessWidget {
   final VoidCallback onToggleToolOptions;
   final bool showZoom;
   final VoidCallback onToggleZoom;
+
+  /// Whether the object library is open.
+  final bool showObjects;
+
+  /// Opens or closes the object library. Without it there is no button.
+  final VoidCallback? onToggleObjects;
 
   @override
   Widget build(BuildContext context) {
@@ -97,6 +106,17 @@ class AmazeDock extends StatelessWidget {
                     tooltip: loc.allTools,
                     selected: showAllTools,
                     onPressed: onToggleAllTools,
+                  ),
+                if (onToggleObjects != null)
+                  _DockButton(
+                    key: const ValueKey('amaze-dock-objects'),
+                    icon: const PhosphorAmazeIcon(
+                      PhosphorIconsLight.shapes,
+                      PhosphorIconsFill.shapes,
+                    ),
+                    tooltip: loc.amazeObjects,
+                    selected: showObjects,
+                    onPressed: onToggleObjects!,
                   ),
               ],
             ),

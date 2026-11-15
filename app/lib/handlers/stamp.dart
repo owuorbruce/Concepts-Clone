@@ -61,17 +61,8 @@ class StampHandler extends PastingHandler<StampTool> {
   bool get shouldNormalize => false;
 
   @visibleForTesting
-  static (double, double) calculateScale(Rect sourceRect, Rect targetRect) {
-    if (sourceRect.isEmpty ||
-        (targetRect.width.abs() < precisionErrorTolerance &&
-            targetRect.height.abs() < precisionErrorTolerance)) {
-      return (1, 1);
-    }
-    return (
-      targetRect.width / sourceRect.width,
-      targetRect.height / sourceRect.height,
-    );
-  }
+  static (double, double) calculateScale(Rect sourceRect, Rect targetRect) =>
+      calculateComponentScale(sourceRect, targetRect);
 
   @override
   List<PadElement> transformElements(
@@ -81,31 +72,6 @@ class StampHandler extends PastingHandler<StampTool> {
   ) {
     final elements = _elements;
     if (elements == null || elements.isEmpty) return [];
-
-    final sourceRect = this.rect;
-    final (scaleX, scaleY) = calculateScale(sourceRect, rect);
-
-    Offset applyScaleAndTranslate(Offset original) {
-      final relative = original - sourceRect.topLeft;
-      return Offset(relative.dx * scaleX, relative.dy * scaleY) + rect.topLeft;
-    }
-
-    return regenerateElementIds(
-      elements.map((renderer) {
-        // Map every element's pivot through the same group transform. Stroke
-        // padding and existing rotation must not shift individual elements.
-        final center = (renderer.rect ?? Rect.zero).center;
-        return renderer
-                .transform(
-                  center: applyScaleAndTranslate(center),
-                  scaleX: scaleX,
-                  scaleY: scaleY,
-                  relative: true,
-                )
-                ?.element ??
-            renderer.element;
-      }),
-      createUniqueId,
-    );
+    return transformComponentElements(elements, this.rect, rect);
   }
 }
