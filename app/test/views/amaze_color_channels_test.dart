@@ -88,8 +88,11 @@ void main() {
     WidgetTester tester, {
     bool noData = false,
     SRGBColor initial = const SRGBColor(0xFFC85028),
+    Offset center = const Offset(640, 400),
+    double innerRadius = 160,
+    Size screen = const Size(1280, 800),
   }) async {
-    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.physicalSize = screen;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -107,8 +110,8 @@ void main() {
                 key: const ValueKey('open-color'),
                 onPressed: () => showAmazeColorWheel(
                   context,
-                  center: const Offset(640, 400),
-                  innerRadius: 160,
+                  center: center,
+                  innerRadius: innerRadius,
                   initial: initial,
                   paletteLoader: () async => noData ? null : palette,
                   onPick: picks.add,
@@ -126,10 +129,13 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  Future<void> close(WidgetTester tester) async {
+  Future<void> close(
+    WidgetTester tester, [
+    Offset center = const Offset(640, 400),
+  ]) async {
     // Escape in a field only reverts it, so the tool wheel's center is
     // tapped instead.
-    await tester.tapAt(const Offset(640, 400));
+    await tester.tapAt(center);
     await tester.pumpAndSettle();
     expect(find.byKey(_rings), findsNothing);
   }
@@ -390,4 +396,93 @@ void main() {
     expect(find.byKey(const ValueKey('amaze-color-cancel')), findsNothing);
     expect(find.byKey(const ValueKey('amaze-color-panel')), findsNothing);
   });
+
+  for (final screen in [const Size(1280, 800), const Size(800, 1280)]) {
+    testWidgets('arcs, fields and controls fit a small tool wheel on $screen', (
+      tester,
+    ) async {
+      for (final radius in [80.0, 88.0, 120.0]) {
+        final xs = [radius, screen.width / 2, screen.width - radius];
+        final ys = [radius, screen.height / 2, screen.height - radius];
+        for (final x in xs) {
+          for (final y in ys) {
+            final center = Offset(x, y);
+            final reason = 'radius $radius at $center';
+            await open(
+              tester,
+              noData: true,
+              center: center,
+              innerRadius: radius,
+              screen: screen,
+            );
+            final bounds = (Offset.zero & screen).inflate(0.5);
+            Rect rect(Key key) => tester.getRect(find.byKey(key));
+            final fields = rect(const ValueKey('amaze-color-fields'));
+            expect(bounds.contains(fields.topLeft), isTrue, reason: reason);
+            expect(bounds.contains(fields.bottomRight), isTrue, reason: reason);
+            final layout = painter(tester).layout;
+            final origin = rect(_channels).topLeft;
+            final controls = {
+              for (final key in [
+                'amaze-color-mode-hsl',
+                'amaze-color-mode-rgb',
+                'amaze-color-more',
+                'amaze-color-eyedropper',
+                'amaze-color-white',
+                'amaze-color-black',
+              ])
+                key: rect(ValueKey(key)),
+            };
+            for (final MapEntry(:key, value: control) in controls.entries) {
+              expect(
+                bounds.contains(control.topLeft),
+                isTrue,
+                reason: '$key $reason',
+              );
+              expect(
+                bounds.contains(control.bottomRight),
+                isTrue,
+                reason: '$key $reason',
+              );
+              final nearest = Offset(
+                center.dx.clamp(control.left, control.right),
+                center.dy.clamp(control.top, control.bottom),
+              );
+              expect(
+                (nearest - center).distance,
+                greaterThan(radius),
+                reason: '$key over the tool wheel, $reason',
+              );
+              // In a corner the arcs can still reach under a control; the
+              // arcs are redesigned separately.
+              final middle = center == screen.center(Offset.zero);
+              for (final corner in [
+                control.topLeft,
+                control.topRight,
+                control.bottomLeft,
+                control.bottomRight,
+              ]) {
+                if (!middle) break;
+                expect(
+                  layout.channelAt(corner - origin),
+                  isNull,
+                  reason: '$key on an arc, $reason',
+                );
+              }
+              for (final other in controls.entries) {
+                if (other.key == key) continue;
+                expect(
+                  control.deflate(1).overlaps(other.value.deflate(1)),
+                  isFalse,
+                  reason: '$key overlaps ${other.key}, $reason',
+                );
+              }
+            }
+            await close(tester, center);
+          }
+        }
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

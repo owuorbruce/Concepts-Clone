@@ -246,8 +246,13 @@ class _AmazeColorOverlayState extends State<_AmazeColorOverlay>
   /// [position] relative to the wheel's center.
   Offset _local(Offset position) => position - _center;
 
+  /// Radius of the arc the controls run along without a wheel. Around a
+  /// small tool wheel it is kept at that of a 160 px one, so that the row
+  /// does not curl round onto the eyedropper.
+  double get _plainArcRadius => math.max(_innerRadius, 160) + 32;
+
   /// Radius around the tool wheel that the controls need without a wheel.
-  double get _plainControlsRadius => _innerRadius + 64;
+  double get _plainControlsRadius => _plainArcRadius + 32;
 
   void _onPointerDown(PointerDownEvent event) {
     if (_pointer != null || _closing) return;
@@ -732,9 +737,17 @@ class _AmazeColorOverlayState extends State<_AmazeColorOverlay>
     // With the wheel shown, the controls sit on the light disc between the
     // tool wheel and the inner arc; otherwise close around the tool wheel.
     final geometry = _geometry;
+    // Around a small tool wheel the arc keeps a radius of at least 200, so
+    // that the row does not curl round onto the tool wheel.
     final radius = !plain && geometry != null
-        ? _innerRadius + 0.45 * (geometry.discInner - 6 - _innerRadius)
-        : _innerRadius + 32;
+        ? math.min(
+            math.max(
+              _innerRadius + 0.45 * (geometry.discInner - 6 - _innerRadius),
+              200.0,
+            ),
+            geometry.discInner - 30,
+          )
+        : _plainArcRadius;
     double width(List<(Size, Widget)> row, [double spacing = 8]) =>
         row.fold(0.0, (sum, item) => sum + item.$1.width) +
         spacing * (row.length - 1);
@@ -762,20 +775,28 @@ class _AmazeColorOverlayState extends State<_AmazeColorOverlay>
                 radius,
         spacing: chipSpacing,
       );
+      Rect labelAt(double distance) => Rect.fromCenter(
+        center: _center + Offset.fromDirection(direction, distance),
+        width: 116,
+        height: 32,
+      );
+      var labelRect = labelAt(radius - 48);
+      if (modeRects.any(labelRect.overlaps)) {
+        // Around a small tool wheel the arc of modes bends further in; the
+        // label then sits halfway between the tool wheel and the modes.
+        final modesInner = modeRects
+            .map(
+              (rect) => up ? _center.dy - rect.bottom : rect.top - _center.dy,
+            )
+            .reduce(math.min);
+        labelRect = labelAt((_innerRadius + modesInner) / 2);
+      }
       return [
         for (final (index, (_, widget)) in modes.indexed)
           (modeRects[index], widget),
         for (final (index, (_, widget)) in chips.indexed)
           (chipRects[index], widget),
-        if (!plain)
-          (
-            Rect.fromCenter(
-              center: _center + Offset.fromDirection(direction, radius - 48),
-              width: 116,
-              height: 32,
-            ),
-            label,
-          ),
+        if (!plain) (labelRect, label),
       ];
     }
 
@@ -802,7 +823,7 @@ class _AmazeColorOverlayState extends State<_AmazeColorOverlay>
 
     // The eyedropper sits right of the tool wheel, or left of it at the
     // right edge of the screen.
-    final eyeRadius = _innerRadius + 30;
+    final eyeRadius = (plain ? _plainArcRadius - 32 : _innerRadius) + 30;
     var eye = Rect.fromCenter(
       center: _center + Offset(eyeRadius, 0),
       width: 40,

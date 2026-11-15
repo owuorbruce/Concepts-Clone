@@ -5,14 +5,27 @@ import 'package:flutter/painting.dart';
 
 import 'tool_slots.dart';
 
-/// Default diameter of the tool wheel.
+/// Diameter of [ToolWheelGeometry] when none is given. It is only a
+/// fallback for when no screen size is known; the app sizes the wheel with
+/// [defaultToolWheelDiameter].
 const kToolWheelDefaultDiameter = 320.0;
 
 /// Smallest supported diameter of the tool wheel.
-const kToolWheelMinDiameter = 240.0;
+const kToolWheelMinDiameter = 160.0;
 
 /// Largest supported diameter of the tool wheel.
 const kToolWheelMaxDiameter = 480.0;
+
+/// Diameter of the tool wheel when the user has not chosen one:
+/// 22% of the shorter side of [screen], within the supported range.
+double defaultToolWheelDiameter(Size screen) {
+  final side = screen.shortestSide;
+  if (screen.isEmpty || !side.isFinite) return kToolWheelMinDiameter;
+  return (side * 0.22).roundToDouble().clamp(
+    kToolWheelMinDiameter,
+    kToolWheelMaxDiameter,
+  );
+}
 
 /// Start of slot 0 in degrees (screen coordinates: 0° is right, angles grow
 /// clockwise).

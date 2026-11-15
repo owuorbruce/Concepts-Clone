@@ -16,6 +16,9 @@ const _ring = ValueKey('amaze-color-ring');
 const _code = ValueKey('amaze-color-code');
 const _degree = math.pi / 180;
 
+/// Tool wheel radii from the smallest wheel to the old default one.
+const _smallRadii = [80.0, 88.0, 120.0, 160.0];
+
 /// What the picker reported through its callbacks.
 class _Session {
   final picks = <SRGBColor>[];
@@ -74,7 +77,13 @@ void main() {
   group('geometry', () {
     test('358 swatches of at least 28 px, none overlapping', () {
       expectSound(MarkerRingGeometry(palette), 'the full layout');
-      for (final radius in [120.0, 160.0, 240.0]) {
+      for (final radius in _smallRadii) {
+        expectSound(
+          MarkerRingGeometry(palette, innerRadius: radius),
+          'the full layout around $radius',
+        );
+      }
+      for (final radius in [..._smallRadii, 240.0]) {
         expectSound(
           MarkerRingGeometry(
             palette,
@@ -194,69 +203,118 @@ void main() {
       }
     });
 
-    test('every swatch resolves to its own code under rotation', () {
-      final geometry = MarkerRingGeometry(palette);
-      const center = Offset(640, 400);
-      for (final degrees in [0.0, 77.0, 215.0]) {
-        final rotation = degrees * _degree;
-        for (final swatch in geometry.swatches) {
-          final point = geometry.positionOf(
-            swatch,
-            center: center,
-            rotation: rotation,
-          );
-          expect(
-            geometry.hitTest(point - center, rotation: rotation)?.marker.code,
-            swatch.marker.code,
-            reason: '${swatch.marker.code} at $degrees°',
-          );
-          expect(
-            geometry.containsWheel(point - center, rotation: rotation),
-            isTrue,
-          );
-        }
-      }
-      // The tool wheel and the canvas beyond the bars are not the wheel.
-      expect(geometry.containsWheel(const Offset(10, 10)), isFalse);
-      expect(
-        geometry.containsWheel(Offset(geometry.outerRadius + 20, 0)),
-        isFalse,
-      );
-      expect(geometry.hitTest(const Offset(200, 0)), isNull);
-    });
-
-    test('every swatch can be spun fully on screen from any position', () {
-      for (final screen in [const Size(1280, 800), const Size(800, 1280)]) {
-        for (final center in _positions(screen, 160)) {
-          final geometry = MarkerRingGeometry.fit(
-            palette,
-            innerRadius: 160,
-            center: center,
-            screen: screen,
-          );
-          expect(geometry.swatches, hasLength(358));
+    for (final radius in _smallRadii) {
+      test('every swatch resolves to its own code under rotation around '
+          '$radius', () {
+        final geometry = MarkerRingGeometry(palette, innerRadius: radius);
+        const center = Offset(640, 400);
+        for (final degrees in [0.0, 77.0, 215.0]) {
+          final rotation = degrees * _degree;
           for (final swatch in geometry.swatches) {
-            expect(
-              swatch.shortSide,
-              greaterThanOrEqualTo(kMarkerMinSwatchSide),
-            );
-            final rotation = MarkerRingGeometry.rotationToShow(
+            final point = geometry.positionOf(
               swatch,
+              center: center,
+              rotation: rotation,
+            );
+            expect(
+              geometry.hitTest(point - center, rotation: rotation)?.marker.code,
+              swatch.marker.code,
+              reason: '${swatch.marker.code} at $degrees°',
+            );
+            expect(
+              geometry.containsWheel(point - center, rotation: rotation),
+              isTrue,
+            );
+          }
+        }
+        // The tool wheel and the canvas beyond the bars are not the wheel.
+        expect(geometry.containsWheel(Offset(radius / 2, 0)), isFalse);
+        expect(
+          geometry.containsWheel(Offset(geometry.outerRadius + 20, 0)),
+          isFalse,
+        );
+        expect(geometry.hitTest(Offset(radius + 10, 0)), isNull);
+      });
+
+      test('every swatch can be spun fully on screen from any position '
+          'around $radius', () {
+        for (final screen in [const Size(1280, 800), const Size(800, 1280)]) {
+          for (final center in _positions(screen, radius)) {
+            final geometry = MarkerRingGeometry.fit(
+              palette,
+              innerRadius: radius,
               center: center,
               screen: screen,
             );
-            expect(
-              rotation,
-              isNotNull,
-              reason: '${swatch.marker.code} from $center on $screen',
-            );
-            final bounds = (Offset.zero & screen).inflate(1e-6);
-            for (final point in swatch.hull(center, rotation!)) {
-              expect(bounds.contains(point), isTrue);
+            expect(geometry.swatches, hasLength(358));
+            for (final swatch in geometry.swatches) {
+              expect(
+                swatch.shortSide,
+                greaterThanOrEqualTo(kMarkerMinSwatchSide),
+              );
+              final rotation = MarkerRingGeometry.rotationToShow(
+                swatch,
+                center: center,
+                screen: screen,
+              );
+              expect(
+                rotation,
+                isNotNull,
+                reason: '${swatch.marker.code} from $center on $screen',
+              );
+              final bounds = (Offset.zero & screen).inflate(1e-6);
+              for (final point in swatch.hull(center, rotation!)) {
+                expect(bounds.contains(point), isTrue);
+              }
             }
           }
         }
+      });
+
+      test('codes are never upside down around $radius', () {
+        final geometry = MarkerRingGeometry(palette, innerRadius: radius);
+        for (final degrees in [0.0, 77.0, 215.0]) {
+          for (final swatch in geometry.swatches) {
+            final angle = swatch.midAngle + degrees * _degree;
+            final rotation = MarkerRingGeometry.textRotation(angle);
+            expect(rotation.abs(), lessThanOrEqualTo(math.pi / 2 + 1e-9));
+            // The text runs along the ring: upright, or turned half way
+            // round on the lower half.
+            final along = wrapAngle(angle + math.pi / 2);
+            final flipped = wrapAngle(rotation - along).abs() > 1;
+            if (along.abs() < math.pi / 2 - 1e-6) expect(flipped, isFalse);
+            if (along.abs() > math.pi / 2 + 1e-6) expect(flipped, isTrue);
+          }
+        }
+        expect(MarkerRingGeometry.textRotation(-math.pi / 2), closeTo(0, 1e-9));
+        expect(MarkerRingGeometry.textRotation(math.pi / 2), closeTo(0, 1e-9));
+      });
+    }
+
+    test('the gray ring is never inside 330 px', () {
+      for (final radius in [80.0, 88.0, 100.0]) {
+        final geometry = MarkerRingGeometry(palette, innerRadius: radius);
+        expect(geometry.ringInner, closeTo(330, 1), reason: '$radius');
+        // The light disc reaches from the tool wheel to the inner arc.
+        expect(geometry.discInner, greaterThan(radius));
       }
+      expect(
+        MarkerRingGeometry(palette, innerRadius: 160).ringInner,
+        closeTo(480, 1),
+      );
+      // Where the screen allows the full-size layout, fit keeps it.
+      for (final (radius, ring) in [(88.0, 330.0), (160.0, 480.0)]) {
+        final roomy = MarkerRingGeometry.fit(
+          palette,
+          innerRadius: radius,
+          center: const Offset(1280, 800),
+          screen: const Size(2560, 1600),
+        );
+        expect(roomy.ringInner, closeTo(ring, 1), reason: '$radius');
+        expect(roomy.spread, 1);
+      }
+      // The smallest layout keeps the floor too.
+      expect(MarkerRingGeometry.minRingRatio(88) * 88, closeTo(330, 1));
     });
 
     test('the layout is full size where there is room for it', () {
@@ -283,25 +341,6 @@ void main() {
         greaterThanOrEqualTo(MarkerRingGeometry.minRingRatio(160)),
       );
     });
-
-    test('codes are never upside down', () {
-      final geometry = MarkerRingGeometry(palette);
-      for (final degrees in [0.0, 77.0, 215.0]) {
-        for (final swatch in geometry.swatches) {
-          final angle = swatch.midAngle + degrees * _degree;
-          final rotation = MarkerRingGeometry.textRotation(angle);
-          expect(rotation.abs(), lessThanOrEqualTo(math.pi / 2 + 1e-9));
-          // The text runs along the ring: upright, or turned half way round
-          // on the lower half.
-          final along = wrapAngle(angle + math.pi / 2);
-          final flipped = wrapAngle(rotation - along).abs() > 1;
-          if (along.abs() < math.pi / 2 - 1e-6) expect(flipped, isFalse);
-          if (along.abs() > math.pi / 2 + 1e-6) expect(flipped, isTrue);
-        }
-      }
-      expect(MarkerRingGeometry.textRotation(-math.pi / 2), closeTo(0, 1e-9));
-      expect(MarkerRingGeometry.textRotation(math.pi / 2), closeTo(0, 1e-9));
-    });
   });
 
   void setScreen(WidgetTester tester, Size size) {
@@ -317,6 +356,7 @@ void main() {
     bool noData = false,
     SRGBColor initial = SRGBColor.white,
     Offset? center = const Offset(640, 400),
+    double innerRadius = 160,
     _Session? session,
   }) async {
     final result = session ?? _Session();
@@ -333,7 +373,7 @@ void main() {
                 onPressed: () => showAmazeColorWheel(
                   context,
                   center: center,
-                  innerRadius: 160,
+                  innerRadius: innerRadius,
                   initial: initial,
                   paletteLoader: () async => noData ? null : palette,
                   onPick: result.picks.add,
@@ -864,6 +904,37 @@ void main() {
           expect(painter(tester).center, center);
           await tester.sendKeyEvent(LogicalKeyboardKey.escape);
           await tester.pumpAndSettle();
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    for (final screen in [const Size(1280, 800), const Size(800, 1280)]) {
+      testWidgets('controls clear a small tool wheel on $screen', (
+        tester,
+      ) async {
+        setScreen(tester, screen);
+        for (final radius in _smallRadii) {
+          for (final center in _positions(screen, radius)) {
+            final reason = 'radius $radius at $center';
+            await open(tester, center: center, innerRadius: radius);
+            expectOnScreen(tester, screen, reason);
+            expect(painter(tester).holeRadius, radius);
+            for (final key in controls) {
+              final rect = tester.getRect(find.byKey(ValueKey(key)));
+              final nearest = Offset(
+                center.dx.clamp(rect.left, rect.right),
+                center.dy.clamp(rect.top, rect.bottom),
+              );
+              expect(
+                (nearest - center).distance,
+                greaterThan(radius),
+                reason: '$key over the tool wheel, $reason',
+              );
+            }
+            await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+            await tester.pumpAndSettle();
+          }
         }
         expect(tester.takeException(), isNull);
       });
