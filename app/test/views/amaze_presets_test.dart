@@ -42,6 +42,8 @@ const _field = ValueKey('amaze-adjustment-field');
 Finder _preset(int index) => find.byKey(ValueKey(('amaze-preset', index)));
 
 /// Loads the bundled fonts, so text has its real size.
+const _savedDiameterKey = 'amaze.toolWheel.diameter';
+
 Future<void> _loadFonts() async {
   final manifest = await rootBundle.loadString('FontManifest.json');
   final families = jsonDecode(manifest) as List<dynamic>;
@@ -179,7 +181,10 @@ void main() {
     });
 
     setUp(() {
-      SharedPreferences.setMockInitialValues({});
+      // A saved 320 px wheel, so the wheel matches the default geometry the
+      // tests aim at. The size without a saved one is tested in
+      // amaze_wheel_resize_test.dart.
+      SharedPreferences.setMockInitialValues({_savedDiameterKey: 320.0});
       settingsCubit = MockSettingsCubit();
       fileSystem = MockButterflyFileSystem(settingsCubit: settingsCubit);
       windowCubit = WindowCubit(fullScreen: false);
