@@ -1,6 +1,7 @@
 export 'src/helpers/asset.dart';
 export 'src/helpers/color.dart';
 export 'src/helpers/connector.dart';
+export 'src/helpers/floor_plan.dart';
 export 'src/helpers/import.dart';
 export 'src/helpers/point.dart';
 export 'src/helpers/search.dart';

@@ -172,6 +172,21 @@ List<_Object> _objects() {
   return objects;
 }
 
+/// The floor plan tags of [object]: walls are valid walls when placed, doors
+/// and windows open a wall they are placed on.
+Map<String, Object>? _extra(_Object object) => switch (object.category) {
+  'Walls' => {
+    'amaze.wall': {'thicknessIn': object.depth},
+  },
+  'Doors' => {
+    'amaze.opening': {'kind': 'door', 'widthIn': object.width},
+  },
+  'Windows' => {
+    'amaze.opening': {'kind': 'window', 'widthIn': object.width},
+  },
+  _ => null,
+};
+
 void main() {
   final directory = File.fromUri(Platform.script).parent;
   final source = Directory('${directory.path}/source')
@@ -201,6 +216,7 @@ void main() {
           'file': 'source/${object.file}',
           'widthIn': object.width,
           'depthIn': object.depth,
+          'extra': ?_extra(object),
         },
     ],
   };

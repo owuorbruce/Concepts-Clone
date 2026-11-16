@@ -1876,5 +1876,29 @@
   "amazeObjectReadOnly": "This drawing can't be edited",
   "amazeEraserWhole": "Whole",
   "amazeMoreSettings": "More settings…",
-  "amazeMoreTools": "More tools"
+  "amazeMoreTools": "More tools",
+  "amazeWall": "Wall",
+  "amazeWallThickness": "Thickness",
+  "amazeTapWallToPlace": "Tap a wall to place it",
+  "amazeTapOnWall": "Tap on a wall",
+  "amazeNotEnclosedArea": "Not an enclosed area",
+  "amazeRoomName": "Room {number}",
+  "@amazeRoomName": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "amazeSquareFeet": "{area} sq ft",
+  "@amazeSquareFeet": {
+    "placeholders": {
+      "area": {
+        "type": "String"
+      }
+    }
+  },
+  "amazeCombine": "Combine",
+  "amazeSubtract": "Subtract",
+  "amazeRoomWithHole": "That would make a room with a hole"
 }

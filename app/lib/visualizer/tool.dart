@@ -126,6 +126,7 @@ extension ToolVisualizer on Tool {
       RulerTool() => loc.ruler,
       BarcodeTool() => loc.barcode,
       PolygonTool() => loc.polygon,
+      WallTool() => loc.amazeWall,
     };
   }
 
@@ -204,6 +205,7 @@ extension ToolVisualizer on Tool {
     BarcodeTool tool => tool.barcodeType.icon(filled: filled),
     PolygonTool() =>
       filled ? PhosphorIconsFill.polygon : PhosphorIconsLight.polygon,
+    WallTool() => filled ? PhosphorIconsFill.wall : PhosphorIconsLight.wall,
   };
 
   List<String> get help {
@@ -236,6 +238,7 @@ extension ToolVisualizer on Tool {
       RulerTool() => 'ruler',
       BarcodeTool() => 'barcode',
       PolygonTool() => 'polygon',
+      WallTool() => 'wall',
     };
     if (this is ImportTool || this is AssetTool || this is ExportTool) {
       return [page];

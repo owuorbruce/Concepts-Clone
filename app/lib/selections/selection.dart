@@ -15,6 +15,7 @@ import 'package:butterfly/services/display_calibration.dart';
 import 'package:butterfly_api/butterfly_api.dart';
 import 'package:butterfly/renderers/renderer.dart';
 import 'package:butterfly/visualizer/tool.dart';
+import 'package:butterfly/views/amaze/floor_plan/floor_plan.dart';
 import 'package:butterfly/visualizer/preset.dart';
 import 'package:butterfly/visualizer/property.dart';
 import 'package:butterfly/widgets/area_size_picker.dart';

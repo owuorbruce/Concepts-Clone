@@ -14,175 +14,317 @@
       "category": "Walls",
       "file": "source/wall-4.5x24.svg",
       "widthIn": 24,
-      "depthIn": 4.5
+      "depthIn": 4.5,
+      "extra": {
+        "amaze.wall": {
+          "thicknessIn": 4.5
+        }
+      }
     },
     {
       "name": "Wall 4.5″ × 48″",
       "category": "Walls",
       "file": "source/wall-4.5x48.svg",
       "widthIn": 48,
-      "depthIn": 4.5
+      "depthIn": 4.5,
+      "extra": {
+        "amaze.wall": {
+          "thicknessIn": 4.5
+        }
+      }
     },
     {
       "name": "Wall 4.5″ × 96″",
       "category": "Walls",
       "file": "source/wall-4.5x96.svg",
       "widthIn": 96,
-      "depthIn": 4.5
+      "depthIn": 4.5,
+      "extra": {
+        "amaze.wall": {
+          "thicknessIn": 4.5
+        }
+      }
     },
     {
       "name": "Wall 4.5″ × 120″",
       "category": "Walls",
       "file": "source/wall-4.5x120.svg",
       "widthIn": 120,
-      "depthIn": 4.5
+      "depthIn": 4.5,
+      "extra": {
+        "amaze.wall": {
+          "thicknessIn": 4.5
+        }
+      }
     },
     {
       "name": "Wall 6″ × 24″",
       "category": "Walls",
       "file": "source/wall-6x24.svg",
       "widthIn": 24,
-      "depthIn": 6
+      "depthIn": 6,
+      "extra": {
+        "amaze.wall": {
+          "thicknessIn": 6
+        }
+      }
     },
     {
       "name": "Wall 6″ × 48″",
       "category": "Walls",
       "file": "source/wall-6x48.svg",
       "widthIn": 48,
-      "depthIn": 6
+      "depthIn": 6,
+      "extra": {
+        "amaze.wall": {
+          "thicknessIn": 6
+        }
+      }
     },
     {
       "name": "Wall 6″ × 96″",
       "category": "Walls",
       "file": "source/wall-6x96.svg",
       "widthIn": 96,
-      "depthIn": 6
+      "depthIn": 6,
+      "extra": {
+        "amaze.wall": {
+          "thicknessIn": 6
+        }
+      }
     },
     {
       "name": "Wall 6″ × 120″",
       "category": "Walls",
       "file": "source/wall-6x120.svg",
       "widthIn": 120,
-      "depthIn": 6
+      "depthIn": 6,
+      "extra": {
+        "amaze.wall": {
+          "thicknessIn": 6
+        }
+      }
     },
     {
       "name": "Door 24″ left",
       "category": "Doors",
       "file": "source/door-24-left.svg",
       "widthIn": 24,
-      "depthIn": 28.5
+      "depthIn": 28.5,
+      "extra": {
+        "amaze.opening": {
+          "kind": "door",
+          "widthIn": 24
+        }
+      }
     },
     {
       "name": "Door 24″ right",
       "category": "Doors",
       "file": "source/door-24-right.svg",
       "widthIn": 24,
-      "depthIn": 28.5
+      "depthIn": 28.5,
+      "extra": {
+        "amaze.opening": {
+          "kind": "door",
+          "widthIn": 24
+        }
+      }
     },
     {
       "name": "Door 28″ left",
       "category": "Doors",
       "file": "source/door-28-left.svg",
       "widthIn": 28,
-      "depthIn": 32.5
+      "depthIn": 32.5,
+      "extra": {
+        "amaze.opening": {
+          "kind": "door",
+          "widthIn": 28
+        }
+      }
     },
     {
       "name": "Door 28″ right",
       "category": "Doors",
       "file": "source/door-28-right.svg",
       "widthIn": 28,
-      "depthIn": 32.5
+      "depthIn": 32.5,
+      "extra": {
+        "amaze.opening": {
+          "kind": "door",
+          "widthIn": 28
+        }
+      }
     },
     {
       "name": "Door 30″ left",
       "category": "Doors",
       "file": "source/door-30-left.svg",
       "widthIn": 30,
-      "depthIn": 34.5
+      "depthIn": 34.5,
+      "extra": {
+        "amaze.opening": {
+          "kind": "door",
+          "widthIn": 30
+        }
+      }
     },
     {
       "name": "Door 30″ right",
       "category": "Doors",
       "file": "source/door-30-right.svg",
       "widthIn": 30,
-      "depthIn": 34.5
+      "depthIn": 34.5,
+      "extra": {
+        "amaze.opening": {
+          "kind": "door",
+          "widthIn": 30
+        }
+      }
     },
     {
       "name": "Door 32″ left",
       "category": "Doors",
       "file": "source/door-32-left.svg",
       "widthIn": 32,
-      "depthIn": 36.5
+      "depthIn": 36.5,
+      "extra": {
+        "amaze.opening": {
+          "kind": "door",
+          "widthIn": 32
+        }
+      }
     },
     {
       "name": "Door 32″ right",
       "category": "Doors",
       "file": "source/door-32-right.svg",
       "widthIn": 32,
-      "depthIn": 36.5
+      "depthIn": 36.5,
+      "extra": {
+        "amaze.opening": {
+          "kind": "door",
+          "widthIn": 32
+        }
+      }
     },
     {
       "name": "Door 36″ left",
       "category": "Doors",
       "file": "source/door-36-left.svg",
       "widthIn": 36,
-      "depthIn": 40.5
+      "depthIn": 40.5,
+      "extra": {
+        "amaze.opening": {
+          "kind": "door",
+          "widthIn": 36
+        }
+      }
     },
     {
       "name": "Door 36″ right",
       "category": "Doors",
       "file": "source/door-36-right.svg",
       "widthIn": 36,
-      "depthIn": 40.5
+      "depthIn": 40.5,
+      "extra": {
+        "amaze.opening": {
+          "kind": "door",
+          "widthIn": 36
+        }
+      }
     },
     {
       "name": "Double door 60″",
       "category": "Doors",
       "file": "source/door-double-60.svg",
       "widthIn": 60,
-      "depthIn": 34.5
+      "depthIn": 34.5,
+      "extra": {
+        "amaze.opening": {
+          "kind": "door",
+          "widthIn": 60
+        }
+      }
     },
     {
       "name": "Sliding door 72″",
       "category": "Doors",
       "file": "source/door-sliding-72.svg",
       "widthIn": 72,
-      "depthIn": 4.5
+      "depthIn": 4.5,
+      "extra": {
+        "amaze.opening": {
+          "kind": "door",
+          "widthIn": 72
+        }
+      }
     },
     {
       "name": "Window 24″",
       "category": "Windows",
       "file": "source/window-24.svg",
       "widthIn": 24,
-      "depthIn": 4.5
+      "depthIn": 4.5,
+      "extra": {
+        "amaze.opening": {
+          "kind": "window",
+          "widthIn": 24
+        }
+      }
     },
     {
       "name": "Window 36″",
       "category": "Windows",
       "file": "source/window-36.svg",
       "widthIn": 36,
-      "depthIn": 4.5
+      "depthIn": 4.5,
+      "extra": {
+        "amaze.opening": {
+          "kind": "window",
+          "widthIn": 36
+        }
+      }
     },
     {
       "name": "Window 48″",
       "category": "Windows",
       "file": "source/window-48.svg",
       "widthIn": 48,
-      "depthIn": 4.5
+      "depthIn": 4.5,
+      "extra": {
+        "amaze.opening": {
+          "kind": "window",
+          "widthIn": 48
+        }
+      }
     },
     {
       "name": "Window 60″",
       "category": "Windows",
       "file": "source/window-60.svg",
       "widthIn": 60,
-      "depthIn": 4.5
+      "depthIn": 4.5,
+      "extra": {
+        "amaze.opening": {
+          "kind": "window",
+          "widthIn": 60
+        }
+      }
     },
     {
       "name": "Window 72″",
       "category": "Windows",
       "file": "source/window-72.svg",
       "widthIn": 72,
-      "depthIn": 4.5
+      "depthIn": 4.5,
+      "extra": {
+        "amaze.opening": {
+          "kind": "window",
+          "widthIn": 72
+        }
+      }
     },
     {
       "name": "Straight stairs 36″ × 120″",

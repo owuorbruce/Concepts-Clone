@@ -196,6 +196,7 @@ double? _readSize(Tool tool) => switch (tool) {
   PenTool(:final property) => property.strokeWidth,
   ShapeTool(:final property) => property.strokeWidth,
   PolygonTool(:final property) => property.strokeWidth,
+  WallTool(:final thicknessIn) => thicknessIn,
   EraserTool(:final strokeWidth) => strokeWidth,
   LaserTool(:final strokeWidth) => strokeWidth,
   _ => null,
@@ -226,6 +227,7 @@ Tool _writeSize(Tool tool, double value) {
     final property = tool.property.copyWith(strokeWidth: value);
     return tool.copyWith(property: property);
   }
+  if (tool is WallTool) return tool.copyWith(thicknessIn: value);
   if (tool is EraserTool) return tool.copyWith(strokeWidth: value);
   if (tool is LaserTool) return tool.copyWith(strokeWidth: value);
   return tool;

@@ -116,6 +116,10 @@ Tool _$ToolFromJson(
           return PolygonTool.fromJson(
             json
           );
+                case 'wall':
+          return WallTool.fromJson(
+            json
+          );
         
           default:
             throw CheckedFromJsonException(
@@ -2145,6 +2149,82 @@ as String,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_null
 as String?,zoomDependent: null == zoomDependent ? _self.zoomDependent : zoomDependent // ignore: cast_nullable_to_non_nullable
 as bool,property: freezed == property ? _self.property : property // ignore: cast_nullable_to_non_nullable
 as PolygonProperty,
+  ));
+}
+
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class WallTool extends Tool {
+   WallTool({this.name = '', this.displayIcon = '', @IdJsonConverter() this.id, this.zoomDependent = false, this.thicknessIn = 4.5, @ColorJsonConverter() this.color = const SRGBColor(0xff374151),  String? $type}): $type = $type ?? 'wall',super._();
+  factory WallTool.fromJson(Map<String, dynamic> json) => _$WallToolFromJson(json);
+
+@override@JsonKey() final  String name;
+@override@JsonKey() final  String displayIcon;
+@override@IdJsonConverter() final  String? id;
+@JsonKey() final  bool zoomDependent;
+@JsonKey() final  double thicknessIn;
+@JsonKey()@ColorJsonConverter() final  SRGBColor color;
+
+@JsonKey(name: 'type')
+final String $type;
+
+
+/// Create a copy of Tool
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$WallToolCopyWith<WallTool> get copyWith => _$WallToolCopyWithImpl<WallTool>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$WallToolToJson(this, );
+}
+
+
+
+@override
+String toString() {
+    return 'Tool.wall(name: $name, displayIcon: $displayIcon, id: $id, zoomDependent: $zoomDependent, thicknessIn: $thicknessIn, color: $color)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $WallToolCopyWith<$Res> implements $ToolCopyWith<$Res> {
+  factory $WallToolCopyWith(WallTool value, $Res Function(WallTool) _then) = _$WallToolCopyWithImpl;
+@override @useResult
+$Res call({
+ String name, String displayIcon,@IdJsonConverter() String? id, bool zoomDependent, double thicknessIn,@ColorJsonConverter() SRGBColor color
+});
+
+
+
+
+}
+/// @nodoc
+class _$WallToolCopyWithImpl<$Res>
+    implements $WallToolCopyWith<$Res> {
+  _$WallToolCopyWithImpl(this._self, this._then);
+
+  final WallTool _self;
+  final $Res Function(WallTool) _then;
+
+/// Create a copy of Tool
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? displayIcon = null,Object? id = freezed,Object? zoomDependent = null,Object? thicknessIn = null,Object? color = null,}) {
+  return _then(WallTool(
+name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
+as String,displayIcon: null == displayIcon ? _self.displayIcon : displayIcon // ignore: cast_nullable_to_non_nullable
+as String,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String?,zoomDependent: null == zoomDependent ? _self.zoomDependent : zoomDependent // ignore: cast_nullable_to_non_nullable
+as bool,thicknessIn: null == thicknessIn ? _self.thicknessIn : thicknessIn // ignore: cast_nullable_to_non_nullable
+as double,color: null == color ? _self.color : color // ignore: cast_nullable_to_non_nullable
+as SRGBColor,
   ));
 }
 

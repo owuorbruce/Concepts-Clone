@@ -22,6 +22,9 @@ import 'package:butterfly/renderers/foregrounds/area.dart';
 import 'package:butterfly/renderers/foregrounds/select.dart';
 import 'package:butterfly/services/export.dart';
 import 'package:butterfly/views/toolbar/polygon.dart';
+import 'package:butterfly/views/toolbar/wall.dart';
+import 'package:butterfly/views/amaze/floor_plan/floor_plan.dart';
+import 'package:butterfly/views/amaze/objects/object_store.dart';
 import 'package:butterfly/visualizer/tool.dart';
 import 'package:butterfly_api/butterfly_api.dart';
 import 'package:butterfly_api/butterfly_text.dart' as text;
@@ -86,6 +89,7 @@ part 'redo.dart';
 part 'ruler.dart';
 part 'grid.dart';
 part 'polygon.dart';
+part 'wall.dart';
 part 'select.dart';
 part 'shape.dart';
 part 'slice.dart';
@@ -340,6 +344,7 @@ abstract class Handler<T> {
       RulerTool() => RulerHandler(tool),
       BarcodeTool() => BarcodeHandler(tool),
       PolygonTool() => PolygonHandler(tool),
+      WallTool() => WallHandler(tool),
     } as Handler<T>;
   }
 

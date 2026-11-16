@@ -75,7 +75,9 @@ List<PenElement>? svgToPenElements(String svg, Rectangle<double> target) {
         SRGBColor? stroke,
         SRGBColor? fill,
       }) => PenElement(
-        points: [for (final p in _resample(points)) PathPoint(p.x, p.y, 1)],
+        points: [
+          for (final p in resamplePoints(points)) PathPoint(p.x, p.y, 1),
+        ],
         property: PenProperty(
           strokeWidth: strokeWidth,
           thinning: 0,
@@ -415,14 +417,17 @@ class _FlatteningProxy implements PathProxy {
   }
 }
 
-/// [points] with points added so no two are more than
-/// [kSvgStrokeMaxSpacing] apart.
-List<Point<double>> _resample(List<Point<double>> points) {
+/// [points] with points added so no two are more than [spacing] apart,
+/// so the eraser can cut the stroke anywhere.
+List<Point<double>> resamplePoints(
+  List<Point<double>> points, [
+  double spacing = kSvgStrokeMaxSpacing,
+]) {
   if (points.isEmpty) return points;
   final result = [points.first];
   for (var i = 1; i < points.length; i++) {
     final from = points[i - 1], to = points[i];
-    final steps = ((to - from).magnitude / kSvgStrokeMaxSpacing).ceil();
+    final steps = ((to - from).magnitude / spacing).ceil();
     for (var j = 1; j < steps; j++) {
       result.add(from + (to - from) * (j / steps));
     }

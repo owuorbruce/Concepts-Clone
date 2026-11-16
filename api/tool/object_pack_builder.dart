@@ -189,6 +189,8 @@ Future<BuildResult> buildObjectPack(File spec) async {
       extra: {
         'source': source,
         if (furnishing.isNotEmpty) 'furnishing': furnishing,
+        // Any extra facts of the spec object, as they are.
+        ...?(object['extra'] as Map<String, dynamic>?),
       },
     );
     pack = pack.setComponent(

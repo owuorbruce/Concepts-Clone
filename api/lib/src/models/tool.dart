@@ -299,6 +299,16 @@ sealed class Tool extends PackAsset with _$Tool {
     @Default(PolygonProperty()) PolygonProperty property,
   }) = PolygonTool;
 
+  /// Draws floor plan walls of [thicknessIn] inches.
+  factory Tool.wall({
+    @Default('') String name,
+    @Default('') String displayIcon,
+    @IdJsonConverter() String? id,
+    @Default(false) bool zoomDependent,
+    @Default(4.5) double thicknessIn,
+    @Default(SRGBColor(0xff374151)) @ColorJsonConverter() SRGBColor color,
+  }) = WallTool;
+
   factory Tool.fromJson(Map<String, dynamic> json) => _$ToolFromJson(json);
 
   ToolCategory get category => switch (this) {
@@ -327,5 +337,6 @@ sealed class Tool extends PackAsset with _$Tool {
     EyeDropperTool() => .action,
     BarcodeTool() => .surface,
     PolygonTool() => .surface,
+    WallTool() => .surface,
   };
 }

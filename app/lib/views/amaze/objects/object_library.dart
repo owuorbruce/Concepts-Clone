@@ -10,7 +10,9 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../style.dart';
 import '../wheel_prefs.dart';
+import '../floor_plan/floor_plan.dart';
 import 'object_favorites.dart';
+import 'object_placement.dart';
 import 'object_store.dart';
 
 /// Width of the object library on large screens.
@@ -196,6 +198,15 @@ class _ObjectLibraryPanelState extends State<ObjectLibraryPanel> {
     _scope.dispose();
     _search.dispose();
     super.dispose();
+  }
+
+  /// Places [entry], or for a door or window, closes the panel and waits
+  /// for a tap on a wall.
+  void _place(ObjectEntry entry) {
+    if (openingOf(entry.component) == null) return widget.onPlace(entry);
+    final context = this.context;
+    widget.onClose();
+    armOpeningPlacement(context, entry);
   }
 
   Future<void> _update(Future<ObjectFavorites> change) async {
@@ -420,7 +431,7 @@ class _ObjectLibraryPanelState extends State<ObjectLibraryPanel> {
                   entry: entry,
                   editable: widget.editable,
                   favorite: _favorites.isFavorite(entry),
-                  onPlace: () => widget.onPlace(entry),
+                  onPlace: () => _place(entry),
                   onToggleFavorite: () =>
                       _update(_favorites.toggleFavorite(entry)),
                 ),

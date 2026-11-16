@@ -1,14 +1,16 @@
-import 'dart:math' show Rectangle;
+import 'dart:math' show Point, Rectangle;
 
 import 'package:butterfly/bloc/document_bloc.dart';
 import 'package:butterfly/cubits/editor_controller.dart';
 import 'package:butterfly/cubits/transform.dart';
 import 'package:butterfly/renderers/renderer.dart';
+import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly_api/butterfly_api.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../floor_plan/floor_plan.dart';
 import 'object_store.dart';
 
 /// The scale that fits [sourceRect] into [targetRect].
@@ -90,6 +92,8 @@ List<PadElement> placeComponentAt(
 /// a new id and the object's `extra` and collection, or null if the SVG
 /// can't be converted, so the caller keeps the [SvgElement].
 List<PadElement>? svgObjectToStrokes(SvgElement element) {
+  final wall = _packWall(element);
+  if (wall != null) return [wall];
   const prefix = 'data:image/svg+xml';
   if (!element.source.startsWith(prefix) || element.rotation != 0) {
     return null;
@@ -123,6 +127,42 @@ List<PadElement>? svgObjectToStrokes(SvgElement element) {
   ];
 }
 
+/// A pack object tagged as a wall, as a valid floor plan wall on the same
+/// rectangle, so snapping, doors and rooms work with it; else null.
+PenElement? _packWall(SvgElement element) {
+  if (element.extra[kWallExtraKey] is! Map || element.rotation != 0) {
+    return null;
+  }
+  if (element.constraints case final constraints?
+      when constraints is! ScaledElementConstraints ||
+          constraints.scaleX != 1 ||
+          constraints.scaleY != 1) {
+    return null;
+  }
+  final x = element.position.x, y = element.position.y;
+  final width = element.width, height = element.height;
+  if (width <= 0 || height <= 0) return null;
+  // The wall runs along the longer side; its rectangle reaches half the
+  // thickness past each end of the centerline.
+  final horizontal = width >= height;
+  final thickness = horizontal ? height : width;
+  final half = thickness / 2;
+  final (a, b) = horizontal
+      ? (Point(x + half, y + half), Point(x + width - half, y + half))
+      : (Point(x + half, y + half), Point(x + half, y + height - half));
+  final wall = makeWall(
+    a,
+    b,
+    thickness / kCanvasUnitsPerInch,
+    kDefaultWallColor,
+  );
+  return wall.copyWith(
+    id: createUniqueId(),
+    collection: element.collection,
+    extra: {...element.extra, ...wall.extra},
+  );
+}
+
 /// Adds [entry] to the current page and layer, centered on [worldCenter].
 ///
 /// This is one undo step.
@@ -143,6 +183,32 @@ void addObjectToCanvas(
       layer: state.currentLayer,
     ),
   );
+}
+
+/// Waits for a tap on a wall to place the door or window [entry]: switches
+/// to a temporary wall tool, arms [entry] and shows a hint. Another tool
+/// or leaving the temporary tool disarms it.
+Future<void> armOpeningPlacement(
+  BuildContext context,
+  ObjectEntry entry,
+) async {
+  final bloc = context.read<DocumentBloc>();
+  final controller = context.read<EditorController>();
+  final hint = AppLocalizations.of(context).amazeTapWallToPlace;
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  final handler = await controller.toolCubit.changeTemporaryHandler(
+    context,
+    controller,
+    WallTool(),
+    bloc: bloc,
+    temporaryState: TemporaryState.allowClick,
+  );
+  // Arm after the switch: replacing a wall tool disposes it, which disarms.
+  if (handler == null) return;
+  armOpening(entry);
+  messenger
+    ?..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(hint)));
 }
 
 /// The world position at the middle of the visible canvas.
