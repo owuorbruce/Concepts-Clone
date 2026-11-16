@@ -25,6 +25,7 @@ class BrushLibrarySidebar extends StatefulWidget {
     required this.slot,
     required this.onSelect,
     required this.onClose,
+    this.onSelectTool,
     this.onSlotOptions,
   });
 
@@ -33,6 +34,10 @@ class BrushLibrarySidebar extends StatefulWidget {
 
   final ValueChanged<LibraryEntry> onSelect;
   final VoidCallback onClose;
+
+  /// Puts a tool from [slotToolCatalog] into the slot. Without it the
+  /// library has no "More tools".
+  final ValueChanged<Tool>? onSelectTool;
 
   /// Opens the slot menu (settings, move, replace, remove). It is only
   /// offered while the slot holds a tool.
@@ -44,6 +49,7 @@ class BrushLibrarySidebar extends StatefulWidget {
 
 class _BrushLibrarySidebarState extends State<BrushLibrarySidebar> {
   bool _marketOpen = false;
+  late final List<Tool> _catalog = slotToolCatalog();
 
   @override
   Widget build(BuildContext context) {
@@ -126,6 +132,15 @@ class _BrushLibrarySidebarState extends State<BrushLibrarySidebar> {
                 grid(LibrarySection.basics),
                 label(loc.tools),
                 grid(LibrarySection.tools),
+                if (widget.onSelectTool case final onSelectTool?) ...[
+                  label(loc.amazeMoreTools),
+                  _ToolCatalogGrid(
+                    key: const ValueKey('amaze-library-more-tools'),
+                    tools: _catalog,
+                    style: style,
+                    onSelect: onSelectTool,
+                  ),
+                ],
                 const SizedBox(height: 12),
                 _MarketHeader(
                   open: _marketOpen,
@@ -325,6 +340,77 @@ class _LibraryGrid extends StatelessWidget {
             selected: entry == current,
             style: style,
             onSelect: onSelect,
+          ),
+      ],
+    );
+  }
+}
+
+/// Every tool of [slotToolCatalog], as tiles in the library's style.
+class _ToolCatalogGrid extends StatelessWidget {
+  const _ToolCatalogGrid({
+    super.key,
+    required this.tools,
+    required this.style,
+    required this.onSelect,
+  });
+
+  final List<Tool> tools;
+  final AmazeStyle style;
+  final ValueChanged<Tool> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return GridView.count(
+      crossAxisCount: 4,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
+      mainAxisSpacing: 8,
+      crossAxisSpacing: 8,
+      childAspectRatio: 0.8,
+      children: [
+        for (final (index, tool) in tools.indexed)
+          Semantics(
+            button: true,
+            label: tool.getDisplay(context),
+            child: Material(
+              key: ValueKey(('amaze-library-tool', index)),
+              color: style.surfaceVariant,
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: () => onSelect(tool),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: Center(
+                          child: PhosphorIcon(
+                            tool.icon(),
+                            size: 30,
+                            color: style.onSurface,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        tool.getDisplay(context),
+                        maxLines: 2,
+                        textAlign: TextAlign.center,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.labelSmall?.copyWith(
+                          color: style.onSurface,
+                          height: 1.15,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
       ],
     );

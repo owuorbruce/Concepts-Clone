@@ -756,6 +756,10 @@ void main() {
 
     await tester.tap(slotButton(eraser));
     await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey(('amaze-eraser-choice', 'settings'))),
+    );
+    await tester.pumpAndSettle();
     expect(find.text('Cut strokes'), findsOneWidget);
     expect(find.text('Whole elements'), findsOneWidget);
     await capture(tester, 'eraser-options');
@@ -767,6 +771,137 @@ void main() {
     );
     expect(tester.takeException(), isNull);
     await tester.pump(const Duration(minutes: 1));
+  });
+
+  group('eraser chooser', () {
+    Finder choice(String name) =>
+        find.byKey(ValueKey(('amaze-eraser-choice', name)));
+
+    EraserTool eraserTool(int slot) => slotTool(slot) as EraserTool;
+
+    Future<void> openChooser(WidgetTester tester, int slot) async {
+      await tester.tap(slotButton(slot));
+      await tester.pumpAndSettle();
+      expect(choice('stroke'), findsOneWidget);
+    }
+
+    testWidgets('only the active eraser slot opens it', (tester) async {
+      setScreen(tester, const Size(1280, 800));
+      final editor = await openEditor(tester);
+      final pen = slotOf<PenTool>();
+      await selectSlot(tester, editor, pen);
+      await tester.tap(slotButton(pen));
+      await tester.pumpAndSettle();
+      expect(choice('stroke'), findsNothing);
+      expect(editor.toolCubit.state.selection?.selected.single, isA<PenTool>());
+
+      final eraser = slotOf<EraserTool>();
+      await selectSlot(tester, editor, eraser);
+      expect(choice('stroke'), findsNothing);
+      await openChooser(tester, eraser);
+      expect(choice('whole'), findsOneWidget);
+      expect(choice('settings'), findsOneWidget);
+      expect(find.text('Stroke'), findsOneWidget);
+      expect(find.text('Whole'), findsOneWidget);
+      expect(find.text('More settings…'), findsOneWidget);
+      for (final name in ['stroke', 'whole', 'settings']) {
+        expect(tester.getSize(choice(name)).height, greaterThanOrEqualTo(48));
+      }
+      // A new eraser cuts strokes, so Stroke has the check mark.
+      expect(
+        tester.widget<CheckedPopupMenuItem<Object?>>(choice('stroke')).checked,
+        isTrue,
+      );
+      expect(
+        tester.widget<CheckedPopupMenuItem<Object?>>(choice('whole')).checked,
+        isFalse,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(choice('stroke'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Whole and Stroke are one tool change each', (tester) async {
+      setScreen(tester, const Size(1280, 800));
+      final editor = await openEditor(tester);
+      final eraser = slotOf<EraserTool>();
+      await selectSlot(tester, editor, eraser);
+      final elements = (observer.lastDocumentBloc!.state as DocumentLoadSuccess)
+          .page
+          .content
+          .length;
+
+      var before = observer.toolsChanged;
+      await openChooser(tester, eraser);
+      await tester.tap(choice('whole'));
+      await pumpUntil(
+        tester,
+        () => eraserTool(eraser).mode == EraserMode.path,
+        'whole',
+      );
+      await tester.pumpAndSettle();
+      expect(eraserTool(eraser).eraseElements, isTrue);
+      expect(observer.toolsChanged, before + 1);
+
+      // Picking the current mode changes nothing.
+      before = observer.toolsChanged;
+      await openChooser(tester, eraser);
+      expect(
+        tester.widget<CheckedPopupMenuItem<Object?>>(choice('whole')).checked,
+        isTrue,
+      );
+      await tester.tap(choice('whole'));
+      await tester.pumpAndSettle();
+      expect(observer.toolsChanged, before);
+
+      await openChooser(tester, eraser);
+      await tester.tap(choice('stroke'));
+      await pumpUntil(
+        tester,
+        () => eraserTool(eraser).mode == EraserMode.stroke,
+        'stroke',
+      );
+      await tester.pumpAndSettle();
+      expect(eraserTool(eraser).eraseElements, isFalse);
+      expect(observer.toolsChanged, before + 1);
+
+      // A tap outside closes the chooser and erases nothing.
+      before = observer.toolsChanged;
+      await openChooser(tester, eraser);
+      await tester.tapAt(const Offset(360, 280));
+      await tester.pumpAndSettle();
+      expect(choice('stroke'), findsNothing);
+      expect(observer.toolsChanged, before);
+      expect(
+        (observer.lastDocumentBloc!.state as DocumentLoadSuccess)
+            .page
+            .content
+            .length,
+        elements,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pump(const Duration(minutes: 1));
+    });
+
+    testWidgets('More settings… opens the eraser panel', (tester) async {
+      setScreen(tester, const Size(1280, 800));
+      final editor = await openEditor(tester);
+      final eraser = slotOf<EraserTool>();
+      await selectSlot(tester, editor, eraser);
+      final before = observer.toolsChanged;
+      await openChooser(tester, eraser);
+      await tester.tap(choice('settings'));
+      await tester.pumpAndSettle();
+      expect(choice('stroke'), findsNothing);
+      expect(find.text('Cut strokes'), findsOneWidget);
+      expect(
+        editor.toolCubit.state.selection?.selected.single,
+        isA<EraserTool>(),
+      );
+      expect(observer.toolsChanged, before);
+      expect(tester.takeException(), isNull);
+    });
   });
 
   testWidgets('the center opens the radial color picker', (tester) async {

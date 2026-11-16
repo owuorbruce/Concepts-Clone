@@ -1873,5 +1873,8 @@
   "amazeFavorites": "Favorites",
   "amazeNoObjectsFound": "No objects found",
   "amazeNoObjectsYet": "No objects yet",
-  "amazeObjectReadOnly": "This drawing can't be edited"
+  "amazeObjectReadOnly": "This drawing can't be edited",
+  "amazeEraserWhole": "Whole",
+  "amazeMoreSettings": "More settings…",
+  "amazeMoreTools": "More tools"
 }

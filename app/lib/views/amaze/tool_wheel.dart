@@ -72,7 +72,14 @@ AmazeIconData _adjustmentIcon(ToolAdjustment adjustment) {
   };
 }
 
-Future<void> _onSlotTap(BuildContext context, int slot) async {
+/// Activates the tool of [slot]. Tapping the active slot again opens its
+/// settings, or the eraser chooser for an eraser. [anchor] is where the
+/// chooser opens; it defaults to [context].
+Future<void> _onSlotTap(
+  BuildContext context,
+  int slot, {
+  BuildContext? anchor,
+}) async {
   final bloc = context.read<DocumentBloc>();
   final state = bloc.state;
   if (state is! DocumentLoadSuccess) return;
@@ -87,7 +94,88 @@ Future<void> _onSlotTap(BuildContext context, int slot) async {
     await cubit.changeTool(controller, bloc, index: index, context: context);
     return;
   }
-  cubit.changeSelection(state.info.tools[index], true);
+  final tool = state.info.tools[index];
+  if (tool is EraserTool) {
+    return _openEraserChooser(context, index, anchor ?? context);
+  }
+  cubit.changeSelection(tool, true);
+}
+
+enum _EraserChoice { stroke, whole, settings }
+
+/// Whether [tool] removes whole elements rather than cutting strokes.
+bool _erasesWhole(EraserTool tool) =>
+    tool.mode == EraserMode.path && tool.eraseElements;
+
+/// The chooser of the active eraser slot: Stroke, Whole or More settings.
+///
+/// A new mode is one [ToolsChanged]; picking the current mode changes
+/// nothing. Escape or a tap outside closes it without erasing.
+Future<void> _openEraserChooser(
+  BuildContext context,
+  int index,
+  BuildContext anchor,
+) async {
+  final bloc = context.read<DocumentBloc>();
+  final cubit = context.read<ToolCubit>();
+  final state = bloc.state;
+  if (state is! DocumentLoadSuccess) return;
+  final current = state.info.tools[index];
+  if (current is! EraserTool) return;
+  final loc = AppLocalizations.of(context);
+  final overlay = Overlay.of(context).context.findRenderObject();
+  final box = anchor.findRenderObject();
+  if (overlay is! RenderBox || box is! RenderBox) return;
+  final rect = box.localToGlobal(Offset.zero, ancestor: overlay) & box.size;
+  final whole = _erasesWhole(current);
+  final choice = await showMenu<_EraserChoice>(
+    context: context,
+    position: RelativeRect.fromRect(rect, Offset.zero & overlay.size),
+    items: [
+      CheckedPopupMenuItem(
+        key: const ValueKey(('amaze-eraser-choice', 'stroke')),
+        value: _EraserChoice.stroke,
+        checked: !whole,
+        child: Text(loc.stroke),
+      ),
+      CheckedPopupMenuItem(
+        key: const ValueKey(('amaze-eraser-choice', 'whole')),
+        value: _EraserChoice.whole,
+        checked: whole,
+        child: Text(loc.amazeEraserWhole),
+      ),
+      PopupMenuItem(
+        key: const ValueKey(('amaze-eraser-choice', 'settings')),
+        value: _EraserChoice.settings,
+        child: Text(loc.amazeMoreSettings),
+      ),
+    ],
+  );
+  if (choice == null || !context.mounted) return;
+  final latest = bloc.state;
+  if (latest is! DocumentLoadSuccess) return;
+  final tools = latest.info.tools;
+  if (index >= tools.length) return;
+  final tool = tools[index];
+  if (tool is! EraserTool || tool.id != current.id) return;
+  switch (choice) {
+    case _EraserChoice.settings:
+      cubit.changeSelection(tool, true);
+    case _EraserChoice.stroke:
+      if (!_erasesWhole(tool)) return;
+      bloc.add(
+        ToolsChanged([
+          tool.copyWith(mode: EraserMode.stroke, eraseElements: false),
+        ]),
+      );
+    case _EraserChoice.whole:
+      if (_erasesWhole(tool)) return;
+      bloc.add(
+        ToolsChanged([
+          tool.copyWith(mode: EraserMode.path, eraseElements: true),
+        ]),
+      );
+  }
 }
 
 /// Puts a tool chosen from the catalog into [slot].
@@ -698,9 +786,11 @@ class _WedgeSlot extends StatelessWidget {
         ? const BorderSide(color: Color(0xDD000000), width: 1.5)
         : BorderSide(color: style.outline);
     final content = selected ? contrastingContent(opaqueFill) : style.onSurface;
+    // The eraser chooser opens at the slot's icon.
+    BuildContext? iconContext;
     final VoidCallback onTap = tool == null
         ? () => _onEmptyTap(context)
-        : () => _onSlotTap(context, slot);
+        : () => _onSlotTap(context, slot, anchor: iconContext);
     final loc = AppLocalizations.of(context);
     final iconSize = geometry.radius * 0.16;
     final label = tool == null ? null : _toolSizeLabel(tool);
@@ -736,24 +826,29 @@ class _WedgeSlot extends StatelessWidget {
           Tooltip(
             message: tool?.getDisplay(context) ?? loc.emptySlot,
             triggerMode: TooltipTriggerMode.manual,
-            child: GestureDetector(
-              key: ValueKey(('amaze-slot', slot)),
-              behavior: HitTestBehavior.opaque,
-              onTap: onTap,
-              child: Center(
-                child: tool == null
-                    ? PhosphorIcon(
-                        PhosphorIconsLight.plus,
-                        size: iconSize * 0.75,
-                        color: style.muted,
-                      )
-                    : AmazeIcon(
-                        amazeToolIcon(tool),
-                        filled: selected,
-                        size: iconSize,
-                        color: content,
-                      ),
-              ),
+            child: Builder(
+              builder: (context) {
+                iconContext = context;
+                return GestureDetector(
+                  key: ValueKey(('amaze-slot', slot)),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onTap,
+                  child: Center(
+                    child: tool == null
+                        ? PhosphorIcon(
+                            PhosphorIconsLight.plus,
+                            size: iconSize * 0.75,
+                            color: style.muted,
+                          )
+                        : AmazeIcon(
+                            amazeToolIcon(tool),
+                            filled: selected,
+                            size: iconSize,
+                            color: content,
+                          ),
+                  ),
+                );
+              },
             ),
           ),
           hit: hit,
@@ -2538,6 +2633,7 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
         slot: slot,
         onClose: _closeLibrary,
         onSelect: (entry) => _putLibraryEntryInSlot(context, slot, entry),
+        onSelectTool: (tool) => _putToolInSlot(context, slot, tool),
         onSlotOptions: () => _openSlotMenu(context, slot),
       ),
     );
