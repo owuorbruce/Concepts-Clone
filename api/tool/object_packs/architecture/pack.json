@@ -1,0 +1,195 @@
+{
+  "id": "architecture",
+  "name": "Architecture",
+  "description": "Top-view walls, doors, windows and stairs at real size.",
+  "author": "aMaze",
+  "license": "CC0-1.0",
+  "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "sourceUrl": "",
+  "version": "1.0.0",
+  "sizing": "inches",
+  "objects": [
+    {
+      "name": "Wall 4.5″ × 24″",
+      "category": "Walls",
+      "file": "source/wall-4.5x24.svg",
+      "widthIn": 24,
+      "depthIn": 4.5
+    },
+    {
+      "name": "Wall 4.5″ × 48″",
+      "category": "Walls",
+      "file": "source/wall-4.5x48.svg",
+      "widthIn": 48,
+      "depthIn": 4.5
+    },
+    {
+      "name": "Wall 4.5″ × 96″",
+      "category": "Walls",
+      "file": "source/wall-4.5x96.svg",
+      "widthIn": 96,
+      "depthIn": 4.5
+    },
+    {
+      "name": "Wall 4.5″ × 120″",
+      "category": "Walls",
+      "file": "source/wall-4.5x120.svg",
+      "widthIn": 120,
+      "depthIn": 4.5
+    },
+    {
+      "name": "Wall 6″ × 24″",
+      "category": "Walls",
+      "file": "source/wall-6x24.svg",
+      "widthIn": 24,
+      "depthIn": 6
+    },
+    {
+      "name": "Wall 6″ × 48″",
+      "category": "Walls",
+      "file": "source/wall-6x48.svg",
+      "widthIn": 48,
+      "depthIn": 6
+    },
+    {
+      "name": "Wall 6″ × 96″",
+      "category": "Walls",
+      "file": "source/wall-6x96.svg",
+      "widthIn": 96,
+      "depthIn": 6
+    },
+    {
+      "name": "Wall 6″ × 120″",
+      "category": "Walls",
+      "file": "source/wall-6x120.svg",
+      "widthIn": 120,
+      "depthIn": 6
+    },
+    {
+      "name": "Door 24″ left",
+      "category": "Doors",
+      "file": "source/door-24-left.svg",
+      "widthIn": 24,
+      "depthIn": 28.5
+    },
+    {
+      "name": "Door 24″ right",
+      "category": "Doors",
+      "file": "source/door-24-right.svg",
+      "widthIn": 24,
+      "depthIn": 28.5
+    },
+    {
+      "name": "Door 28″ left",
+      "category": "Doors",
+      "file": "source/door-28-left.svg",
+      "widthIn": 28,
+      "depthIn": 32.5
+    },
+    {
+      "name": "Door 28″ right",
+      "category": "Doors",
+      "file": "source/door-28-right.svg",
+      "widthIn": 28,
+      "depthIn": 32.5
+    },
+    {
+      "name": "Door 30″ left",
+      "category": "Doors",
+      "file": "source/door-30-left.svg",
+      "widthIn": 30,
+      "depthIn": 34.5
+    },
+    {
+      "name": "Door 30″ right",
+      "category": "Doors",
+      "file": "source/door-30-right.svg",
+      "widthIn": 30,
+      "depthIn": 34.5
+    },
+    {
+      "name": "Door 32″ left",
+      "category": "Doors",
+      "file": "source/door-32-left.svg",
+      "widthIn": 32,
+      "depthIn": 36.5
+    },
+    {
+      "name": "Door 32″ right",
+      "category": "Doors",
+      "file": "source/door-32-right.svg",
+      "widthIn": 32,
+      "depthIn": 36.5
+    },
+    {
+      "name": "Door 36″ left",
+      "category": "Doors",
+      "file": "source/door-36-left.svg",
+      "widthIn": 36,
+      "depthIn": 40.5
+    },
+    {
+      "name": "Door 36″ right",
+      "category": "Doors",
+      "file": "source/door-36-right.svg",
+      "widthIn": 36,
+      "depthIn": 40.5
+    },
+    {
+      "name": "Double door 60″",
+      "category": "Doors",
+      "file": "source/door-double-60.svg",
+      "widthIn": 60,
+      "depthIn": 34.5
+    },
+    {
+      "name": "Sliding door 72″",
+      "category": "Doors",
+      "file": "source/door-sliding-72.svg",
+      "widthIn": 72,
+      "depthIn": 4.5
+    },
+    {
+      "name": "Window 24″",
+      "category": "Windows",
+      "file": "source/window-24.svg",
+      "widthIn": 24,
+      "depthIn": 4.5
+    },
+    {
+      "name": "Window 36″",
+      "category": "Windows",
+      "file": "source/window-36.svg",
+      "widthIn": 36,
+      "depthIn": 4.5
+    },
+    {
+      "name": "Window 48″",
+      "category": "Windows",
+      "file": "source/window-48.svg",
+      "widthIn": 48,
+      "depthIn": 4.5
+    },
+    {
+      "name": "Window 60″",
+      "category": "Windows",
+      "file": "source/window-60.svg",
+      "widthIn": 60,
+      "depthIn": 4.5
+    },
+    {
+      "name": "Window 72″",
+      "category": "Windows",
+      "file": "source/window-72.svg",
+      "widthIn": 72,
+      "depthIn": 4.5
+    },
+    {
+      "name": "Straight stairs 36″ × 120″",
+      "category": "Stairs",
+      "file": "source/stairs-straight-36x120.svg",
+      "widthIn": 36,
+      "depthIn": 120
+    }
+  ]
+}

@@ -4,7 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 /// Asset paths of the object packs that ship with the app.
-const kBundledObjectPacks = <String>['assets/object_packs/furniture.bfly'];
+const kBundledObjectPacks = <String>[
+  'assets/object_packs/furniture.bfly',
+  'assets/object_packs/architecture.bfly',
+];
 
 /// Prefix of the id of a pack loaded from the app bundle.
 const kBundledObjectPackPrefix = 'bundled:';

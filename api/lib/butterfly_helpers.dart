@@ -5,3 +5,4 @@ export 'src/helpers/import.dart';
 export 'src/helpers/point.dart';
 export 'src/helpers/search.dart';
 export 'src/helpers/string.dart';
+export 'src/helpers/svg_strokes.dart';

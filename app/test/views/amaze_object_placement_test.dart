@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' show Point;
 
 import 'package:butterfly/actions/shortcuts.dart';
@@ -48,6 +49,51 @@ ButterflyComponent _sofa() => ButterflyComponent(
   ],
 );
 
+const _boxKey = 'Living — Box';
+const _boxTile = ValueKey(('amaze-object', _packId, _boxKey));
+const _credits = {
+  'source': {'pack': 'test', 'license': 'CC0-1.0'},
+  'furnishing': {'id': 'box', 'heightIn': 30},
+};
+
+/// A component like the furniture pack's: one SVG, 200 × 100 around (0, 0).
+ButterflyComponent _svgComponent(String body) => ButterflyComponent(
+  elements: [
+    PadElement.svg(
+      source: Uri.dataFromString(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10">'
+        '$body</svg>',
+        mimeType: 'image/svg+xml',
+        encoding: utf8,
+      ).toString(),
+      position: const Point(-100.0, -50.0),
+      width: 200,
+      height: 100,
+      extra: _credits,
+    ),
+  ],
+);
+
+ButterflyComponent _box() => _svgComponent(
+  '<rect x="0.5" y="0.5" width="19" height="9" fill="#cbd5e1" '
+  'stroke="#374151"/><line x1="10" y1="0.5" x2="10" y2="9.5" '
+  'stroke="#374151"/>',
+);
+
+/// The bounds of the points of [elements].
+Rect _penBounds(Iterable<PadElement> elements) {
+  final points = [
+    for (final element in elements)
+      for (final p in (element as PenElement).points) Offset(p.x, p.y),
+  ];
+  return points
+      .skip(1)
+      .fold(
+        Rect.fromPoints(points.first, points.first),
+        (rect, p) => rect.expandToInclude(Rect.fromPoints(p, p)),
+      );
+}
+
 Rect _shapeRect(PadElement element) {
   final shape = element as ShapeElement;
   return Rect.fromPoints(
@@ -75,6 +121,36 @@ class _Observer extends BlocObserver {
 
 void main() {
   group('placeComponentAt', () {
+    test('an SVG object becomes pen strokes in its box', () {
+      final placed = placeComponentAt(_box(), const Offset(500, 300));
+      expect(placed, hasLength(2));
+      expect(placed, everyElement(isA<PenElement>()));
+      final bounds = _penBounds(placed);
+      expect(
+        bounds.center,
+        offsetMoreOrLessEquals(const Offset(500, 300), epsilon: 0.5),
+      );
+      // The rect is inset half a unit: 190 × 90 of the 200 × 100 box.
+      expect(bounds.width, moreOrLessEquals(190, epsilon: 0.01));
+      expect(bounds.height, moreOrLessEquals(90, epsilon: 0.01));
+      for (final element in placed) {
+        expect(element.extra, _credits);
+        expect(element.id, isNotNull);
+      }
+      expect(placed.map((e) => e.id).toSet(), hasLength(placed.length));
+    });
+
+    test('an unsupported SVG stays an SVG element', () {
+      final placed = placeComponentAt(
+        _svgComponent('<rect width="20" height="10" transform="rotate(10)"/>'),
+        const Offset(500, 300),
+      );
+      final element = placed.single as SvgElement;
+      expect(element.position.x, moreOrLessEquals(400));
+      expect(element.position.y, moreOrLessEquals(250));
+      expect(element.extra, _credits);
+    });
+
     test('places the component at real size around the point', () {
       final placed = placeComponentAt(_sofa(), const Offset(500, 300));
       expect(placed, hasLength(1));
@@ -141,9 +217,6 @@ void main() {
     setUp(() {
       SharedPreferences.setMockInitialValues({
         'amaze.toolWheel.diameter': 320.0,
-        // List the test pack before the bundled furniture pack, so its tile
-        // is built on screen.
-        'amaze.objects.favoritePacks': ['Furniture.bfly'],
       });
       settingsCubit = MockSettingsCubit();
       fileSystem = MockButterflyFileSystem(settingsCubit: settingsCubit);
@@ -263,7 +336,10 @@ void main() {
         pack = pack.setMetadata(
           pack.getMetadata()!.copyWith(name: 'Furniture'),
         );
-        await system.createFile(_packId, pack.setComponent(_key, _sofa()));
+        await system.createFile(
+          _packId,
+          pack.setComponent(_key, _sofa()).setComponent(_boxKey, _box()),
+        );
       });
       final document = DocumentDefaults.createDocument(name: 'Objects');
       await tester.pumpWidget(buildApp(document));
@@ -430,6 +506,46 @@ void main() {
       await tester.pumpAndSettle();
       expect(observer.created, isEmpty);
       expect(shapes(), hasLength(before));
+    });
+
+    testWidgets('a placed SVG object is one undo step of pen strokes', (
+      tester,
+    ) async {
+      setScreen(tester, const Size(1280, 800));
+      await openEditor(tester);
+      await openPanel(tester);
+      final before = state().page.content.length;
+      final center = visibleCanvasCenter(tester.element(find.byKey(_panel)));
+
+      await tester.tap(find.byKey(_boxTile));
+      await pumpUntil(
+        tester,
+        () => state().page.content.length > before,
+        'placement',
+      );
+      await tester.pumpAndSettle();
+      expect(observer.created, hasLength(1));
+      final created = observer.created.single.elements;
+      expect(created, hasLength(2));
+      expect(created, everyElement(isA<PenElement>()));
+      final added = state().page.content.skip(before).toList();
+      expect(added, hasLength(2));
+      expect(added, everyElement(isA<PenElement>()));
+      expect(
+        _penBounds(added).center,
+        offsetMoreOrLessEquals(center, epsilon: 0.5),
+      );
+      for (final element in added) {
+        expect(element.extra, _credits);
+      }
+
+      observer.bloc!.sendUndo();
+      await pumpUntil(
+        tester,
+        () => state().page.content.length == before,
+        'undo',
+      );
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('a tap adds nothing to a read-only drawing', (tester) async {

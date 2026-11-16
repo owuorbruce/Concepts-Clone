@@ -9,6 +9,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../style.dart';
+import '../wheel_prefs.dart';
 import 'object_favorites.dart';
 import 'object_store.dart';
 
@@ -57,16 +58,40 @@ class _ObjectLibraryLayerState extends State<ObjectLibraryLayer>
     value: widget.open ? 1 : 0,
   )..addStatusListener((_) => setState(() {}));
 
-  late final Animation<Offset> _slide = Tween(
-    begin: const Offset(1, 0),
-    end: Offset.zero,
-  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+  late final _curve = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeOutCubic,
+  );
+
+  /// Whether the panel opens on the left, away from the tool wheel.
+  bool _left = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.open) _chooseSide();
+  }
+
+  /// Puts the panel on the left when the wheel's center is in the right
+  /// half of the screen. The saved position is the wheel's top left as a
+  /// fraction of the free space, so its center is right of the middle
+  /// exactly when that fraction is above one half, at any wheel size.
+  Future<void> _chooseSide() async {
+    final layout = await loadToolWheelLayout();
+    final position = layout.position;
+    final left =
+        layout.mode == ToolWheelMode.wheel &&
+        position != null &&
+        position.dx > 0.5;
+    if (mounted && left != _left) setState(() => _left = left);
+  }
 
   @override
   void didUpdateWidget(ObjectLibraryLayer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.open == oldWidget.open) return;
     if (widget.open) {
+      _chooseSide();
       _controller.forward();
     } else {
       _controller.reverse();
@@ -86,17 +111,22 @@ class _ObjectLibraryLayerState extends State<ObjectLibraryLayer>
     }
     final full =
         MediaQuery.sizeOf(context).width < kObjectLibraryFullWidthBreakpoint;
+    final left = _left && !full;
+    final slide = Tween(
+      begin: Offset(left ? -1 : 1, 0),
+      end: Offset.zero,
+    ).animate(_curve);
     return Positioned.fill(
       child: SafeArea(
         child: Align(
-          alignment: Alignment.centerRight,
+          alignment: left ? Alignment.centerLeft : Alignment.centerRight,
           child: LayoutBuilder(
             builder: (context, constraints) => SizedBox(
               key: const ValueKey('amaze-object-library'),
               width: full ? constraints.maxWidth : kObjectLibraryWidth,
               height: constraints.maxHeight,
               child: SlideTransition(
-                position: _slide,
+                position: slide,
                 child: Padding(
                   padding: EdgeInsets.all(full ? 0 : 8),
                   child: ObjectLibraryPanel(
@@ -179,12 +209,13 @@ class _ObjectLibraryPanelState extends State<ObjectLibraryPanel> {
     return has(entry.name) || has(entry.category) || has(entry.packName);
   }
 
-  /// Favorite packs, bundled, core, then user packs alphabetically.
+  /// Favorite packs first, then the user's packs alphabetically, the
+  /// bundled packs and the core pack.
   List<ObjectPack> _orderedPacks(List<ObjectPack> packs) {
     int rank(ObjectPack pack) => switch (pack.source) {
-      .bundled => 0,
-      .core => 1,
-      .user => 2,
+      .user => 0,
+      .bundled => 1,
+      .core => 2,
     };
     final sorted = [...packs]
       ..sort((a, b) {

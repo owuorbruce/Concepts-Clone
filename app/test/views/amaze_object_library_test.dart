@@ -87,6 +87,26 @@ Finder _packHeader(String id) =>
     find.byKey(ValueKey(('amaze-object-pack', id)));
 const _favorites = ValueKey('amaze-objects-favorites');
 
+/// The ids of the pack headers, top to bottom.
+List<String> _headerOrder(WidgetTester tester) {
+  final headers = find
+      .byWidgetPredicate((widget) {
+        final key = widget.key;
+        return key is ValueKey<(String, String)> &&
+            key.value.$1 == 'amaze-object-pack';
+      })
+      .evaluate()
+      .map((e) => (e.widget.key! as ValueKey<(String, String)>).value.$2)
+      .toList();
+  headers.sort(
+    (a, b) => tester
+        .getTopLeft(_packHeader(a))
+        .dy
+        .compareTo(tester.getTopLeft(_packHeader(b)).dy),
+  );
+  return headers;
+}
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
@@ -234,11 +254,17 @@ void main() {
     });
   });
 
-  testWidgets('the bundled furniture pack comes first with 12 categories', (
+  testWidgets('the bundled furniture pack has 96 objects in 12 categories', (
     tester,
   ) async {
-    const id = '${kBundledObjectPackPrefix}assets/object_packs/furniture.bfly';
-    expect(kBundledObjectPacks, ['assets/object_packs/furniture.bfly']);
+    const furnitureId =
+        '${kBundledObjectPackPrefix}assets/object_packs/furniture.bfly';
+    const architectureId =
+        '${kBundledObjectPackPrefix}assets/object_packs/architecture.bfly';
+    expect(kBundledObjectPacks, [
+      'assets/object_packs/furniture.bfly',
+      'assets/object_packs/architecture.bfly',
+    ]);
     final fs = MockButterflyFileSystem();
     final system = fs.buildPackSystem();
     final packs = (await tester.runAsync(() async {
@@ -250,35 +276,27 @@ void main() {
       return loadObjectPacks(fs);
     }))!;
     final furniture = packs.first;
-    expect(furniture.id, id);
+    expect(furniture.id, furnitureId);
     expect(furniture.name, 'Furniture (to scale)');
     expect(furniture.source, ObjectPackSource.bundled);
     expect(furniture.editable, isFalse);
     expect(furniture.objects, hasLength(96));
+    final architecture = packs[1];
+    expect(architecture.id, architectureId);
+    expect(architecture.name, 'Architecture');
+    expect(architecture.editable, isFalse);
+    expect(architecture.objects, hasLength(26));
 
-    // Tall enough that every heading of the pack is built.
+    // Tall enough that every heading of the packs is built.
     await pumpPanel(tester, packs, height: 12000);
-    final headers = find.byWidgetPredicate((widget) {
-      final key = widget.key;
-      return key is ValueKey<(String, String)> &&
-          key.value.$1 == 'amaze-object-pack';
-    });
-    final firstHeader = headers
-        .evaluate()
-        .map((e) => e.widget.key)
-        .reduce(
-          (a, b) =>
-              tester.getTopLeft(find.byKey(a!)).dy <=
-                  tester.getTopLeft(find.byKey(b!)).dy
-              ? a
-              : b,
-        );
-    expect(firstHeader, const ValueKey(('amaze-object-pack', id)));
+    // The user's pack comes first, then furniture, then architecture.
+    final order = _headerOrder(tester);
+    expect(order.take(3), ['Furniture.bfly', furnitureId, architectureId]);
     final headings = find.byWidgetPredicate((widget) {
       final key = widget.key;
       return key is ValueKey<(String, String, String)> &&
           key.value.$1 == 'amaze-object-category' &&
-          key.value.$2 == id;
+          key.value.$2 == furnitureId;
     });
     expect(headings, findsNWidgets(12));
   });
@@ -382,35 +400,36 @@ void main() {
         _pack('Furniture.bfly', ['Sofa']),
       ]);
       double top(String id) => tester.getTopLeft(_packHeader(id)).dy;
-      expect(top(kCorePackFileName), lessThan(top('Furniture.bfly')));
+      expect(top('Furniture.bfly'), lessThan(top(kCorePackFileName)));
 
       await tester.tap(
         find.byKey(
-          const ValueKey(('amaze-object-pack-star', 'Furniture.bfly')),
+          const ValueKey(('amaze-object-pack-star', kCorePackFileName)),
         ),
       );
       await tester.pumpAndSettle();
-      expect(top('Furniture.bfly'), lessThan(top(kCorePackFileName)));
+      expect(top(kCorePackFileName), lessThan(top('Furniture.bfly')));
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getStringList(kObjectFavoritePacksKey), ['Furniture.bfly']);
+      expect(prefs.getStringList(kObjectFavoritePacksKey), [kCorePackFileName]);
     });
 
-    testWidgets('packs are ordered bundled, core, then users alphabetically', (
+    testWidgets('user packs come first, then bundled, then core', (
       tester,
     ) async {
       await pumpPanel(tester, [
+        _pack('bundled:x', ['X'], source: .bundled),
         _pack('b.bfly', ['B'], name: 'beta'),
         _pack(kCorePackFileName, ['Lamp'], source: .core),
         _pack('a.bfly', ['A'], name: 'Alpha'),
-        _pack('bundled:x', ['X'], source: .bundled),
+        _pack('bundled:y', ['Y'], source: .bundled),
       ]);
-      final order = [
-        'bundled:x',
-        kCorePackFileName,
+      expect(_headerOrder(tester), [
         'a.bfly',
         'b.bfly',
-      ].map((id) => tester.getTopLeft(_packHeader(id)).dy).toList();
-      expect(order, [...order]..sort());
+        'bundled:x',
+        'bundled:y',
+        kCorePackFileName,
+      ]);
     });
 
     testWidgets('a favorite of a deleted object is not shown', (tester) async {
@@ -477,6 +496,85 @@ void main() {
     await tester.tap(_tile(id, 'Sofa'));
     await tester.pumpAndSettle();
     expect(placed.map((e) => e.key), ['Sofa']);
+  });
+
+  group('panel side', () {
+    const panel = ValueKey('amaze-object-library');
+
+    Future<void> pumpLayer(
+      WidgetTester tester,
+      Map<String, Object> prefs, {
+      Size size = const Size(1280, 800),
+    }) async {
+      SharedPreferences.setMockInitialValues(prefs);
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: Stack(
+              children: [
+                ObjectLibraryLayer(
+                  key: UniqueKey(),
+                  open: true,
+                  editable: true,
+                  onClose: () {},
+                  onPlace: (_) {},
+                  loadPacks: () async => const [],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a wheel on the right puts the panel on the left', (
+      tester,
+    ) async {
+      await pumpLayer(tester, {
+        'amaze.toolWheel.x': 0.9,
+        'amaze.toolWheel.y': 0.5,
+      });
+      expect(tester.getTopLeft(find.byKey(panel)).dx, 0);
+      expect(tester.getSize(find.byKey(panel)).width, kObjectLibraryWidth);
+    });
+
+    testWidgets('a wheel on the left keeps the panel on the right', (
+      tester,
+    ) async {
+      await pumpLayer(tester, {
+        'amaze.toolWheel.x': 0.1,
+        'amaze.toolWheel.y': 0.5,
+      });
+      expect(tester.getTopRight(find.byKey(panel)).dx, 1280);
+    });
+
+    testWidgets('no saved wheel or a tool bar keep the panel on the right', (
+      tester,
+    ) async {
+      await pumpLayer(tester, {});
+      expect(tester.getTopRight(find.byKey(panel)).dx, 1280);
+      await pumpLayer(tester, {
+        'amaze.toolWheel.mode': 'bar',
+        'amaze.toolWheel.x': 0.9,
+        'amaze.toolWheel.y': 0.5,
+      });
+      expect(tester.getTopRight(find.byKey(panel)).dx, 1280);
+    });
+
+    testWidgets('narrow screens keep the full-width panel', (tester) async {
+      await pumpLayer(tester, {
+        'amaze.toolWheel.x': 0.9,
+        'amaze.toolWheel.y': 0.5,
+      }, size: const Size(400, 800));
+      expect(tester.getTopLeft(find.byKey(panel)).dx, 0);
+      expect(tester.getSize(find.byKey(panel)).width, 400);
+    });
   });
 
   group('preview', () {

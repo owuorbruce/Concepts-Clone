@@ -1,3 +1,5 @@
+import 'dart:math' show Rectangle;
+
 import 'package:butterfly/bloc/document_bloc.dart';
 import 'package:butterfly/cubits/editor_controller.dart';
 import 'package:butterfly/cubits/transform.dart';
@@ -63,17 +65,62 @@ List<PadElement> transformComponentElements(
 /// The elements of [component] at real size, centered on [worldCenter].
 ///
 /// Stored components are relative to their center, so every element moves
-/// by [worldCenter]. Every element gets a new id.
+/// by [worldCenter]. Every element gets a new id. SVG objects become pen
+/// strokes (see [svgObjectToStrokes]), so they can be erased and recolored.
 List<PadElement> placeComponentAt(
   ButterflyComponent component,
   Offset worldCenter,
 ) {
   if (component.elements.isEmpty) return [];
-  return transformComponentElements(
+  final placed = transformComponentElements(
     component.elements.map(Renderer.fromInstance),
     Rect.zero,
     Rect.fromLTWH(worldCenter.dx, worldCenter.dy, 0, 0),
   );
+  return [
+    for (final element in placed)
+      if (element is SvgElement)
+        ...(svgObjectToStrokes(element) ?? [element])
+      else
+        element,
+  ];
+}
+
+/// The SVG of a placed object as pen strokes drawn into its box, each with
+/// a new id and the object's `extra` and collection, or null if the SVG
+/// can't be converted, so the caller keeps the [SvgElement].
+List<PadElement>? svgObjectToStrokes(SvgElement element) {
+  const prefix = 'data:image/svg+xml';
+  if (!element.source.startsWith(prefix) || element.rotation != 0) {
+    return null;
+  }
+  final String svg;
+  try {
+    svg = UriData.parse(element.source).contentAsString();
+  } on FormatException {
+    return null;
+  }
+  var width = element.width, height = element.height;
+  final constraints = element.constraints;
+  if (constraints is ScaledElementConstraints) {
+    if (constraints.scaleX > 0) width *= constraints.scaleX;
+    if (constraints.scaleY > 0) height *= constraints.scaleY;
+  } else if (constraints != null) {
+    return null;
+  }
+  final strokes = svgToPenElements(
+    svg,
+    Rectangle(element.position.x, element.position.y, width, height),
+  );
+  if (strokes == null) return null;
+  return [
+    for (final stroke in strokes)
+      stroke.copyWith(
+        id: createUniqueId(),
+        extra: element.extra,
+        collection: element.collection,
+      ),
+  ];
 }
 
 /// Adds [entry] to the current page and layer, centered on [worldCenter].
