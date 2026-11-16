@@ -1,0 +1,1549 @@
+{
+  "id": "furniture",
+  "name": "Furniture (to scale)",
+  "description": "Top-view furniture and fixtures at real size.",
+  "author": "FloorPlanner contributors",
+  "license": "CC0-1.0",
+  "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "sourceUrl": "https://github.com/pjm4github/FloorPlanner/tree/ce0c439/assets/furnishings",
+  "version": "1.0.0",
+  "sizing": "inches",
+  "objects": [
+    {
+      "name": "Sofa",
+      "category": "Living",
+      "file": "source/sofa.svg",
+      "widthIn": 84,
+      "depthIn": 36,
+      "furnishing": {
+        "id": "sofa",
+        "heightIn": 32,
+        "elevationIn": 0,
+        "form": "seat",
+        "material": "soft",
+        "regionMaterial": null,
+        "priceUsd": 650.0
+      }
+    },
+    {
+      "name": "Loveseat",
+      "category": "Living",
+      "file": "source/loveseat.svg",
+      "widthIn": 58,
+      "depthIn": 36,
+      "furnishing": {
+        "id": "loveseat",
+        "heightIn": 32,
+        "elevationIn": 0,
+        "form": "seat",
+        "material": "soft",
+        "regionMaterial": null,
+        "priceUsd": 480.0
+      }
+    },
+    {
+      "name": "Armchair",
+      "category": "Living",
+      "file": "source/armchair.svg",
+      "widthIn": 33,
+      "depthIn": 33,
+      "furnishing": {
+        "id": "armchair",
+        "heightIn": 32,
+        "elevationIn": 0,
+        "form": "seat",
+        "material": "soft",
+        "regionMaterial": null,
+        "priceUsd": 300.0
+      }
+    },
+    {
+      "name": "Coffee Table",
+      "category": "Living",
+      "file": "source/coffee_table.svg",
+      "widthIn": 48,
+      "depthIn": 24,
+      "furnishing": {
+        "id": "coffee_table",
+        "heightIn": 18,
+        "elevationIn": 0,
+        "form": "slab",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 120.0
+      }
+    },
+    {
+      "name": "Side Table",
+      "category": "Living",
+      "file": "source/side_table.svg",
+      "widthIn": 20,
+      "depthIn": 20,
+      "furnishing": {
+        "id": "side_table",
+        "heightIn": 24,
+        "elevationIn": 0,
+        "form": "slab",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 80.0
+      }
+    },
+    {
+      "name": "TV Stand",
+      "category": "Living",
+      "file": "source/tv_stand.svg",
+      "widthIn": 60,
+      "depthIn": 16,
+      "furnishing": {
+        "id": "tv_stand",
+        "heightIn": 24,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 180.0
+      }
+    },
+    {
+      "name": "Large Screen TV 75\"",
+      "category": "Living",
+      "file": "source/large_tv.svg",
+      "widthIn": 66,
+      "depthIn": 4,
+      "furnishing": {
+        "id": "large_tv",
+        "heightIn": 38,
+        "elevationIn": 42,
+        "form": "box",
+        "material": "screen",
+        "regionMaterial": null,
+        "priceUsd": 300.0
+      }
+    },
+    {
+      "name": "Gas Fireplace 4'",
+      "category": "Living",
+      "file": "source/gas_fireplace.svg",
+      "widthIn": 48,
+      "depthIn": 20,
+      "furnishing": {
+        "id": "gas_fireplace",
+        "heightIn": 40,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "stone",
+        "regionMaterial": null,
+        "priceUsd": 2000.0
+      }
+    },
+    {
+      "name": "Dining Table 6'",
+      "category": "Dining",
+      "file": "source/dining_table.svg",
+      "widthIn": 72,
+      "depthIn": 36,
+      "furnishing": {
+        "id": "dining_table",
+        "heightIn": 30,
+        "elevationIn": 0,
+        "form": "slab",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 450.0
+      }
+    },
+    {
+      "name": "Round Table 4'",
+      "category": "Dining",
+      "file": "source/dining_table_round.svg",
+      "widthIn": 48,
+      "depthIn": 48,
+      "furnishing": {
+        "id": "dining_table_round",
+        "heightIn": 30,
+        "elevationIn": 0,
+        "form": "slab",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 400.0
+      }
+    },
+    {
+      "name": "Dining Chair",
+      "category": "Dining",
+      "file": "source/dining_chair.svg",
+      "widthIn": 18,
+      "depthIn": 18,
+      "furnishing": {
+        "id": "dining_chair",
+        "heightIn": 34,
+        "elevationIn": 0,
+        "form": "seat",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 50.0
+      }
+    },
+    {
+      "name": "Buffet 5'",
+      "category": "Dining",
+      "file": "source/buffet.svg",
+      "widthIn": 60,
+      "depthIn": 18,
+      "furnishing": {
+        "id": "buffet",
+        "heightIn": 36,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 350.0
+      }
+    },
+    {
+      "name": "China Hutch 5'",
+      "category": "Dining",
+      "file": "source/hutch.svg",
+      "widthIn": 60,
+      "depthIn": 20,
+      "furnishing": {
+        "id": "hutch",
+        "heightIn": 78,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 400.0
+      }
+    },
+    {
+      "name": "Refrigerator",
+      "category": "Kitchen",
+      "file": "source/refrigerator.svg",
+      "widthIn": 36,
+      "depthIn": 30,
+      "furnishing": {
+        "id": "refrigerator",
+        "heightIn": 70,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 825.0
+      }
+    },
+    {
+      "name": "Range / Stove",
+      "category": "Kitchen",
+      "file": "source/range.svg",
+      "widthIn": 30,
+      "depthIn": 26,
+      "furnishing": {
+        "id": "range",
+        "heightIn": 36,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 710.0
+      }
+    },
+    {
+      "name": "Dishwasher",
+      "category": "Kitchen",
+      "file": "source/dishwasher.svg",
+      "widthIn": 24,
+      "depthIn": 24,
+      "furnishing": {
+        "id": "dishwasher",
+        "heightIn": 34,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 385.0
+      }
+    },
+    {
+      "name": "Kitchen Sink",
+      "category": "Kitchen",
+      "file": "source/kitchen_sink.svg",
+      "widthIn": 33,
+      "depthIn": 22,
+      "furnishing": {
+        "id": "kitchen_sink",
+        "heightIn": 10,
+        "elevationIn": 26,
+        "form": "basin",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 240.0
+      }
+    },
+    {
+      "name": "Base Cabinet 24\"",
+      "category": "Kitchen",
+      "file": "source/base_cab_24.svg",
+      "widthIn": 24,
+      "depthIn": 24,
+      "furnishing": {
+        "id": "base_cab_24",
+        "heightIn": 36,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 290.0
+      }
+    },
+    {
+      "name": "Base Cabinet 36\"",
+      "category": "Kitchen",
+      "file": "source/base_cab_36.svg",
+      "widthIn": 36,
+      "depthIn": 24,
+      "furnishing": {
+        "id": "base_cab_36",
+        "heightIn": 36,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 360.0
+      }
+    },
+    {
+      "name": "Drawer Base 18\"",
+      "category": "Kitchen",
+      "file": "source/drawer_base_18.svg",
+      "widthIn": 18,
+      "depthIn": 24,
+      "furnishing": {
+        "id": "drawer_base_18",
+        "heightIn": 36,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 360.0
+      }
+    },
+    {
+      "name": "Sink Base 36\"",
+      "category": "Kitchen",
+      "file": "source/sink_base_36.svg",
+      "widthIn": 36,
+      "depthIn": 24,
+      "furnishing": {
+        "id": "sink_base_36",
+        "heightIn": 36,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 440.0
+      }
+    },
+    {
+      "name": "Corner Base 36\"",
+      "category": "Kitchen",
+      "file": "source/corner_base_36.svg",
+      "widthIn": 36,
+      "depthIn": 36,
+      "furnishing": {
+        "id": "corner_base_36",
+        "heightIn": 36,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 585.0
+      }
+    },
+    {
+      "name": "Pantry 18\"",
+      "category": "Kitchen",
+      "file": "source/pantry_18.svg",
+      "widthIn": 18,
+      "depthIn": 24,
+      "furnishing": {
+        "id": "pantry_18",
+        "heightIn": 84,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 610.0
+      }
+    },
+    {
+      "name": "Pantry 24\"",
+      "category": "Kitchen",
+      "file": "source/pantry_24.svg",
+      "widthIn": 24,
+      "depthIn": 24,
+      "furnishing": {
+        "id": "pantry_24",
+        "heightIn": 84,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 720.0
+      }
+    },
+    {
+      "name": "Pantry 36\"",
+      "category": "Kitchen",
+      "file": "source/pantry_36.svg",
+      "widthIn": 36,
+      "depthIn": 24,
+      "furnishing": {
+        "id": "pantry_36",
+        "heightIn": 84,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 825.0
+      }
+    },
+    {
+      "name": "Wall Cabinet 24\"",
+      "category": "Kitchen",
+      "file": "source/wall_cab_24.svg",
+      "widthIn": 24,
+      "depthIn": 12,
+      "furnishing": {
+        "id": "wall_cab_24",
+        "heightIn": 30,
+        "elevationIn": 54,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 250.0
+      }
+    },
+    {
+      "name": "Wall Cabinet 30\"",
+      "category": "Kitchen",
+      "file": "source/wall_cab_30.svg",
+      "widthIn": 30,
+      "depthIn": 12,
+      "furnishing": {
+        "id": "wall_cab_30",
+        "heightIn": 30,
+        "elevationIn": 54,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 340.0
+      }
+    },
+    {
+      "name": "Wall Cabinet 36\"",
+      "category": "Kitchen",
+      "file": "source/wall_cab_36.svg",
+      "widthIn": 36,
+      "depthIn": 12,
+      "furnishing": {
+        "id": "wall_cab_36",
+        "heightIn": 30,
+        "elevationIn": 54,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 425.0
+      }
+    },
+    {
+      "name": "Kitchen Island 6'",
+      "category": "Kitchen",
+      "file": "source/kitchen_island.svg",
+      "widthIn": 72,
+      "depthIn": 39,
+      "furnishing": {
+        "id": "kitchen_island",
+        "heightIn": 36,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 1450.0
+      }
+    },
+    {
+      "name": "Island w/ Sink 7'",
+      "category": "Kitchen",
+      "file": "source/island_sink.svg",
+      "widthIn": 84,
+      "depthIn": 42,
+      "furnishing": {
+        "id": "island_sink",
+        "heightIn": 36,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 2100.0
+      }
+    },
+    {
+      "name": "King Bed",
+      "category": "Bedroom",
+      "file": "source/bed_king.svg",
+      "widthIn": 76,
+      "depthIn": 80,
+      "furnishing": {
+        "id": "bed_king",
+        "heightIn": 26,
+        "elevationIn": 0,
+        "form": "bed",
+        "material": "soft",
+        "regionMaterial": null,
+        "priceUsd": 650.0
+      }
+    },
+    {
+      "name": "Queen Bed",
+      "category": "Bedroom",
+      "file": "source/bed_queen.svg",
+      "widthIn": 60,
+      "depthIn": 80,
+      "furnishing": {
+        "id": "bed_queen",
+        "heightIn": 26,
+        "elevationIn": 0,
+        "form": "bed",
+        "material": "soft",
+        "regionMaterial": null,
+        "priceUsd": 500.0
+      }
+    },
+    {
+      "name": "Full Bed",
+      "category": "Bedroom",
+      "file": "source/bed_full.svg",
+      "widthIn": 54,
+      "depthIn": 75,
+      "furnishing": {
+        "id": "bed_full",
+        "heightIn": 26,
+        "elevationIn": 0,
+        "form": "bed",
+        "material": "soft",
+        "regionMaterial": null,
+        "priceUsd": 400.0
+      }
+    },
+    {
+      "name": "Twin Bed",
+      "category": "Bedroom",
+      "file": "source/bed_twin.svg",
+      "widthIn": 39,
+      "depthIn": 75,
+      "furnishing": {
+        "id": "bed_twin",
+        "heightIn": 26,
+        "elevationIn": 0,
+        "form": "bed",
+        "material": "soft",
+        "regionMaterial": null,
+        "priceUsd": 300.0
+      }
+    },
+    {
+      "name": "Nightstand",
+      "category": "Bedroom",
+      "file": "source/nightstand.svg",
+      "widthIn": 20,
+      "depthIn": 16,
+      "furnishing": {
+        "id": "nightstand",
+        "heightIn": 26,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 100.0
+      }
+    },
+    {
+      "name": "Dresser",
+      "category": "Bedroom",
+      "file": "source/dresser.svg",
+      "widthIn": 60,
+      "depthIn": 18,
+      "furnishing": {
+        "id": "dresser",
+        "heightIn": 34,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 150.0
+      }
+    },
+    {
+      "name": "Bathtub 5'",
+      "category": "Bathroom",
+      "file": "source/bathtub.svg",
+      "widthIn": 30,
+      "depthIn": 60,
+      "furnishing": {
+        "id": "bathtub",
+        "heightIn": 20,
+        "elevationIn": 0,
+        "form": "vessel",
+        "material": "porcelain",
+        "regionMaterial": "water",
+        "priceUsd": 500.0
+      }
+    },
+    {
+      "name": "Shower 36\"",
+      "category": "Bathroom",
+      "file": "source/shower.svg",
+      "widthIn": 36,
+      "depthIn": 36,
+      "furnishing": {
+        "id": "shower",
+        "heightIn": 78,
+        "elevationIn": 0,
+        "form": "enclosure",
+        "material": "glass",
+        "regionMaterial": null,
+        "priceUsd": 700.0
+      }
+    },
+    {
+      "name": "Luxury Walk-in Shower",
+      "category": "Bathroom",
+      "file": "source/walk_in_shower.svg",
+      "widthIn": 60,
+      "depthIn": 42,
+      "furnishing": {
+        "id": "walk_in_shower",
+        "heightIn": 78,
+        "elevationIn": 0,
+        "form": "enclosure",
+        "material": "glass",
+        "regionMaterial": "stone",
+        "priceUsd": 2500.0
+      }
+    },
+    {
+      "name": "Luxury Glass Shower 5' x 4'",
+      "category": "Bathroom",
+      "file": "source/glass_shower.svg",
+      "widthIn": 60,
+      "depthIn": 48,
+      "furnishing": {
+        "id": "glass_shower",
+        "heightIn": 78,
+        "elevationIn": 0,
+        "form": "enclosure",
+        "material": "glass",
+        "regionMaterial": null,
+        "priceUsd": 3000.0
+      }
+    },
+    {
+      "name": "Toilet",
+      "category": "Bathroom",
+      "file": "source/toilet.svg",
+      "widthIn": 20,
+      "depthIn": 28,
+      "furnishing": {
+        "id": "toilet",
+        "heightIn": 30,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "porcelain",
+        "regionMaterial": null,
+        "priceUsd": 175.0
+      }
+    },
+    {
+      "name": "Bath Vanity 30\"",
+      "category": "Bathroom",
+      "file": "source/vanity.svg",
+      "widthIn": 30,
+      "depthIn": 21,
+      "furnishing": {
+        "id": "vanity",
+        "heightIn": 34,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 600.0
+      }
+    },
+    {
+      "name": "Vanity Base 24\"",
+      "category": "Bathroom",
+      "file": "source/vanity_24.svg",
+      "widthIn": 24,
+      "depthIn": 21,
+      "furnishing": {
+        "id": "vanity_24",
+        "heightIn": 34,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 450.0
+      }
+    },
+    {
+      "name": "Vanity Base 36\"",
+      "category": "Bathroom",
+      "file": "source/vanity_36.svg",
+      "widthIn": 36,
+      "depthIn": 21,
+      "furnishing": {
+        "id": "vanity_36",
+        "heightIn": 34,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 750.0
+      }
+    },
+    {
+      "name": "Double Vanity 48\"",
+      "category": "Bathroom",
+      "file": "source/vanity_48.svg",
+      "widthIn": 48,
+      "depthIn": 21,
+      "furnishing": {
+        "id": "vanity_48",
+        "heightIn": 34,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 950.0
+      }
+    },
+    {
+      "name": "Washer",
+      "category": "Laundry",
+      "file": "source/washer.svg",
+      "widthIn": 27,
+      "depthIn": 30,
+      "furnishing": {
+        "id": "washer",
+        "heightIn": 38,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 500.0
+      }
+    },
+    {
+      "name": "Dryer",
+      "category": "Laundry",
+      "file": "source/dryer.svg",
+      "widthIn": 27,
+      "depthIn": 30,
+      "furnishing": {
+        "id": "dryer",
+        "heightIn": 38,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 500.0
+      }
+    },
+    {
+      "name": "SUV",
+      "category": "Garage",
+      "file": "source/suv.svg",
+      "widthIn": 78,
+      "depthIn": 192,
+      "furnishing": {
+        "id": "suv",
+        "heightIn": 70,
+        "elevationIn": 0,
+        "form": "vehicle",
+        "material": "vehicle",
+        "regionMaterial": null,
+        "priceUsd": 16000.0
+      }
+    },
+    {
+      "name": "Car",
+      "category": "Garage",
+      "file": "source/car.svg",
+      "widthIn": 72,
+      "depthIn": 180,
+      "furnishing": {
+        "id": "car",
+        "heightIn": 56,
+        "elevationIn": 0,
+        "form": "vehicle",
+        "material": "vehicle",
+        "regionMaterial": null,
+        "priceUsd": 12000.0
+      }
+    },
+    {
+      "name": "Motorcycle",
+      "category": "Garage",
+      "file": "source/motorcycle.svg",
+      "widthIn": 32,
+      "depthIn": 84,
+      "furnishing": {
+        "id": "motorcycle",
+        "heightIn": 48,
+        "elevationIn": 0,
+        "form": "vehicle",
+        "material": "vehicle",
+        "regionMaterial": null,
+        "priceUsd": 6000.0
+      }
+    },
+    {
+      "name": "Bicycle",
+      "category": "Garage",
+      "file": "source/bicycle.svg",
+      "widthIn": 24,
+      "depthIn": 68,
+      "furnishing": {
+        "id": "bicycle",
+        "heightIn": 42,
+        "elevationIn": 0,
+        "form": "vehicle",
+        "material": "vehicle",
+        "regionMaterial": null,
+        "priceUsd": 250.0
+      }
+    },
+    {
+      "name": "Boat 14'",
+      "category": "Garage",
+      "file": "source/boat.svg",
+      "widthIn": 68,
+      "depthIn": 168,
+      "furnishing": {
+        "id": "boat",
+        "heightIn": 60,
+        "elevationIn": 0,
+        "form": "vehicle",
+        "material": "vehicle",
+        "regionMaterial": null,
+        "priceUsd": 4500.0
+      }
+    },
+    {
+      "name": "Workbench 6'",
+      "category": "Garage",
+      "file": "source/workbench.svg",
+      "widthIn": 72,
+      "depthIn": 24,
+      "furnishing": {
+        "id": "workbench",
+        "heightIn": 36,
+        "elevationIn": 0,
+        "form": "slab",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 150.0
+      }
+    },
+    {
+      "name": "Storage Shelves",
+      "category": "Garage",
+      "file": "source/storage_shelves.svg",
+      "widthIn": 48,
+      "depthIn": 18,
+      "furnishing": {
+        "id": "storage_shelves",
+        "heightIn": 72,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 150.0
+      }
+    },
+    {
+      "name": "Lawn Mower",
+      "category": "Garage",
+      "file": "source/lawnmower.svg",
+      "widthIn": 22,
+      "depthIn": 62,
+      "furnishing": {
+        "id": "lawnmower",
+        "heightIn": 40,
+        "elevationIn": 0,
+        "form": "vehicle",
+        "material": "vehicle",
+        "regionMaterial": null,
+        "priceUsd": 150.0
+      }
+    },
+    {
+      "name": "Garden Tractor + Loader",
+      "category": "Garage",
+      "file": "source/garden_tractor.svg",
+      "widthIn": 54,
+      "depthIn": 120,
+      "furnishing": {
+        "id": "garden_tractor",
+        "heightIn": 50,
+        "elevationIn": 0,
+        "form": "vehicle",
+        "material": "vehicle",
+        "regionMaterial": null,
+        "priceUsd": 13000.0
+      }
+    },
+    {
+      "name": "Riding Mower + Snowblower",
+      "category": "Garage",
+      "file": "source/riding_mower_snow.svg",
+      "widthIn": 46,
+      "depthIn": 96,
+      "furnishing": {
+        "id": "riding_mower_snow",
+        "heightIn": 46,
+        "elevationIn": 0,
+        "form": "vehicle",
+        "material": "vehicle",
+        "regionMaterial": null,
+        "priceUsd": 1200.0
+      }
+    },
+    {
+      "name": "Boat Trailer",
+      "category": "Garage",
+      "file": "source/boat_trailer.svg",
+      "widthIn": 78,
+      "depthIn": 216,
+      "furnishing": {
+        "id": "boat_trailer",
+        "heightIn": 72,
+        "elevationIn": 0,
+        "form": "vehicle",
+        "material": "vehicle",
+        "regionMaterial": null,
+        "priceUsd": 1100.0
+      }
+    },
+    {
+      "name": "Snow Blower",
+      "category": "Garage",
+      "file": "source/snowblower.svg",
+      "widthIn": 28,
+      "depthIn": 58,
+      "furnishing": {
+        "id": "snowblower",
+        "heightIn": 42,
+        "elevationIn": 0,
+        "form": "vehicle",
+        "material": "vehicle",
+        "regionMaterial": null,
+        "priceUsd": 500.0
+      }
+    },
+    {
+      "name": "Wheelbarrow",
+      "category": "Garage",
+      "file": "source/wheelbarrow.svg",
+      "widthIn": 27,
+      "depthIn": 58,
+      "furnishing": {
+        "id": "wheelbarrow",
+        "heightIn": 30,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 70.0
+      }
+    },
+    {
+      "name": "Trash Can",
+      "category": "Garage",
+      "file": "source/trashcan.svg",
+      "widthIn": 24,
+      "depthIn": 24,
+      "furnishing": {
+        "id": "trashcan",
+        "heightIn": 40,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 35.0
+      }
+    },
+    {
+      "name": "Tool Chest",
+      "category": "Shop",
+      "file": "source/toolchest.svg",
+      "widthIn": 41,
+      "depthIn": 18,
+      "furnishing": {
+        "id": "toolchest",
+        "heightIn": 40,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 300.0
+      }
+    },
+    {
+      "name": "Table Saw",
+      "category": "Shop",
+      "file": "source/table_saw.svg",
+      "widthIn": 40,
+      "depthIn": 27,
+      "furnishing": {
+        "id": "table_saw",
+        "heightIn": 36,
+        "elevationIn": 0,
+        "form": "slab",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 500.0
+      }
+    },
+    {
+      "name": "Lathe 5'",
+      "category": "Shop",
+      "file": "source/lathe.svg",
+      "widthIn": 60,
+      "depthIn": 18,
+      "furnishing": {
+        "id": "lathe",
+        "heightIn": 48,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 2500.0
+      }
+    },
+    {
+      "name": "Jointer 5'",
+      "category": "Shop",
+      "file": "source/jointer.svg",
+      "widthIn": 60,
+      "depthIn": 20,
+      "furnishing": {
+        "id": "jointer",
+        "heightIn": 36,
+        "elevationIn": 0,
+        "form": "slab",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 2000.0
+      }
+    },
+    {
+      "name": "Drill Press",
+      "category": "Shop",
+      "file": "source/drill_press.svg",
+      "widthIn": 20,
+      "depthIn": 28,
+      "furnishing": {
+        "id": "drill_press",
+        "heightIn": 68,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 200.0
+      }
+    },
+    {
+      "name": "Cutoff Saw",
+      "category": "Shop",
+      "file": "source/cutoff_saw.svg",
+      "widthIn": 40,
+      "depthIn": 24,
+      "furnishing": {
+        "id": "cutoff_saw",
+        "heightIn": 40,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 1000.0
+      }
+    },
+    {
+      "name": "Bandsaw",
+      "category": "Shop",
+      "file": "source/bandsaw.svg",
+      "widthIn": 24,
+      "depthIn": 30,
+      "furnishing": {
+        "id": "bandsaw",
+        "heightIn": 72,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 180.0
+      }
+    },
+    {
+      "name": "Planer",
+      "category": "Shop",
+      "file": "source/planer.svg",
+      "widthIn": 24,
+      "depthIn": 24,
+      "furnishing": {
+        "id": "planer",
+        "heightIn": 42,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 300.0
+      }
+    },
+    {
+      "name": "Lounge Chair",
+      "category": "Sunroom",
+      "file": "source/lounge_chair.svg",
+      "widthIn": 27,
+      "depthIn": 78,
+      "furnishing": {
+        "id": "lounge_chair",
+        "heightIn": 30,
+        "elevationIn": 0,
+        "form": "seat",
+        "material": "soft",
+        "regionMaterial": null,
+        "priceUsd": 150.0
+      }
+    },
+    {
+      "name": "Sauna 6'",
+      "category": "Sunroom",
+      "file": "source/sauna.svg",
+      "widthIn": 72,
+      "depthIn": 72,
+      "furnishing": {
+        "id": "sauna",
+        "heightIn": 84,
+        "elevationIn": 0,
+        "form": "enclosure",
+        "material": "wood",
+        "regionMaterial": "metal",
+        "priceUsd": 3500.0
+      }
+    },
+    {
+      "name": "Umbrella Table",
+      "category": "Sunroom",
+      "file": "source/umbrella_table.svg",
+      "widthIn": 96,
+      "depthIn": 96,
+      "furnishing": {
+        "id": "umbrella_table",
+        "heightIn": 30,
+        "elevationIn": 0,
+        "form": "slab",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 1500.0
+      }
+    },
+    {
+      "name": "Swim Spa",
+      "category": "Sunroom",
+      "file": "source/swim_spa.svg",
+      "widthIn": 90,
+      "depthIn": 180,
+      "furnishing": {
+        "id": "swim_spa",
+        "heightIn": 40,
+        "elevationIn": 0,
+        "form": "vessel",
+        "material": "porcelain",
+        "regionMaterial": "water",
+        "priceUsd": 15000.0
+      }
+    },
+    {
+      "name": "Whirlpool",
+      "category": "Sunroom",
+      "file": "source/whirlpool.svg",
+      "widthIn": 84,
+      "depthIn": 84,
+      "furnishing": {
+        "id": "whirlpool",
+        "heightIn": 36,
+        "elevationIn": 0,
+        "form": "vessel",
+        "material": "porcelain",
+        "regionMaterial": "water",
+        "priceUsd": 6500.0
+      }
+    },
+    {
+      "name": "Desk 5'",
+      "category": "Office / Storage",
+      "file": "source/desk.svg",
+      "widthIn": 60,
+      "depthIn": 30,
+      "furnishing": {
+        "id": "desk",
+        "heightIn": 30,
+        "elevationIn": 0,
+        "form": "slab",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 350.0
+      }
+    },
+    {
+      "name": "Office Chair",
+      "category": "Office / Storage",
+      "file": "source/office_chair.svg",
+      "widthIn": 24,
+      "depthIn": 24,
+      "furnishing": {
+        "id": "office_chair",
+        "heightIn": 40,
+        "elevationIn": 0,
+        "form": "seat",
+        "material": "soft",
+        "regionMaterial": null,
+        "priceUsd": 120.0
+      }
+    },
+    {
+      "name": "Office Desk & Chair",
+      "category": "Office / Storage",
+      "file": "source/office_set.svg",
+      "widthIn": 54,
+      "depthIn": 36,
+      "furnishing": {
+        "id": "office_set",
+        "heightIn": 30,
+        "elevationIn": 0,
+        "form": "slab",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 450.0
+      }
+    },
+    {
+      "name": "Corner Desk 5'",
+      "category": "Office / Storage",
+      "file": "source/corner_desk.svg",
+      "widthIn": 60,
+      "depthIn": 60,
+      "furnishing": {
+        "id": "corner_desk",
+        "heightIn": 30,
+        "elevationIn": 0,
+        "form": "slab",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 400.0
+      }
+    },
+    {
+      "name": "Bookshelf 3'",
+      "category": "Office / Storage",
+      "file": "source/bookshelf.svg",
+      "widthIn": 36,
+      "depthIn": 12,
+      "furnishing": {
+        "id": "bookshelf",
+        "heightIn": 72,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 180.0
+      }
+    },
+    {
+      "name": "Wardrobe 4'",
+      "category": "Office / Storage",
+      "file": "source/wardrobe.svg",
+      "widthIn": 48,
+      "depthIn": 24,
+      "furnishing": {
+        "id": "wardrobe",
+        "heightIn": 72,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 250.0
+      }
+    },
+    {
+      "name": "Gas Furnace",
+      "category": "HVAC",
+      "file": "source/gas_furnace.svg",
+      "widthIn": 24,
+      "depthIn": 30,
+      "furnishing": {
+        "id": "gas_furnace",
+        "heightIn": 60,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 1200.0
+      }
+    },
+    {
+      "name": "Electric Furnace",
+      "category": "HVAC",
+      "file": "source/electric_furnace.svg",
+      "widthIn": 21,
+      "depthIn": 30,
+      "furnishing": {
+        "id": "electric_furnace",
+        "heightIn": 60,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 1500.0
+      }
+    },
+    {
+      "name": "Oil Furnace",
+      "category": "HVAC",
+      "file": "source/oil_furnace.svg",
+      "widthIn": 26,
+      "depthIn": 34,
+      "furnishing": {
+        "id": "oil_furnace",
+        "heightIn": 60,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 2400.0
+      }
+    },
+    {
+      "name": "Gas Water Heater",
+      "category": "HVAC",
+      "file": "source/gas_water_heater.svg",
+      "widthIn": 22,
+      "depthIn": 22,
+      "furnishing": {
+        "id": "gas_water_heater",
+        "heightIn": 60,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 700.0
+      }
+    },
+    {
+      "name": "Electric Water Heater",
+      "category": "HVAC",
+      "file": "source/electric_water_heater.svg",
+      "widthIn": 22,
+      "depthIn": 22,
+      "furnishing": {
+        "id": "electric_water_heater",
+        "heightIn": 60,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 600.0
+      }
+    },
+    {
+      "name": "Water Softener",
+      "category": "HVAC",
+      "file": "source/water_softener.svg",
+      "widthIn": 24,
+      "depthIn": 15,
+      "furnishing": {
+        "id": "water_softener",
+        "heightIn": 48,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 700.0
+      }
+    },
+    {
+      "name": "Gas Tank",
+      "category": "HVAC",
+      "file": "source/gas_tank.svg",
+      "widthIn": 120,
+      "depthIn": 36,
+      "furnishing": {
+        "id": "gas_tank",
+        "heightIn": 40,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 1500.0
+      }
+    },
+    {
+      "name": "Oil Tank",
+      "category": "HVAC",
+      "file": "source/oil_tank.svg",
+      "widthIn": 60,
+      "depthIn": 27,
+      "furnishing": {
+        "id": "oil_tank",
+        "heightIn": 44,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 1200.0
+      }
+    },
+    {
+      "name": "Electric Panel",
+      "category": "HVAC",
+      "file": "source/electric_panel.svg",
+      "widthIn": 16,
+      "depthIn": 4,
+      "furnishing": {
+        "id": "electric_panel",
+        "heightIn": 30,
+        "elevationIn": 48,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 500.0
+      }
+    },
+    {
+      "name": "Car Charger",
+      "category": "HVAC",
+      "file": "source/car_charger.svg",
+      "widthIn": 8,
+      "depthIn": 6,
+      "furnishing": {
+        "id": "car_charger",
+        "heightIn": 14,
+        "elevationIn": 42,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 550.0
+      }
+    },
+    {
+      "name": "Battery Wall",
+      "category": "HVAC",
+      "file": "source/battery_wall.svg",
+      "widthIn": 45,
+      "depthIn": 6,
+      "furnishing": {
+        "id": "battery_wall",
+        "heightIn": 30,
+        "elevationIn": 24,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 9200.0
+      }
+    },
+    {
+      "name": "Well Pump",
+      "category": "HVAC",
+      "file": "source/well_pump.svg",
+      "widthIn": 24,
+      "depthIn": 24,
+      "furnishing": {
+        "id": "well_pump",
+        "heightIn": 36,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 900.0
+      }
+    },
+    {
+      "name": "Heat Exchanger",
+      "category": "HVAC",
+      "file": "source/heat_exchanger.svg",
+      "widthIn": 30,
+      "depthIn": 30,
+      "furnishing": {
+        "id": "heat_exchanger",
+        "heightIn": 30,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 1200.0
+      }
+    },
+    {
+      "name": "Stairs (flight)",
+      "category": "Framing",
+      "file": "source/stairs.svg",
+      "widthIn": 36,
+      "depthIn": 120,
+      "furnishing": {
+        "id": "stairs",
+        "heightIn": 108,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 3500.0
+      }
+    },
+    {
+      "name": "Residential Elevator",
+      "category": "Framing",
+      "file": "source/elevator.svg",
+      "widthIn": 48,
+      "depthIn": 60,
+      "furnishing": {
+        "id": "elevator",
+        "heightIn": 96,
+        "elevationIn": 0,
+        "form": "box",
+        "material": "metal",
+        "regionMaterial": null,
+        "priceUsd": 40000.0
+      }
+    },
+    {
+      "name": "Post 6x6",
+      "category": "Framing",
+      "file": "source/post.svg",
+      "widthIn": 6,
+      "depthIn": 6,
+      "furnishing": {
+        "id": "post",
+        "heightIn": 96,
+        "elevationIn": 0,
+        "form": "column",
+        "material": "wood",
+        "regionMaterial": null,
+        "priceUsd": 0.0
+      }
+    }
+  ]
+}
