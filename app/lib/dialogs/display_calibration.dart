@@ -36,7 +36,7 @@ class _DisplayCalibrationDialogState extends State<DisplayCalibrationDialog> {
     super.initState();
     final initial = widget.initialZoom;
     _adjustedZoom = initial != null && initial.isFinite
-        ? initial.clamp(kMinZoom, kMaxZoom)
+        ? initial.clamp(kMinCalibrationZoom, kMaxCalibrationZoom)
         : 1;
     final metrics = widget.metrics;
     _dpiController = TextEditingController(
@@ -77,11 +77,11 @@ class _DisplayCalibrationDialogState extends State<DisplayCalibrationDialog> {
         final millimeters = parseDoubleInput(_referenceController.text);
         if (millimeters == null || millimeters <= 0) return null;
         final maxZoom = min(
-          kMaxZoom,
+          kMaxCalibrationZoom,
           width / (millimeters * kCanvasUnitsPerMillimeter),
         );
-        if (maxZoom < kMinZoom) return null;
-        zoom = _adjustedZoom.clamp(kMinZoom, maxZoom);
+        if (maxZoom < kMinCalibrationZoom) return null;
+        zoom = _adjustedZoom.clamp(kMinCalibrationZoom, maxZoom);
       case DisplayCalibrationMethod.measure:
         final millimeters = parseDoubleInput(_lengthController.text);
         if (millimeters == null || millimeters <= 0) return null;
@@ -93,7 +93,11 @@ class _DisplayCalibrationDialogState extends State<DisplayCalibrationDialog> {
             dpi /
             (kCanvasUnitsPerInch * MediaQuery.devicePixelRatioOf(context));
     }
-    return zoom.isFinite && zoom >= kMinZoom && zoom <= kMaxZoom ? zoom : null;
+    return zoom.isFinite &&
+            zoom >= kMinCalibrationZoom &&
+            zoom <= kMaxCalibrationZoom
+        ? zoom
+        : null;
   }
 
   Widget _reference(double width) => Center(
@@ -130,15 +134,15 @@ class _DisplayCalibrationDialogState extends State<DisplayCalibrationDialog> {
           final valid =
               length != null &&
               length > 0 &&
-              length * kCanvasUnitsPerMillimeter * kMinZoom <=
+              length * kCanvasUnitsPerMillimeter * kMinCalibrationZoom <=
                   constraints.maxWidth;
           final maxZoom = valid
               ? min(
-                  kMaxZoom,
+                  kMaxCalibrationZoom,
                   constraints.maxWidth / (length * kCanvasUnitsPerMillimeter),
                 )
-              : kMaxZoom;
-          final zoom = _adjustedZoom.clamp(kMinZoom, maxZoom);
+              : kMaxCalibrationZoom;
+          final zoom = _adjustedZoom.clamp(kMinCalibrationZoom, maxZoom);
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -150,17 +154,20 @@ class _DisplayCalibrationDialogState extends State<DisplayCalibrationDialog> {
                 children: [
                   IconButton.filledTonal(
                     tooltip: l10n.zoomOut,
-                    onPressed: !valid || zoom <= kMinZoom
+                    onPressed: !valid || zoom <= kMinCalibrationZoom
                         ? null
                         : () => setState(
-                            () => _adjustedZoom = max(kMinZoom, zoom - .001),
+                            () => _adjustedZoom = max(
+                              kMinCalibrationZoom,
+                              zoom - .001,
+                            ),
                           ),
                     icon: const Icon(Icons.remove),
                   ),
                   Expanded(
                     child: Slider(
                       key: const ValueKey('display-calibration-adjustment'),
-                      min: kMinZoom,
+                      min: kMinCalibrationZoom,
                       max: maxZoom,
                       value: zoom,
                       onChanged: !valid

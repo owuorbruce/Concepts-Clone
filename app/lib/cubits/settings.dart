@@ -1084,7 +1084,11 @@ sealed class ButterflySettings with _$ButterflySettings, LeapSettings {
     final density = displayCalibrations[key];
     if (density == null) return null;
     final zoom = density / kCanvasUnitsPerMillimeter;
-    return zoom.isFinite && zoom >= kMinZoom && zoom <= kMaxZoom ? zoom : null;
+    return zoom.isFinite &&
+            zoom >= kMinCalibrationZoom &&
+            zoom <= kMaxCalibrationZoom
+        ? zoom
+        : null;
   }
 
   Future<void> save() async {
@@ -1469,7 +1473,9 @@ class SettingsCubit(SharedPreferences prefs)
 
   Future<void> changeDisplayCalibration(String key, double? zoom) {
     if (zoom != null &&
-        (!zoom.isFinite || zoom < kMinZoom || zoom > kMaxZoom)) {
+        (!zoom.isFinite ||
+            zoom < kMinCalibrationZoom ||
+            zoom > kMaxCalibrationZoom)) {
       throw ArgumentError.value(
         zoom,
         'zoom',

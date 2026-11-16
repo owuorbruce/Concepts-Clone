@@ -1,4 +1,7 @@
+import 'dart:math';
 import 'dart:ui';
+
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import 'package:butterfly/helpers/xml.dart';
 import 'package:butterfly_api/butterfly_api.dart';
@@ -15,6 +18,7 @@ void drawSurfaceTextureOnCanvas(
   Size size, [
   Offset translation = .zero,
   bool extraLines = false,
+  double? zoom,
 ]) => switch (texture) {
   PatternTexture e => drawPatternTextureOnCanvas(
     e,
@@ -24,6 +28,7 @@ void drawSurfaceTextureOnCanvas(
     size,
     translation,
     extraLines,
+    zoom,
   ),
 };
 

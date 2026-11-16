@@ -23,19 +23,19 @@ class _RendererSpatialIndex(List<Renderer<PadElement>> renderers) {
     for (var index = 0; index < renderers.length; index++) {
       final bounds = renderers[index].expandedRect;
       _bounds[index] = bounds;
-      if (bounds == null) {
+      if (bounds == null || !bounds.isFinite) {
         _unbounded.add(index);
+        continue;
+      }
+      final cellCount = _cellCount(bounds);
+      if (cellCount > _maxCellsPerRenderer) {
+        _large.add(index);
         continue;
       }
       final left = (bounds.left / _cellSize).floor();
       final top = (bounds.top / _cellSize).floor();
       final right = (bounds.right / _cellSize).floor();
       final bottom = (bounds.bottom / _cellSize).floor();
-      final cellCount = (right - left + 1) * (bottom - top + 1);
-      if (cellCount > _maxCellsPerRenderer) {
-        _large.add(index);
-        continue;
-      }
       for (var x = left; x <= right; x++) {
         for (var y = top; y <= bottom; y++) {
           (_cells[(x, y)] ??= <int>[]).add(index);
@@ -53,22 +53,31 @@ class _RendererSpatialIndex(List<Renderer<PadElement>> renderers) {
   bool _isVisible(int index, Rect rect) =>
       _bounds[index]?.overlaps(rect) ?? true;
 
+  // Counted in doubles: zoomed far out a query spans ~10^12 cells per side,
+  // and an int product would overflow and walk every cell.
+  static double _cellCount(Rect rect) =>
+      ((rect.right / _cellSize).floorToDouble() -
+          (rect.left / _cellSize).floorToDouble() +
+          1) *
+      ((rect.bottom / _cellSize).floorToDouble() -
+          (rect.top / _cellSize).floorToDouble() +
+          1);
+
   List<Renderer<PadElement>> query(
     List<Renderer<PadElement>> renderers,
     Rect rect,
   ) {
     final indices = <int>{..._large, ..._unbounded};
-    final left = (rect.left / _cellSize).floor();
-    final top = (rect.top / _cellSize).floor();
-    final right = (rect.right / _cellSize).floor();
-    final bottom = (rect.bottom / _cellSize).floor();
-    final queryCellCount = (right - left + 1) * (bottom - top + 1);
-    if (queryCellCount > _maxQueryCells) {
+    if (!rect.isFinite || _cellCount(rect) > _maxQueryCells) {
       return [
         for (var index = 0; index < renderers.length; index++)
           if (_isVisible(index, rect)) renderers[index],
       ];
     }
+    final left = (rect.left / _cellSize).floor();
+    final top = (rect.top / _cellSize).floor();
+    final right = (rect.right / _cellSize).floor();
+    final bottom = (rect.bottom / _cellSize).floor();
     for (var x = left; x <= right; x++) {
       for (var y = top; y <= bottom; y++) {
         final cell = _cells[(x, y)];
@@ -281,11 +290,18 @@ class RendererCubit(
     Rect rect = transform.localToGlobalRect(Offset.zero & size);
     if (friction != null) {
       final beginPosition = transform.position - friction.beginOffset;
-      rect = rect.expandToInclude(
+      final expanded = rect.expandToInclude(
         transform
             .withPosition(beginPosition)
             .localToGlobalRect(Offset.zero & size),
       );
+      // The bake image is the rect's screen size. Covering the whole fling
+      // path must not make it larger than a normal bake, at any zoom.
+      final limit = (Offset.zero & size).size * resolution.multiplier;
+      if (expanded.width * transform.size <= limit.width &&
+          expanded.height * transform.size <= limit.height) {
+        rect = expanded;
+      }
     }
     return _snapViewportRect(rect, size, transform, resolution);
   }
@@ -905,6 +921,8 @@ class RendererCubit(
         invisibleLayers: invisibleLayers,
         cameraViewport: viewport,
         transform: transform,
+        // Exports contain every element, however small.
+        reduceDetail: false,
       ).paint(canvas, exportSize);
       final picture = recorder.endRecording();
       try {

@@ -254,8 +254,15 @@ class RulerRenderer extends Renderer<RulerTool> {
       ..style = PaintingStyle.fill;
     final rulerForegroundPaint = Paint()..color = rulerForegroundColor;
 
-    // Calculate steps based on zoom level
+    // Calculate steps based on zoom level. Ticks closer than 8 px are
+    // unreadable, and the tick count must not grow with the zoom: coarsen by
+    // five until both hold.
     var steps = 50;
+    final rulerExtent = size.width * transform.size * 2;
+    while (steps < 1e15 &&
+        (steps / transform.size < 8 || rulerExtent / steps > 400)) {
+      steps *= 5;
+    }
 
     // Paint ruler background
     canvas.drawRect(rulerRect, rulerBackgroundPaint);
@@ -266,8 +273,10 @@ class RulerRenderer extends Renderer<RulerTool> {
 
     // Paint ruler lines
     int x = steps;
-    var even = (transform.position.dx ~/ (steps / transform.size)) % 2 == 0;
-    while (x <= size.width * transform.size * 2) {
+    final tickSpacing = steps / transform.size;
+    final tickIndex = transform.position.dx / tickSpacing;
+    var even = !tickIndex.isFinite || tickIndex.floor() % 2 == 0;
+    while (x <= rulerExtent) {
       final posX =
           x / transform.size -
           (transform.position.dx % (steps / transform.size)) -

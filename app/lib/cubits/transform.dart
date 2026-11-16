@@ -17,8 +17,25 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'transform.freezed.dart';
 
-const kMinZoom = 0.1;
-const kMaxZoom = 10.0;
+/// Smallest camera scale. Endless canvas: a 40 ft house is a speck long
+/// before this, but double precision still resolves the view.
+const kMinZoom = 1e-6;
+
+/// Largest camera scale.
+const kMaxZoom = 1000.0;
+
+/// Display calibration keeps its original range; it maps physical size to
+/// 100 %, so a calibration outside this range is a measuring mistake.
+const kMinCalibrationZoom = 0.1;
+const kMaxCalibrationZoom = 10.0;
+
+/// Clamps [size] to the supported zoom range. A NaN or infinite request keeps
+/// [current], so a broken gesture or calculation never corrupts the camera.
+double clampZoom(double size, double current) {
+  if (!size.isFinite) return current;
+  return size.clamp(kMinZoom, kMaxZoom).toDouble();
+}
+
 const kRoundPrecision = 3;
 const kDrag = 0.001;
 const kBoundsSnapBackDuration = 0.18;
@@ -47,7 +64,7 @@ class const CameraTransform([
 
   CameraTransform withSize(double size, [Offset cursor = .zero]) {
     // Set size and focus on cursor if provided
-    final double newSize = size.clamp(kMinZoom, kMaxZoom);
+    final double newSize = clampZoom(size, this.size);
     return CameraTransform(
       pixelRatio,
       localToGlobal(cursor) - cursor.rotate(Offset.zero, -rotation) / newSize,
@@ -135,7 +152,9 @@ class const CameraTransform([
     final finalPosition = positionBounds == null
         ? position - finalPos
         : _clampPosition(position - finalPos, positionBounds);
-    final finalScale = (size + finalSize).clamp(kMinZoom, kMaxZoom);
+    // The gesture's scale velocity is relative (1/s), so apply it as a
+    // factor. Adding it to the size would jump from 0.001 % to 100 %.
+    final finalScale = clampZoom(size * exp(finalSize), size);
     var duration = max(durationPosition, durationSize);
     if (!duration.isFinite) {
       duration = 0;
@@ -182,6 +201,9 @@ class TransformCubit(double pixelRatio, [Offset? position])
   this : super(CameraTransform(pixelRatio, position ?? .zero));
 
   double toCameraScale(double percent, double reference) {
+    if (!percent.isFinite || !reference.isFinite || reference <= 0) {
+      return state.size;
+    }
     if (percent <= kMinZoom / reference * 100) return kMinZoom;
     if (percent >= kMaxZoom / reference * 100) return kMaxZoom;
     return percent / 100 * reference;
@@ -225,7 +247,7 @@ class TransformCubit(double pixelRatio, [Offset? position])
     final effectiveScreen = screen / resolution.multiplier;
     final width = effectiveScreen.width / area.width;
     final height = effectiveScreen.height / area.height;
-    final size = min(width, height).clamp(kMinZoom, kMaxZoom);
+    final size = clampZoom(min(width, height), state.size);
     final position =
         area.rect.center - effectiveScreen.center(Offset.zero) / size;
     teleport(position, size);

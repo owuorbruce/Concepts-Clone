@@ -26,8 +26,11 @@ class PenRenderer extends Renderer<PenElement> {
   Rect expandedRect;
   Rect _localExpandedRect;
 
+  // Cached paths are relative to [_pathOrigin] (the stroke's top-left), so
+  // they keep full precision far from the canvas origin.
   Path? _cachedFillPath;
   Path? _cachedStrokePath;
+  Offset _pathOrigin = Offset.zero;
   PathHitCalculator? _cachedHitCalculator;
   final _strokePaint = ElementPaintRenderer();
   final _fillPaint = ElementPaintRenderer();
@@ -59,19 +62,22 @@ class PenRenderer extends Renderer<PenElement> {
     final points = element.points;
     if (points.isEmpty) return;
     final property = element.property;
+    final origin = _pathOrigin = rect.topLeft;
 
     if (property.fillPaint.previewColor.a > 0) {
       _cachedFillPath = Path();
       final first = points.first;
-      _cachedFillPath!.moveTo(first.x, first.y);
+      _cachedFillPath!.moveTo(first.x - origin.dx, first.y - origin.dy);
       for (var i = 1; i < points.length; i++) {
         final point = points[i];
-        _cachedFillPath!.lineTo(point.x, point.y);
+        _cachedFillPath!.lineTo(point.x - origin.dx, point.y - origin.dy);
       }
     }
 
     if (property.paint.previewColor.a > 0) {
-      final outlinePoints = _getOutlinePoints();
+      final outlinePoints = [
+        for (final point in _getOutlinePoints()) point - origin,
+      ];
       if (outlinePoints.isNotEmpty) {
         final strokePath = Path();
         if (outlinePoints.length < 2) {
@@ -192,7 +198,21 @@ class PenRenderer extends Renderer<PenElement> {
     _build(canvas, BlendMode.src);
   }
 
-  void _build(Canvas canvas, [BlendMode? blendMode]) {
+  /// The point [buildLocal] draws relative to.
+  Offset get localOrigin {
+    if (_cachedFillPath == null && _cachedStrokePath == null) {
+      _computePaths();
+    }
+    return _pathOrigin;
+  }
+
+  /// Draws with the canvas origin already moved to [localOrigin]. The caller
+  /// computes that translation in double precision, which keeps strokes far
+  /// from the canvas origin sharp and steady when zoomed in.
+  void buildLocal(Canvas canvas, {bool combined = false}) =>
+      _build(canvas, combined ? BlendMode.src : null, true);
+
+  void _build(Canvas canvas, [BlendMode? blendMode, bool local = false]) {
     final points = element.points;
     if (points.isEmpty) return;
     final property = element.property;
@@ -200,24 +220,41 @@ class PenRenderer extends Renderer<PenElement> {
     if (_cachedFillPath == null && _cachedStrokePath == null) {
       _computePaths();
     }
+    final origin = _pathOrigin;
+    if (!local) {
+      canvas.save();
+      canvas.translate(origin.dx, origin.dy);
+    }
 
     if (property.fillPaint.previewColor.a > 0 && _cachedFillPath != null) {
-      final paint = _fillPaint.build(property.fillPaint, rect, style: .fill)
-        ..strokeCap = StrokeCap.round
-        ..blendMode = blendMode ?? BlendMode.srcOver;
+      final paint =
+          _fillPaint.build(
+              property.fillPaint,
+              rect.shift(-origin),
+              style: .fill,
+            )
+            ..strokeCap = StrokeCap.round
+            ..blendMode = blendMode ?? BlendMode.srcOver;
       canvas.drawPath(_cachedFillPath!, paint);
     }
     if (property.paint.previewColor.a > 0 && _cachedStrokePath != null) {
       final paint =
-          _strokePaint.build(property.paint, expandedRect, style: .fill)
+          _strokePaint.build(
+              property.paint,
+              expandedRect.shift(-origin),
+              style: .fill,
+            )
             ..strokeCap = StrokeCap.round
             ..blendMode = blendMode ?? BlendMode.srcOver;
       canvas.drawPath(_cachedStrokePath!, paint);
     }
+    if (!local) canvas.restore();
   }
 
   List<Offset> _getOutlinePoints() {
-    final currentZoom = element.zoom ?? kMaxZoom;
+    // Strokes saved without a zoom were outlined at the old maximum zoom.
+    // Keep that literal so they render unchanged now that kMaxZoom is 1000.
+    final currentZoom = element.zoom ?? 10.0;
     final property = element.property;
     final center = rect.center;
     var outlinePoints = freehand.getStroke(

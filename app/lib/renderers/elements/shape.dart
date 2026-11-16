@@ -116,11 +116,21 @@ class ShapeRenderer extends Renderer<ShapeElement> {
     CameraTransform transform, [
     ColorScheme? colorScheme,
     bool foreground = false,
-  ]) {
+  ]) => _draw(canvas, Offset.zero);
+
+  /// The point [buildLocal] draws relative to.
+  Offset get localOrigin => rect.topLeft;
+
+  /// Draws with the canvas origin already moved to [localOrigin]. The caller
+  /// computes that translation in double precision, which keeps shapes far
+  /// from the canvas origin sharp and steady when zoomed in.
+  void buildLocal(Canvas canvas) => _draw(canvas, localOrigin);
+
+  void _draw(Canvas canvas, Offset origin) {
     final shape = element.property.shape;
     final strokeWidth = element.property.strokeWidth;
-    final paint = _buildPaint();
-    final drawRect = rect.inflate(-strokeWidth / 2);
+    final paint = _buildPaint(origin: origin);
+    final drawRect = rect.shift(-origin).inflate(-strokeWidth / 2);
     if (shape is RectangleShape) {
       // Percentage-based radius
       final topLeftCornerRadius = Radius.circular(
@@ -143,7 +153,7 @@ class ShapeRenderer extends Renderer<ShapeElement> {
           bottomLeft: bottomLeftCornerRadius,
           bottomRight: bottomRightCornerRadius,
         ),
-        _buildPaint(paint: shape.fillPaint, style: .fill),
+        _buildPaint(paint: shape.fillPaint, style: .fill, origin: origin),
       );
       if (strokeWidth > 0) {
         final rrect = RRect.fromRectAndCorners(
@@ -159,7 +169,7 @@ class ShapeRenderer extends Renderer<ShapeElement> {
     } else if (shape is CircleShape) {
       canvas.drawOval(
         drawRect,
-        _buildPaint(paint: shape.fillPaint, style: .fill),
+        _buildPaint(paint: shape.fillPaint, style: .fill, origin: origin),
       );
       if (strokeWidth > 0) {
         final path = Path()..addOval(drawRect);
@@ -167,8 +177,14 @@ class ShapeRenderer extends Renderer<ShapeElement> {
       }
     } else if (shape is LineShape) {
       final path = Path()
-        ..moveTo(element.firstPosition.x, element.firstPosition.y)
-        ..lineTo(element.secondPosition.x, element.secondPosition.y);
+        ..moveTo(
+          element.firstPosition.x - origin.dx,
+          element.firstPosition.y - origin.dy,
+        )
+        ..lineTo(
+          element.secondPosition.x - origin.dx,
+          element.secondPosition.y - origin.dy,
+        );
       _drawStyledPath(canvas, path, paint);
     } else if (shape is TriangleShape) {
       final points = _trianglePoints(drawRect, element);
@@ -177,17 +193,26 @@ class ShapeRenderer extends Renderer<ShapeElement> {
         ..lineTo(points.right.dx, points.right.dy)
         ..lineTo(points.left.dx, points.left.dy)
         ..close();
-      canvas.drawPath(path, _buildPaint(paint: shape.fillPaint, style: .fill));
+      canvas.drawPath(
+        path,
+        _buildPaint(paint: shape.fillPaint, style: .fill, origin: origin),
+      );
       if (strokeWidth > 0) {
         _drawStyledPath(canvas, path, paint);
       }
     }
   }
 
-  Paint _buildPaint({ElementPaint? paint, PaintingStyle? style}) {
+  Paint _buildPaint({
+    ElementPaint? paint,
+    PaintingStyle? style,
+    Offset origin = Offset.zero,
+  }) {
     final renderer = paint == null ? _strokePaint : _fillPaint;
     final effectiveStyle = style ?? PaintingStyle.stroke;
-    final bounds = effectiveStyle == .stroke ? expandedRect : rect;
+    final bounds = (effectiveStyle == .stroke ? expandedRect : rect).shift(
+      -origin,
+    );
     final result = renderer.build(
       paint ?? element.property.paint,
       bounds,
