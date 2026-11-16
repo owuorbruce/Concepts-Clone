@@ -5,12 +5,44 @@ import 'package:butterfly/bloc/document_bloc.dart';
 import 'package:butterfly/cubits/editor_controller.dart';
 import 'package:butterfly/cubits/settings.dart';
 import 'package:butterfly/cubits/transform.dart';
+import 'package:butterfly/services/display_calibration.dart';
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly/widgets/fading_view.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:material_leap/material_leap.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+
+/// Number of decimals that keeps [percent] readable at any zoom: none from
+/// 10 % up, one from 1 %, then two significant digits below 1 %.
+int zoomFractionDigits(double percent) {
+  if (!percent.isFinite || percent <= 0 || percent >= 10) return 0;
+  if (percent >= 1) return 1;
+  return (1 - (log(percent) / ln10).floor()).clamp(0, 10);
+}
+
+/// Formats a zoom percentage without the unit, for example `0.0001`, `0.05`,
+/// `12`, `250` or `50,000`.
+String formatZoomPercent(double percent) {
+  if (!percent.isFinite) return '–';
+  final digits = zoomFractionDigits(percent);
+  if (digits == 0) {
+    final text = percent.round().toString();
+    final buffer = StringBuffer();
+    for (var i = 0; i < text.length; i++) {
+      if (i > 0 && (text.length - i) % 3 == 0) buffer.write(',');
+      buffer.write(text[i]);
+    }
+    return buffer.toString();
+  }
+  var text = percent.toStringAsFixed(digits);
+  if (text.contains('.')) {
+    text = text
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
+  }
+  return text;
+}
 
 class ZoomView extends StatefulWidget {
   final bool isMobile;
@@ -45,7 +77,7 @@ class _ZoomViewState extends State<ZoomView> {
   void _zoom(double percent) {
     final controller = context.read<EditorController>();
     controller.transformCubit.sizeConstrained(
-      percent / 100,
+      controller.transformCubit.toCameraScale(percent, displayZoom(context)),
       cursor: _center,
       force: true,
       runtime: controller,
@@ -81,6 +113,9 @@ class _ZoomViewState extends State<ZoomView> {
     required ValueChanged<double> onChanged,
     required ValueChanged<double> onChangeEnd,
     ValueChanged<bool>? onFocusChanged,
+    String Function(double value)? format,
+    int fractionDigits = 1,
+    bool logarithmic = false,
   }) => LayoutBuilder(
     key: key,
     builder: (context, constraints) {
@@ -96,10 +131,18 @@ class _ZoomViewState extends State<ZoomView> {
               },
         icon: resetIcon,
       );
+      String text(double value) =>
+          format?.call(value) ?? value.toStringAsFixed(1);
+      // A logarithmic slider gives every factor of ten the same travel, so
+      // 0.0001 % to 100,000 % stays usable on one track.
+      double toSlider(double value) => logarithmic ? log(value) / ln10 : value;
+      double fromSlider(double value) =>
+          logarithmic ? pow(10, value).toDouble() : value;
+      final sliderMin = toSlider(min), sliderMax = toSlider(max);
       final slider = Semantics(
         label: label,
         child: Tooltip(
-          message: '$label: ${value.toStringAsFixed(1)}$unit',
+          message: '$label: ${text(value)}$unit',
           excludeFromSemantics: true,
           child: SliderTheme(
             data: SliderTheme.of(context).copyWith(
@@ -108,24 +151,47 @@ class _ZoomViewState extends State<ZoomView> {
               padding: const EdgeInsets.symmetric(horizontal: 8),
             ),
             child: Slider(
-              value: value.clamp(min, max),
-              min: min,
-              max: max,
+              value: toSlider(value.clamp(min, max))
+                  .clamp(sliderMin, sliderMax),
+              min: sliderMin,
+              max: sliderMax,
               activeColor: color,
-              label: '${value.toStringAsFixed(1)}$unit',
+              label: '${text(value)}$unit',
               semanticFormatterCallback: (value) =>
-                  '${value.toStringAsFixed(1)}$unit',
-              onChanged: onChanged,
-              onChangeEnd: onChangeEnd,
+                  '${text(fromSlider(value))}$unit',
+              onChanged: (value) => onChanged(fromSlider(value)),
+              onChangeEnd: (value) => onChangeEnd(fromSlider(value)),
             ),
           ),
         ),
       );
       if (!controls.showInput) {
+        Widget stepButton(int direction, Widget icon) {
+          final next = (value + direction * step).clamp(min, max).toDouble();
+          return IconButton(
+            onPressed: next == value
+                ? null
+                : () {
+                    FocusScope.of(context).unfocus();
+                    onChanged(next);
+                    onChangeEnd(next);
+                  },
+            icon: icon,
+          );
+        }
+
         return Row(
+          mainAxisSize: controls.showSlider
+              ? MainAxisSize.max
+              : MainAxisSize.min,
           children: [
             reset,
-            Expanded(child: slider),
+            if (controls.showButtons) ...[
+              const SizedBox(height: 24, child: VerticalDivider(width: 8)),
+              stepButton(-1, decrementIcon),
+              stepButton(1, incrementIcon),
+            ],
+            if (controls.showSlider) Expanded(child: slider),
           ],
         );
       }
@@ -137,7 +203,7 @@ class _ZoomViewState extends State<ZoomView> {
           min: min,
           max: max,
           step: step,
-          fractionDigits: 1,
+          fractionDigits: fractionDigits,
           roundValues: true,
           showButtons: controls.showButtons,
           decrementIcon: decrementIcon,
@@ -209,11 +275,13 @@ class _ZoomViewState extends State<ZoomView> {
         hideUi != HideState.visible) {
       return const SizedBox.shrink();
     }
+    final reference = displayZoom(context, listen: true);
+    final zoomPercent = transform.size / reference * 100;
     final l10n = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
     return FadingView(
       autoHide: settings.visibility.isTemporary(widget.isMobile),
-      activityKey: transform,
+      activityKey: (transform, reference),
       child: IconButtonTheme(
         data: IconButtonThemeData(
           style: IconButton.styleFrom(
@@ -279,11 +347,17 @@ class _ZoomViewState extends State<ZoomView> {
                   label: '${l10n.zoom} (%)',
                   unit: '%',
                   color: colorScheme.primary,
-                  value: transform.size * 100,
-                  min: kMinZoom * 100,
-                  max: kMaxZoom * 100,
+                  value: zoomPercent,
+                  min: kMinZoom / reference * 100,
+                  max: kMaxZoom / reference * 100,
                   defaultValue: 100,
-                  step: settings.zoomStep * 100,
+                  // Step relative to the current zoom: at 100 % this is the
+                  // configured step, at 0.05 % it no longer jumps to the
+                  // minimum.
+                  step: max(zoomPercent * settings.zoomStep, 1e-9),
+                  format: formatZoomPercent,
+                  fractionDigits: zoomFractionDigits(zoomPercent),
+                  logarithmic: true,
                   controls: settings.controls,
                   resetTooltip: l10n.resetZoom,
                   resetIcon: const PhosphorIcon(

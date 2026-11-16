@@ -23,19 +23,19 @@ class _RendererSpatialIndex(List<Renderer<PadElement>> renderers) {
     for (var index = 0; index < renderers.length; index++) {
       final bounds = renderers[index].expandedRect;
       _bounds[index] = bounds;
-      if (bounds == null) {
+      if (bounds == null || !bounds.isFinite) {
         _unbounded.add(index);
+        continue;
+      }
+      final cellCount = _cellCount(bounds);
+      if (cellCount > _maxCellsPerRenderer) {
+        _large.add(index);
         continue;
       }
       final left = (bounds.left / _cellSize).floor();
       final top = (bounds.top / _cellSize).floor();
       final right = (bounds.right / _cellSize).floor();
       final bottom = (bounds.bottom / _cellSize).floor();
-      final cellCount = (right - left + 1) * (bottom - top + 1);
-      if (cellCount > _maxCellsPerRenderer) {
-        _large.add(index);
-        continue;
-      }
       for (var x = left; x <= right; x++) {
         for (var y = top; y <= bottom; y++) {
           (_cells[(x, y)] ??= <int>[]).add(index);
@@ -53,22 +53,31 @@ class _RendererSpatialIndex(List<Renderer<PadElement>> renderers) {
   bool _isVisible(int index, Rect rect) =>
       _bounds[index]?.overlaps(rect) ?? true;
 
+  // Counted in doubles: zoomed far out a query spans ~10^12 cells per side,
+  // and an int product would overflow and walk every cell.
+  static double _cellCount(Rect rect) =>
+      ((rect.right / _cellSize).floorToDouble() -
+          (rect.left / _cellSize).floorToDouble() +
+          1) *
+      ((rect.bottom / _cellSize).floorToDouble() -
+          (rect.top / _cellSize).floorToDouble() +
+          1);
+
   List<Renderer<PadElement>> query(
     List<Renderer<PadElement>> renderers,
     Rect rect,
   ) {
     final indices = <int>{..._large, ..._unbounded};
-    final left = (rect.left / _cellSize).floor();
-    final top = (rect.top / _cellSize).floor();
-    final right = (rect.right / _cellSize).floor();
-    final bottom = (rect.bottom / _cellSize).floor();
-    final queryCellCount = (right - left + 1) * (bottom - top + 1);
-    if (queryCellCount > _maxQueryCells) {
+    if (!rect.isFinite || _cellCount(rect) > _maxQueryCells) {
       return [
         for (var index = 0; index < renderers.length; index++)
           if (_isVisible(index, rect)) renderers[index],
       ];
     }
+    final left = (rect.left / _cellSize).floor();
+    final top = (rect.top / _cellSize).floor();
+    final right = (rect.right / _cellSize).floor();
+    final bottom = (rect.bottom / _cellSize).floor();
     for (var x = left; x <= right; x++) {
       for (var y = top; y <= bottom; y++) {
         final cell = _cells[(x, y)];
@@ -281,11 +290,18 @@ class RendererCubit(
     Rect rect = transform.localToGlobalRect(Offset.zero & size);
     if (friction != null) {
       final beginPosition = transform.position - friction.beginOffset;
-      rect = rect.expandToInclude(
+      final expanded = rect.expandToInclude(
         transform
             .withPosition(beginPosition)
             .localToGlobalRect(Offset.zero & size),
       );
+      // The bake image is the rect's screen size. Covering the whole fling
+      // path must not make it larger than a normal bake, at any zoom.
+      final limit = (Offset.zero & size).size * resolution.multiplier;
+      if (expanded.width * transform.size <= limit.width &&
+          expanded.height * transform.size <= limit.height) {
+        rect = expanded;
+      }
     }
     return _snapViewportRect(rect, size, transform, resolution);
   }
@@ -905,6 +921,8 @@ class RendererCubit(
         invisibleLayers: invisibleLayers,
         cameraViewport: viewport,
         transform: transform,
+        // Exports contain every element, however small.
+        reduceDetail: false,
       ).paint(canvas, exportSize);
       final picture = recorder.endRecording();
       try {
@@ -1026,6 +1044,7 @@ class RendererCubit(
     DocumentPage page,
     SvgExportOptions options, {
     Set<String>? invisibleLayers,
+    CameraViewport? cameraViewport,
   }) {
     final rendererCubit = this;
     final xml = XmlDocument();
@@ -1045,11 +1064,13 @@ class RendererCubit(
     final transform = _exportTransform(options, pixelRatio: 1);
     final rect = transform.localToGlobalRect(Offset.zero & exportSize);
     if (options.renderBackground) {
-      for (final e in rendererCubit.state.cameraViewport.backgrounds) {
+      for (final e
+          in (cameraViewport ?? rendererCubit.state.cameraViewport)
+              .backgrounds) {
         e.buildSvg(xml, document, page, rect);
       }
     }
-    for (var e in rendererCubit.renderers) {
+    for (var e in cameraViewport?.unbakedElements ?? rendererCubit.renderers) {
       if ((invisibleLayers?.contains(e.layer) ?? false) || !e.isVisible(rect)) {
         continue;
       }
@@ -1278,85 +1299,6 @@ class RendererCubit(
     );
     rendererCubit.setViewport(newViewport);
     await rendererCubit.updateOnVisible(controller, newViewport, blocState);
-  }
-
-  Future<Uint8List?> renderPDF(
-    EditorController controller,
-    DocumentLoaded docState, {
-    required List<AreaPreset> areas,
-    bool renderBackground = true,
-    void Function(double progress)? onProgress,
-    Set<String>? invisibleLayers,
-  }) async {
-    final transformCubit = controller.transformCubit;
-    var name = docState.metadata.name;
-    if (name.isEmpty) {
-      name = 'document';
-    }
-    final pdf = await PdfDocument.createNew(sourceName: '$name.pdf');
-    final document = docState.data;
-    final info = docState.info;
-    final pages = <PdfPage>[];
-    final documents = <PdfDocument>[];
-    for (var i = 0; i < areas.length; i++) {
-      onProgress?.call(i / areas.length);
-      final preset = areas[i];
-      final areaName = preset.name;
-      final quality = preset.quality * kPdfPointsPerCanvasUnit;
-      final currentOpened = docState.pageName == preset.page;
-      final page = currentOpened
-          ? docState.page
-          : document.getPage(preset.page);
-      final area = preset.area ?? page?.getAreaByName(areaName);
-      if (area == null || page == null) {
-        continue;
-      }
-      final image = await renderImage(
-        controller,
-        document,
-        page,
-        info,
-        ImageExportOptions(
-          width: area.width,
-          height: area.height,
-          x: area.position.x,
-          y: area.position.y,
-          quality: quality,
-          renderBackground: renderBackground,
-        ),
-        cameraViewport: await CameraViewport.build(
-          transformCubit,
-          document,
-          docState.assetService,
-          page,
-        ),
-        docState: docState,
-        invisibleLayers: invisibleLayers ?? docState.invisibleLayers,
-      );
-      if (image == null) continue;
-      final imgImage = await convertFlutterUiToImage(image);
-      final pdfImage = await compute(
-        (image) => img.JpegEncoder().encode(image),
-        imgImage,
-      );
-      final imageDoc = await PdfDocument.createFromJpegData(
-        pdfImage,
-        width: canvasUnitsToPdfPoints(area.width),
-        height: canvasUnitsToPdfPoints(area.height),
-        sourceName: '$name-$areaName.jpg',
-      );
-      pages.addAll(imageDoc.pages);
-      image.dispose();
-      documents.add(imageDoc);
-    }
-    onProgress?.call(1.0);
-    pdf.pages = pages;
-    final bytes = await pdf.encodePdf();
-    pdf.dispose();
-    for (final doc in documents) {
-      doc.dispose();
-    }
-    return bytes;
   }
 
   Future<void> disposeRuntime() async {

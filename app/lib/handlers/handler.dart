@@ -12,7 +12,7 @@ import 'package:butterfly/cubits/transform.dart';
 import 'package:butterfly/dialogs/area/context.dart';
 import 'package:butterfly/dialogs/collections.dart';
 import 'package:butterfly/dialogs/elements.dart';
-import 'package:butterfly/dialogs/export/general.dart';
+import 'package:butterfly/dialogs/export/batch.dart';
 import 'package:butterfly/helpers/element.dart';
 import 'package:butterfly/helpers/page.dart';
 import 'package:butterfly/helpers/point.dart';
@@ -22,6 +22,9 @@ import 'package:butterfly/renderers/foregrounds/area.dart';
 import 'package:butterfly/renderers/foregrounds/select.dart';
 import 'package:butterfly/services/export.dart';
 import 'package:butterfly/views/toolbar/polygon.dart';
+import 'package:butterfly/views/toolbar/wall.dart';
+import 'package:butterfly/views/amaze/floor_plan/floor_plan.dart';
+import 'package:butterfly/views/amaze/objects/object_store.dart';
 import 'package:butterfly/visualizer/tool.dart';
 import 'package:butterfly_api/butterfly_api.dart';
 import 'package:butterfly_api/butterfly_text.dart' as text;
@@ -55,6 +58,8 @@ import '../selections/selection.dart';
 import '../services/asset.dart';
 import '../services/import.dart';
 import '../theme.dart';
+import 'stroke_stabilizer.dart';
+import '../views/amaze/objects/object_placement.dart';
 import '../views/toolbar/color.dart';
 import '../views/toolbar/components.dart';
 import '../views/toolbar/label.dart';
@@ -75,6 +80,7 @@ part 'hand.dart';
 part 'import.dart';
 part 'label.dart';
 part 'laser.dart';
+part 'nudge.dart';
 part 'collection.dart';
 part 'pen.dart';
 part 'eye_dropper.dart';
@@ -83,8 +89,10 @@ part 'redo.dart';
 part 'ruler.dart';
 part 'grid.dart';
 part 'polygon.dart';
+part 'wall.dart';
 part 'select.dart';
 part 'shape.dart';
+part 'slice.dart';
 part 'table.dart';
 part 'spacer.dart';
 part 'stamp.dart';
@@ -307,6 +315,7 @@ abstract class Handler<T> {
 
   static Handler<T> fromTool<T extends Tool>(T tool) {
     return switch (tool) {
+      HandTool() when isNudgeTool(tool) => NudgeHandler(tool),
       HandTool() => HandHandler(tool),
       SelectTool() => SelectHandler(tool),
       ImportTool() => ImportHandler(tool),
@@ -314,6 +323,9 @@ abstract class Handler<T> {
       RedoTool() => RedoHandler(tool),
       LabelTool() => LabelHandler(tool),
       PenTool() => PenHandler(tool),
+      EraserTool() when tool.displayIcon == kSliceDisplayIcon => SliceHandler(
+        tool,
+      ),
       EraserTool() => EraserHandler(tool),
       CollectionTool() => CollectionHandler(tool),
       AreaTool() => AreaHandler(tool),
@@ -332,6 +344,7 @@ abstract class Handler<T> {
       RulerTool() => RulerHandler(tool),
       BarcodeTool() => BarcodeHandler(tool),
       PolygonTool() => PolygonHandler(tool),
+      WallTool() => WallHandler(tool),
     } as Handler<T>;
   }
 

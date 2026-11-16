@@ -458,9 +458,9 @@ class _WindowCloseGuardState extends State<_WindowCloseGuard> {
 const flavor = appFlavor ?? String.fromEnvironment('flavor');
 const isNightly =
     flavor == 'nightly' || flavor == 'dev' || flavor == 'development';
-const shortApplicationName = isNightly ? 'Butterfly Nightly' : 'Butterfly';
-const applicationName = 'Linwood $shortApplicationName';
-const logoAsset = isNightly ? 'images/nightly.png' : 'images/logo.png';
+const shortApplicationName = isNightly ? 'aMaze Nightly' : 'aMaze';
+const applicationName = shortApplicationName;
+const logoAsset = 'images/amaze.png';
 
 const applicationVersionName = 'Dreamy Duskywing';
 const applicationMinorVersion = '2.6';

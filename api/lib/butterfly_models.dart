@@ -2,6 +2,7 @@ export 'src/converter/core.dart';
 export 'src/converter/text.dart';
 export 'src/converter/note.dart';
 export 'src/converter/xopp.dart';
+export 'src/converter/palette.dart';
 export 'src/models/animation.dart';
 export 'src/models/archive.dart';
 export 'src/models/area.dart';

@@ -11,3 +11,14 @@ docs_old/
 ./snap/
 .offline-build/
 
+# Local-only aMaze planning material. Never commit or publish.
+/HANDOFF.md
+/PROJECT_OVERVIEW.md
+/docs/product/
+/docs/architecture/
+/planning/
+/private-plans/
+**/*master-plan*.md
+**/*parity-plan*.md
+**/*parity-spec*.md
+**/*roadmap*.md

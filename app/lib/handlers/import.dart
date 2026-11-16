@@ -59,15 +59,14 @@ class ImportHandler extends Handler<ImportTool> {
     );
     context.addDocumentEvent(
       ElementsCreated(
-        _renderers
-            .map(
-              (e) => e
-                  .transform(position: _offset, relative: true)
-                  ?.element
-                  .copyWith(id: createUniqueId()),
-            )
-            .nonNulls
-            .toList(),
+        regenerateElementIds(
+          _renderers
+              .map(
+                (e) => e.transform(position: _offset, relative: true)?.element,
+              )
+              .nonNulls,
+          createUniqueId,
+        ),
         assets: data.assets,
         pageName: state.pageName,
         layer: state.currentLayer,

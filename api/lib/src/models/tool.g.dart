@@ -16,6 +16,7 @@ SelectTool _$SelectToolFromJson(Map json) => SelectTool(
   hitElementMode:
       $enumDecodeNullable(_$HitElementModeEnumMap, json['hitElementMode']) ??
       HitElementMode.touchAnywhere,
+  proportionalResizing: json['proportionalResizing'] as bool? ?? false,
   $type: json['type'] as String?,
 );
 
@@ -26,6 +27,7 @@ Map<String, dynamic> _$SelectToolToJson(SelectTool instance) =>
       'id': const IdJsonConverter().toJson(instance.id),
       'mode': _$SelectModeEnumMap[instance.mode]!,
       'hitElementMode': _$HitElementModeEnumMap[instance.hitElementMode]!,
+      'proportionalResizing': instance.proportionalResizing,
       'type': instance.$type,
     };
 
@@ -664,3 +666,25 @@ Map<String, dynamic> _$PolygonToolToJson(PolygonTool instance) =>
       'property': instance.property.toJson(),
       'type': instance.$type,
     };
+
+WallTool _$WallToolFromJson(Map json) => WallTool(
+  name: json['name'] as String? ?? '',
+  displayIcon: json['displayIcon'] as String? ?? '',
+  id: const IdJsonConverter().fromJson(json['id'] as String?),
+  zoomDependent: json['zoomDependent'] as bool? ?? false,
+  thicknessIn: (json['thicknessIn'] as num?)?.toDouble() ?? 4.5,
+  color: json['color'] == null
+      ? const SRGBColor(0xff374151)
+      : const ColorJsonConverter().fromJson((json['color'] as num).toInt()),
+  $type: json['type'] as String?,
+);
+
+Map<String, dynamic> _$WallToolToJson(WallTool instance) => <String, dynamic>{
+  'name': instance.name,
+  'displayIcon': instance.displayIcon,
+  'id': const IdJsonConverter().toJson(instance.id),
+  'zoomDependent': instance.zoomDependent,
+  'thicknessIn': instance.thicknessIn,
+  'color': const ColorJsonConverter().toJson(instance.color),
+  'type': instance.$type,
+};

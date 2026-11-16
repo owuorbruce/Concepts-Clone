@@ -44,6 +44,22 @@
   "zoomIn": "Aumenta zoom",
   "zoomOut": "Riduci zoom",
   "resetZoom": "Reimposta zoom",
+  "calibratedZoom": "Zoom calibrato",
+  "calibratedZoomDescription": "Utilizzare la calibrazione del display in modo che lo zoom 100% corrisponde alla dimensione stampata del documento.",
+  "calibrateDisplay": "Calibra display",
+  "displayCalibrationDescription": "Misurare la linea tra le due estremità con un righello e immettere la sua lunghezza in millimetri per calibrare questo display. Calibrare nuovamente dopo aver cambiato il display o il suo ridimensionamento.",
+  "measuredLength": "Lunghezza misurata",
+  "displayCalibrationInvalid": "Inserisci una lunghezza positiva nell'intervallo di zoom supportato.",
+  "displayCalibrationQuestion": "Come vuoi calibrare il tuo display?",
+  "matchKnownLength": "Corrisponde a una lunghezza nota",
+  "measureReference": "Misurare la linea",
+  "enterDisplayData": "Inserisci i dati del display",
+  "displayCalibrationAdjustDescription": "Impostare una lunghezza nota, quindi regolare la linea fino a quando la distanza tra i suoi segni finali corrisponde al righello o all'oggetto di riferimento. Utilizzare una lunghezza più breve se non si adatta allo schermo.",
+  "knownLength": "Lunghezza nota",
+  "displayCalibrationDataDescription": "Inserisci la densità fisica dei pixel del display. Il rapporto pixel del dispositivo corrente viene rilevato automaticamente.",
+  "physicalPixelDensity": "Densità fisica dei pixel",
+  "devicePixelRatio": "Rapporto pixel dispositivo",
+  "displayCalibrationSettingsDescription": "Corrisponde a una lunghezza conosciuta, misura un riferimento o inserisci un PPI. Salvato per questo display e ridimensionamento. Ricarica dopo aver cambiato i display.",
   "strokeWidth": "Spessore tratto",
   "strokeStyle": "Stile tratto",
   "dashLength": "Lunghezza tratteggiatura",
@@ -577,13 +593,25 @@
   "@url": {
     "description": "URL field"
   },
-  "webDavUrlDescription": "L'URL WebDAV completo fornito dal provider di archiviazione",
+  "webDavUrlDescription": "Copia l'indirizzo WebDAV completo dal tuo provider di archiviazione. Per Nextcloud, apri le impostazioni dei file e copia l'URL WebDAV.\n\nEsempio: https://cloud.example.com/remote.php/dav/files/USERNAME/",
+  "connectionUsernameDescription": "Inserisci il nome di accesso per il tuo account WebDAV. Per un URL Nextcloud che termina in /files/USERNAME/, utilizzare il valore mostrato al posto di USERNAME.",
+  "connectionPasswordDescription": "Usa la tua password WebDAV o una password app dal tuo provider. Per Nextcloud, apri le impostazioni personali → Sicurezza, crea una password app chiamata Butterfly, e incollala qui.",
+  "connectionSyncRootDescription": "Mantieni disponibile l'intera directory dei documenti offline, incluse le sue sottocartelle. Per esempio, abilita questa opzione per accedere a tutte le note senza connessione internet.",
+  "deleteConnection": "Elimina connessione",
+  "deleteConnectionDescription": "Rimuovere la connessione \"{name}\" da Butterfly? I file memorizzati in questa connessione non verranno eliminati.",
+  "@deleteConnectionDescription": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "connect": "Connetti",
   "username": "Username",
   "password": "Password",
   "authenticationPassword": "Password di autenticazione",
   "documentEncryptionPassword": "Password crittografia documento",
-  "documentEncryptionPasswordDescription": "Crittografa i documenti memorizzati in questa connessione. Lasciare vuoto per mantenerli non crittografati",
+  "documentEncryptionPasswordDescription": "Scegli una password separata per cifrare i documenti creati in questa connessione. Usa la stessa password sugli altri dispositivi per aprirli. Lascia vuoto per mantenere i nuovi documenti non crittografati.\n\nEsempio: usa una frase segreta che puoi mantenere nel tuo gestore di password.",
   "documentEncryptionEnabled": "Crittografia documento abilitata",
   "reauthenticate": "Reauthenticate",
   "addDocumentEncryptionPassword": "Aggiungi password di cifratura documento",
@@ -593,9 +621,10 @@
   "symmetric": "Simmetrico",
   "perSide": "Per lato",
   "directory": "Directory",
-  "connectionNameDescription": "Usato solo per identificare questa connessione in Butterfly",
-  "connectionDirectoryDescription": "Cartella di base per questa connessione. Le note usano Documenti per impostazione predefinita; cambiali in Avanzate",
-  "connectionPathDescription": "Lasciare vuoto per disabilitare questo tipo di cartella. Usare . per la cartella base, una sottocartella relativa o un percorso assoluto",
+  "connectionNameDescription": "Scegli un nome per riconoscere questa connessione in Butterfly. Non rinomina nessuna cartella sul tuo dispositivo o server.\n\nEsempio: Nextcloud.",
+  "connectionDirectoryDescription": "Scegli una cartella di base all'interno del tuo archivio WebDAV, ad esempio Butterfly. Le note sono memorizzate nella sottocartella Documenti per impostazione predefinita. Modificare i nomi delle sottocartelle in Avanzate.",
+  "localConnectionDirectoryDescription": "Scegli una cartella di base su questo dispositivo con il pulsante della cartella, o inserisci il suo percorso completo, per esempio /path/to/folder o C:\\path\\to\\folder. Le note sono memorizzate nella sottocartella Documenti per impostazione predefinita. Modificare i nomi delle sottocartelle in Avanzate.",
+  "connectionPathDescription": "Scegli dove memorizzare questo tipo di contenuto. Ad esempio, Documents utilizza una sottocartella della cartella di base, . usa la cartella di base stessa e un valore vuoto disabilita questo tipo. È anche possibile inserire un percorso completo. Per una connessione locale senza una cartella di base, ogni tipo abilitato necessita di un percorso completo.",
   "connectionPathRequired": "Scegli una cartella di base assoluta o usa percorsi assoluti per i tipi di directory abilitati",
   "connectionAlreadyExists": "Esiste già una connessione con questo nome. Scegli un altro nome",
   "documentsDirectory": "Percorso documenti",
@@ -608,6 +637,8 @@
     "description": "Icon property"
   },
   "connectionIconDescription": "URL opzionale di un'immagine da usare come icona della connessione",
+  "chooseConnectionIcon": "Scegli immagine",
+  "invalidConnectionIcon": "Scegli un file immagine valido",
   "update": "Aggiorna",
   "@update": {
     "description": "Update action"
@@ -794,6 +825,8 @@
     "description": "Note object"
   },
   "packs": "Pacchetti",
+  "textures": "Texture",
+  "fonts": "Caratteri",
   "@packs": {
     "description": "Asset pack"
   },
@@ -1704,15 +1737,57 @@
   "temporaryOnMobile": "Temporaneo sul cellulare",
   "cameraControlsVisibilityDescription": "Mostra temporaneamente i controlli di zoom e rotazione sul cellulare, nascondono, mostrali temporaneamente su tutti i dispositivi o mostrali sempre. I controlli temporanei si dissolvono dopo 5 secondi senza zoomare, ruotare o interagire con i controlli.",
   "zoomPanelControls": "Disposizione comandi fotocamera",
-  "zoomPanelControlsDescription": "Scegli i controlli per lo zoom e la rotazione. I pulsanti di reset rimangono disponibili in ogni layout.",
+  "zoomPanelControlsDescription": "Mostra cursori, campi di testo e pulsanti indipendentemente per zoom e rotazione. Deseleziona tutte le opzioni per mantenere solo i pulsanti di reset.",
   "zoomPanelFull": "Pieno (cursore, campo di testo e pulsanti)",
   "zoomPanelSliderInput": "Slider e campo di testo",
   "zoomPanelSlider": "Cursore",
   "zoomPanelInputButtons": "Campo di testo e pulsanti",
   "zoomPanelInput": "Campo di testo",
+  "zoomPanelButtons": "Pulsanti",
+  "zoomPanelResetOnly": "Reimposta solo",
   "rotationDisplay": "Visualizzazione rotazione",
   "rotationDisplayDescription": "Scegli quando la riga di rotazione appare sopra lo zoom. Ciò non cambia i gesti di rotazione o le scorciatoie.",
   "whenRotated": "Quando ruotato",
   "hidden": "Hidden",
-  "rotateCanvasByDragging": "Ruota superficie trascinando"
+  "rotateCanvasByDragging": "Ruota superficie trascinando",
+  "proportionalResizing": "Ridimensionamento proporzionale",
+  "currentView": "Vista corrente",
+  "images": "Images",
+  "exportAs": "Esporta come",
+  "moreOptions": "Altre opzioni",
+  "saveExportSelection": "Salva la selezione corrente…",
+  "managePresets": "Gestisci preimpostazioni…",
+  "addExport": "Aggiungi esportazione",
+  "noExportItems": "Aggiungi pagine o aree da esportare.",
+  "collapsePreview": "Comprimi anteprima",
+  "expandPreview": "Espandi anteprima",
+  "exportRegion": "Regione",
+  "exportItems": "Esporta elementi",
+  "vectorAndPdf": "Vettoriale E Pdf",
+  "otherImages": "Altre immagini",
+  "applySettingsToAll": "Applica le impostazioni a tutti",
+  "allPagesInNote": "Tutte le pagine nella nota",
+  "allAreasOnPage": "Tutte le aree della pagina corrente",
+  "allAreasInNote": "Tutte le aree in nota",
+  "iconExportSize": "ICO e CUR richiedono una larghezza di pixel e altezza al massimo 256. Ridurre la dimensione o la qualità.",
+  "pvrExportSize": "Il PVR richiede un'immagine quadrata con una potenza di due pixel, almeno 8 × 8.",
+  "pdfExportSummary": "{count, plural, =1{1 pagina · Un PDF} other{{count} pagine · Un PDF}}",
+  "@pdfExportSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "imageExportSummary": "{count, plural, =1{1 {format} image} other{{count} {format} images}}",
+  "@imageExportSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "format": {
+        "type": "String"
+      }
+    }
+  }
 }

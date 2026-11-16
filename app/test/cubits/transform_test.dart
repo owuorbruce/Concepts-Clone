@@ -1,6 +1,8 @@
 import 'dart:math';
 
 import 'package:butterfly/cubits/transform.dart';
+import 'package:butterfly/views/zoom.dart';
+import 'package:butterfly_api/butterfly_api.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -75,6 +77,114 @@ void main() {
 
       expect(animationStart.position, transform.position);
       expect(animationStart.size, transform.size);
+    });
+  });
+
+  group('Endless zoom range', () {
+    const transform = CameraTransform(1, Offset(10, 20), 2);
+
+    test('withSize clamps to the endless range', () {
+      expect(kMinZoom, 1e-6);
+      expect(kMaxZoom, 1000);
+      expect(transform.withSize(1e-9).size, kMinZoom);
+      expect(transform.withSize(0).size, kMinZoom);
+      expect(transform.withSize(-5).size, kMinZoom);
+      expect(transform.withSize(1e9).size, kMaxZoom);
+      expect(transform.withSize(1e-5).size, 1e-5);
+      expect(transform.withSize(500).size, 500);
+    });
+
+    test('NaN and infinite sizes keep the current size', () {
+      for (final size in [
+        double.nan,
+        double.infinity,
+        double.negativeInfinity,
+      ]) {
+        final result = transform.withSize(size, const Offset(30, 40));
+        expect(result.size, transform.size);
+        expect(result.position, transform.position);
+      }
+      expect(
+        transform.withFriction(Offset.zero, double.nan).size,
+        transform.size,
+      );
+    });
+
+    for (final zoom in [1e-4, 1.0, 1000.0]) {
+      test('zooming to $zoom keeps the focal point fixed', () {
+        const start = CameraTransform(1, Offset(123456.7, -98765.4), 0.37);
+        const focal = Offset(412, 233);
+        final documentPoint = start.localToGlobal(focal);
+
+        final zoomed = start.withSize(zoom, focal);
+
+        expect(zoomed.size, zoom);
+        final screen = zoomed.globalToLocal(documentPoint);
+        expect(screen.dx, closeTo(focal.dx, 0.5));
+        expect(screen.dy, closeTo(focal.dy, 0.5));
+      });
+    }
+
+    test('fit-to-area reaches 1e-5 and 500', () async {
+      final cubit = TransformCubit(1);
+      cubit.teleportToArea(
+        const Area(width: 1e8, height: 1e8, position: Point(0, 0)),
+        const Size(1000, 1000),
+      );
+      expect(cubit.state.size, closeTo(1e-5, 1e-12));
+      cubit.teleportToArea(
+        const Area(width: 2, height: 2, position: Point(5, 5)),
+        const Size(1000, 1000),
+      );
+      expect(cubit.state.size, closeTo(500, 1e-9));
+      await cubit.close();
+    });
+
+    test('waypoints reach 1e-5 and 500', () async {
+      final cubit = TransformCubit(1);
+      cubit.teleportToWaypoint(const Waypoint('far', Point(1e7, 1e7), 1e-5));
+      expect(cubit.state.size, 1e-5);
+      cubit.teleportToWaypoint(const Waypoint('near', Point(3, 4), 500));
+      expect(cubit.state.size, 500);
+      await cubit.close();
+    });
+
+    test('a fling reaches 1e-5 and 500 without stopping at 0.1 or 10', () {
+      // The fling's scale velocity is relative: ln(factor) * -ln(drag).
+      final dragLog = -log(kDrag);
+      final out = const CameraTransform(
+        1,
+        Offset.zero,
+        1e-4,
+      ).withFriction(Offset.zero, log(0.1) * dragLog);
+      expect(out.size, closeTo(1e-5, 1e-8));
+
+      final inward = const CameraTransform(
+        1,
+        Offset.zero,
+        100,
+      ).withFriction(Offset.zero, log(5) * dragLog);
+      expect(inward.size, closeTo(500, 0.5));
+    });
+  });
+
+  group('Zoom display', () {
+    test('formats percentages with sensible precision', () {
+      expect(formatZoomPercent(0.0001), '0.0001');
+      expect(formatZoomPercent(0.05), '0.05');
+      expect(formatZoomPercent(0.5), '0.5');
+      expect(formatZoomPercent(1.5), '1.5');
+      expect(formatZoomPercent(12), '12');
+      expect(formatZoomPercent(100), '100');
+      expect(formatZoomPercent(250), '250');
+      expect(formatZoomPercent(50000), '50,000');
+      expect(formatZoomPercent(100000), '100,000');
+    });
+
+    test('typed values keep enough decimals', () {
+      expect(zoomFractionDigits(0.0001), greaterThanOrEqualTo(4));
+      expect(zoomFractionDigits(0.05), greaterThanOrEqualTo(2));
+      expect(zoomFractionDigits(250), 0);
     });
   });
 }

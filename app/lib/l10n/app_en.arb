@@ -44,6 +44,22 @@
   "zoomIn": "Zoom in",
   "zoomOut": "Zoom out",
   "resetZoom": "Reset zoom",
+  "calibratedZoom": "Calibrated zoom",
+  "calibratedZoomDescription": "Use your display calibration so 100% zoom matches the document’s printed size.",
+  "calibrateDisplay": "Calibrate display",
+  "displayCalibrationDescription": "Measure the line between the two end marks with a ruler and enter its length in millimeters to calibrate this display. Calibrate again after changing the display or its scaling.",
+  "measuredLength": "Measured length",
+  "displayCalibrationInvalid": "Enter a positive length within the supported zoom range.",
+  "displayCalibrationQuestion": "How would you like to calibrate your display?",
+  "matchKnownLength": "Match a known length",
+  "measureReference": "Measure the line",
+  "enterDisplayData": "Enter display data",
+  "displayCalibrationAdjustDescription": "Set a known length, then adjust the line until the distance between its end marks matches your ruler or reference object. Use a shorter length if it does not fit on screen.",
+  "knownLength": "Known length",
+  "displayCalibrationDataDescription": "Enter your display’s physical pixel density. The current view’s device pixel ratio is detected automatically.",
+  "physicalPixelDensity": "Physical pixel density",
+  "devicePixelRatio": "Device pixel ratio",
+  "displayCalibrationSettingsDescription": "Match a known length, measure a reference or enter PPI. Saved for this display and scaling. Recalibrate after changing displays.",
   "strokeWidth": "Stroke width",
   "strokeStyle": "Stroke style",
   "dashLength": "Dash length",
@@ -218,7 +234,7 @@
   },
   "backupConnection": "Backup connection",
   "automaticBackups": "Automatic backups",
-  "automaticBackupsDescription": "Creates backups while Butterfly is running.",
+  "automaticBackupsDescription": "Creates backups while aMaze is running.",
   "backupInterval": "Backup interval",
   "backupNow": "Back up now",
   "lastBackup": "Last backup",
@@ -456,7 +472,7 @@
   "@text": {
     "description": "Text tool"
   },
-  "welcome": "Hey, this is Linwood Butterfly {codeName}",
+  "welcome": "Hey, this is aMaze {codeName}",
   "@welcome": {
     "placeholders": {
       "codeName": {
@@ -577,13 +593,25 @@
   "@url": {
     "description": "URL field"
   },
-  "webDavUrlDescription": "The full WebDAV URL provided by your storage provider",
+  "webDavUrlDescription": "Copy the full WebDAV address from your storage provider. For Nextcloud, open Files settings and copy the WebDAV URL.\n\nExample: https://cloud.example.com/remote.php/dav/files/USERNAME/",
+  "connectionUsernameDescription": "Enter the login name for your WebDAV account. For a Nextcloud URL ending in /files/USERNAME/, use the value shown in place of USERNAME.",
+  "connectionPasswordDescription": "Use your WebDAV password or an app password from your provider. For Nextcloud, open Personal settings → Security, create an app password named aMaze, and paste it here.",
+  "connectionSyncRootDescription": "Keep the entire documents directory available offline, including its subfolders. For example, enable this to access all your notes without an internet connection.",
+  "deleteConnection": "Delete connection",
+  "deleteConnectionDescription": "Remove the connection \"{name}\" from aMaze? Files stored in this connection will not be deleted.",
+  "@deleteConnectionDescription": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "connect": "Connect",
   "username": "Username",
   "password": "Password",
   "authenticationPassword": "Authentication password",
   "documentEncryptionPassword": "Document encryption password",
-  "documentEncryptionPasswordDescription": "Encrypts documents stored in this connection. Leave empty to keep them unencrypted",
+  "documentEncryptionPasswordDescription": "Choose a separate password to encrypt documents created in this connection. Use the same password on your other devices to open them. Leave empty to keep new documents unencrypted.\n\nExample: use a passphrase you can keep in your password manager.",
   "documentEncryptionEnabled": "Document encryption enabled",
   "reauthenticate": "Reauthenticate",
   "addDocumentEncryptionPassword": "Add document encryption password",
@@ -593,9 +621,10 @@
   "symmetric": "Symmetric",
   "perSide": "Per side",
   "directory": "Directory",
-  "connectionNameDescription": "Only used to identify this connection in Butterfly",
-  "connectionDirectoryDescription": "Base folder for this connection. Notes use Documents by default; change it under Advanced",
-  "connectionPathDescription": "Leave empty to disable this directory type. Use . for the base folder, a relative subfolder, or an absolute path",
+  "connectionNameDescription": "Choose a name to recognize this connection in aMaze. It does not rename any folders on your device or server.\n\nExample: Nextcloud.",
+  "connectionDirectoryDescription": "Choose a base folder inside your WebDAV storage, for example aMaze. Notes are stored in its Documents subfolder by default. Change the subfolder names under Advanced.",
+  "localConnectionDirectoryDescription": "Choose a base folder on this device with the folder button, or enter its full path, for example /path/to/folder or C:\\path\\to\\folder. Notes are stored in its Documents subfolder by default. Change the subfolder names under Advanced.",
+  "connectionPathDescription": "Choose where to store this type of content. For example, Documents uses a subfolder of the base folder, . uses the base folder itself, and an empty value disables this type. You can also enter a full path. For a local connection without a base folder, each enabled type needs a full path.",
   "connectionPathRequired": "Choose an absolute base folder, or use absolute paths for the enabled directory types",
   "connectionAlreadyExists": "A connection with this name already exists. Choose another name",
   "documentsDirectory": "Documents directory",
@@ -608,6 +637,8 @@
     "description": "Icon property"
   },
   "connectionIconDescription": "Optional URL of an image to use as the connection icon",
+  "chooseConnectionIcon": "Choose image",
+  "invalidConnectionIcon": "Choose a valid image file",
   "update": "Update",
   "@update": {
     "description": "Update action"
@@ -794,6 +825,8 @@
     "description": "Note object"
   },
   "packs": "Packs",
+  "textures": "Textures",
+  "fonts": "Fonts",
   "@packs": {
     "description": "Asset pack"
   },
@@ -834,7 +867,7 @@
   },
   "shortcuts": "Shortcuts",
   "repeatedTapShortcuts": "Double and triple taps",
-  "repeatedTapShortcutsDescription": "Assigning any shortcut in this section can delay normal taps and the start of drawing for its matching input while Butterfly checks for more taps. Moving far enough resumes normal input without waiting for the tap timeout. Set both double- and triple-tap shortcuts for that input to None to remove this delay.",
+  "repeatedTapShortcutsDescription": "Assigning any shortcut in this section can delay normal taps and the start of drawing for its matching input while aMaze checks for more taps. Moving far enough resumes normal input without waiting for the tap timeout. Set both double- and triple-tap shortcuts for that input to None to remove this delay.",
   "middle": "Middle",
   "@middle": {
     "description": "Mouse button"
@@ -1644,9 +1677,9 @@
   "autosaveShowButtonDescription": "Saves automatically and also keeps the save button visible.",
   "autosaveDisabledDescription": "Only saves when you use the save command.",
   "hideCursorWhileDrawingDescription": "Hides the mouse pointer while you draw, so it does not cover your stroke.",
-  "onStartupHomeScreenDescription": "Opens the home screen when Butterfly starts.",
-  "onStartupLastNoteDescription": "Reopens your most recently used note when Butterfly starts.",
-  "onStartupNewNoteDescription": "Creates a new note when Butterfly starts.",
+  "onStartupHomeScreenDescription": "Opens the home screen when aMaze starts.",
+  "onStartupLastNoteDescription": "Reopens your most recently used note when aMaze starts.",
+  "onStartupNewNoteDescription": "Creates a new note when aMaze starts.",
   "floatingEditor": "Floating editor",
   "floatingEditorDescription": "Floats the editor controls over the canvas on wide screens.",
   "smoothNavigationDescription": "Makes panning and zooming feel smoother by simplifying the canvas while it is moving.",
@@ -1655,7 +1688,7 @@
   "verbose": "Verbose",
   "showVerboseLogsDescription": "Includes detailed diagnostic messages in the log view and console. These messages can help when troubleshooting a problem.",
   "bringMovedElementsToFrontDescription": "Places an element above overlapping elements after you move it.",
-  "persistenceDocumentStatesDescription": "Controls which parts of your workspace Butterfly remembers for each note, such as the current page, zoom, and selected tool.",
+  "persistenceDocumentStatesDescription": "Controls which parts of your workspace aMaze remembers for each note, such as the current page, zoom, and selected tool.",
   "persistentStatesEnabledDescription": "Store document state information between app sessions",
   "persistentStateCurrentPageDescription": "Remember the current page when reopening a file",
   "persistentStateViewportDescription": "Remember the viewport position, zoom and rotation for each page",
@@ -1670,18 +1703,18 @@
   "persistentStateDeleteOlderThanDaysDescription": "Delete stored states older than this many days",
   "contentViewportDescription": "Limits how far you can pan away from the content of your note.",
   "limitViewportPositiveDescription": "Keeps the canvas within the area to the right and below its starting point.",
-  "startInFullScreenDescription": "Opens Butterfly in full-screen mode when supported.",
-  "designDescription": "Changes the overall visual style of Butterfly without changing whether the app uses light or dark colors.",
-  "platformThemeDescription": "Lets you use the desktop or mobile layout instead of the layout Butterfly normally chooses for your device.",
+  "startInFullScreenDescription": "Opens aMaze in full-screen mode when supported.",
+  "designDescription": "Changes the overall visual style of aMaze without changing whether the app uses light or dark colors.",
+  "platformThemeDescription": "Lets you use the desktop or mobile layout instead of the layout aMaze normally chooses for your device.",
   "densityDescription": "Changes the spacing and size of interface elements. It does not change the size of your note content.",
   "highContrastDescription": "Uses stronger color differences to make controls and text easier to distinguish.",
-  "nativeTitleBarDescription": "Uses your operating system's standard window title bar instead of Butterfly's custom title bar.",
+  "nativeTitleBarDescription": "Uses your operating system's standard window title bar instead of aMaze's custom title bar.",
   "propertiesDescription": "Chooses where the panel for editing the selected tool or element appears.",
   "navigationRailDescription": "Shows a permanent navigation bar on wide screens for quicker access to app sections.",
   "optionsPanelPositionDescription": "Chooses whether tool options appear above or below the canvas.",
   "simpleToolbarVisibilityDescription": "Controls when the smaller, simplified toolbar appears while editing a note.",
   "penOnlyInputDescription": "Prevents accidental marks from your hand or mouse by choosing when only stylus input can draw.",
-  "showPenOnlyToggleDescription": "Shows a quick stylus-only switch in the editor after Butterfly detects a stylus.",
+  "showPenOnlyToggleDescription": "Shows a quick stylus-only switch in the editor after aMaze detects a stylus.",
   "ignorePressureDescription": "Controls whether stylus pressure changes the stroke and works around inaccurate pressure readings from some styluses.",
   "moveOnGestureDescription": "Lets multi-touch gestures move the canvas instead of interacting with note content.",
   "spreadPagesDescription": "Splits multi-page imports across separate note pages instead of placing everything on one page.",
@@ -1690,15 +1723,182 @@
   "temporaryOnMobile": "Temporary on mobile",
   "cameraControlsVisibilityDescription": "Show zoom and rotation controls temporarily on mobile, hide them, show them temporarily on all devices, or always show them. Temporary controls fade out after 5 seconds without zooming, rotating or interacting with the controls.",
   "zoomPanelControls": "Camera controls layout",
-  "zoomPanelControlsDescription": "Choose the controls for zoom and rotation. Reset buttons remain available in every layout.",
+  "zoomPanelControlsDescription": "Show sliders, text fields and buttons independently for zoom and rotation. Deselect all options to keep only the reset buttons.",
   "zoomPanelFull": "Full (slider, text field and buttons)",
   "zoomPanelSliderInput": "Slider and text field",
   "zoomPanelSlider": "Slider",
   "zoomPanelInputButtons": "Text field and buttons",
   "zoomPanelInput": "Text field",
+  "zoomPanelButtons": "Buttons",
+  "zoomPanelResetOnly": "Reset only",
   "rotationDisplay": "Rotation display",
   "rotationDisplayDescription": "Choose when the rotation row appears above zoom. This does not change rotation gestures or shortcuts.",
   "whenRotated": "When rotated",
   "hidden": "Hidden",
-  "rotateCanvasByDragging": "Rotate canvas by dragging"
+  "rotateCanvasByDragging": "Rotate canvas by dragging",
+  "amazeEditor": "aMaze editor",
+  "amazeEditorDescription": "Uses the aMaze editor with the tool wheel and dock. Turn off to use the classic layout.",
+  "toolWheel": "Tool wheel",
+  "allTools": "All tools",
+  "opacity": "Opacity",
+  "toolColor": "Color",
+  "toolSlot": "Slot {index}",
+  "@toolSlot": {
+    "placeholders": {
+      "index": {
+        "type": "int",
+        "example": "1"
+      }
+    }
+  },
+  "toolSettings": "Tool settings",
+  "replaceTool": "Replace tool",
+  "moveToPreviousSlot": "Move to previous slot",
+  "moveToNextSlot": "Move to next slot",
+  "removeTool": "Remove tool",
+  "chooseTool": "Choose a tool",
+  "emptySlot": "Empty slot",
+  "dropForToolbar": "Drop here for a tool bar",
+  "showToolWheel": "Show tool wheel",
+  "eraserModeStroke": "Cut strokes",
+  "eraserModeStrokeDescription": "Erases only the parts of pen strokes that the eraser touches.",
+  "eraserModePath": "Whole elements",
+  "eraserModePathDescription": "Removes each stroke that the eraser touches as a whole.",
+  "toolOptions": "Tool options",
+  "zoomControls": "Zoom controls",
+  "eraseAllElementsDescription": "Also erases shapes, images, text and other elements that are not pen strokes.",
+  "brushLibrary": "Brush library",
+  "myBrushes": "My brushes",
+  "basics": "Basics",
+  "brushMarket": "Brush market",
+  "notAvailableYet": "Not available yet",
+  "slotOptions": "Slot options",
+  "fountainPen": "Fountain",
+  "dynamicPen": "Dynamic pen",
+  "fixedWidth": "Fixed width",
+  "wire": "Wire",
+  "softPencil": "Soft pencil",
+  "hardPencil": "Hard pencil",
+  "marker": "Marker",
+  "watercolor": "Watercolor",
+  "airbrush": "Airbrush",
+  "nudge": "Nudge",
+  "slice": "Slice",
+  "hardMask": "Hard mask",
+  "softMask": "Soft mask",
+  "pan": "Pan",
+  "tilingPatterns": "Tiling patterns",
+  "waterful": "Waterful",
+  "crosshatching": "Crosshatching",
+  "inkAndBlotTextures": "Ink and blot textures",
+  "connectShapes": "Connect shapes",
+  "amazeColorFind": "Find by code or name",
+  "amazeColorTrademark": "COPIC is a trademark of Too Corporation. aMaze is not affiliated with or endorsed by Too Corporation. Digital colors are approximations.",
+  "amazeColorDataAttribution": "Color data: meodai/copic-colors (MIT).",
+  "amazeColorRecent": "Recent colors",
+  "amazePresetHint": "Hold to save the current value",
+  "@amazePresetHint": {
+    "description": "Tooltip on a preset of the tool wheel's adjustment panel."
+  },
+  "amazeUnitPts": "pts",
+  "@amazeUnitPts": {
+    "description": "Unit after a stroke size entered in the tool wheel, in points."
+  },
+  "amazeValueRangeError": "Enter a value from {min} to {max}",
+  "@amazeValueRangeError": {
+    "description": "Error under the value field of the tool wheel's adjustment panel.",
+    "placeholders": {
+      "min": {
+        "type": "String",
+        "example": "0.1"
+      },
+      "max": {
+        "type": "String",
+        "example": "70"
+      }
+    }
+  },
+  "amazeSizePts": "{size} pts",
+  "@amazeSizePts": {
+    "description": "Stroke size shown in the tool wheel, in points.",
+    "placeholders": {
+      "size": {
+        "type": "String",
+        "example": "5"
+      }
+    }
+  },
+  "proportionalResizing": "Proportional resizing",
+  "currentView": "Current view",
+  "images": "Images",
+  "exportAs": "Export as",
+  "moreOptions": "More options",
+  "saveExportSelection": "Save current selection…",
+  "managePresets": "Manage presets…",
+  "addExport": "Add export",
+  "noExportItems": "Add pages or areas to export.",
+  "collapsePreview": "Collapse preview",
+  "expandPreview": "Expand preview",
+  "exportRegion": "Region",
+  "exportItems": "Export items",
+  "vectorAndPdf": "Vector & PDF",
+  "otherImages": "Other images",
+  "applySettingsToAll": "Apply settings to all",
+  "allPagesInNote": "All pages in note",
+  "allAreasOnPage": "All areas on current page",
+  "allAreasInNote": "All areas in note",
+  "iconExportSize": "ICO and CUR require a pixel width and height of at most 256. Reduce the size or quality.",
+  "pvrExportSize": "PVR requires a square image with power-of-two pixel dimensions, at least 8 × 8.",
+  "pdfExportSummary": "{count, plural, =1{1 page · One PDF} other{{count} pages · One PDF}}",
+  "@pdfExportSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "imageExportSummary": "{count, plural, =1{1 {format} image} other{{count} {format} images}}",
+  "@imageExportSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "format": {
+        "type": "String"
+      }
+    }
+  },
+  "amazeObjects": "Objects",
+  "amazeSearchObjects": "Search objects",
+  "amazeFavorites": "Favorites",
+  "amazeNoObjectsFound": "No objects found",
+  "amazeNoObjectsYet": "No objects yet",
+  "amazeObjectReadOnly": "This drawing can't be edited",
+  "amazeEraserWhole": "Whole",
+  "amazeMoreSettings": "More settings…",
+  "amazeMoreTools": "More tools",
+  "amazeWall": "Wall",
+  "amazeWallThickness": "Thickness",
+  "amazeTapWallToPlace": "Tap a wall to place it",
+  "amazeTapOnWall": "Tap on a wall",
+  "amazeNotEnclosedArea": "Not an enclosed area",
+  "amazeRoomName": "Room {number}",
+  "@amazeRoomName": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "amazeSquareFeet": "{area} sq ft",
+  "@amazeSquareFeet": {
+    "placeholders": {
+      "area": {
+        "type": "String"
+      }
+    }
+  },
+  "amazeCombine": "Combine",
+  "amazeSubtract": "Subtract",
+  "amazeRoomWithHole": "That would make a room with a hole"
 }

@@ -44,6 +44,22 @@
   "zoomIn": "缩放",
   "zoomOut": "缩放",
   "resetZoom": "重置缩放",
+  "calibratedZoom": "校准缩放",
+  "calibratedZoomDescription": "使用您的显示校准使100%的缩放匹配文档的打印大小。",
+  "calibrateDisplay": "校准显示",
+  "displayCalibrationDescription": "用标尺测量两个终点之间的线，并将其长度输入毫米以校准此显示。 更改显示或缩放后再次校准。",
+  "measuredLength": "测量长度",
+  "displayCalibrationInvalid": "在支持的缩放范围内输入一个正长度。",
+  "displayCalibrationQuestion": "您想如何校准您的显示？",
+  "matchKnownLength": "匹配已知长度",
+  "measureReference": "测量直线",
+  "enterDisplayData": "输入显示数据",
+  "displayCalibrationAdjustDescription": "设置一个已知的长度，然后调整直线，直到其最终标记与你的标尺或参考对象相匹配的距离。 如果不适合屏幕，使用较短的长度。",
+  "knownLength": "已知长度",
+  "displayCalibrationDataDescription": "输入您显示的物理像素密度。自动检测到当前视图的设备像素比率。",
+  "physicalPixelDensity": "物理像素密度",
+  "devicePixelRatio": "设备像素比率",
+  "displayCalibrationSettingsDescription": "匹配一个已知的长度，测量引用或输入 PPI 。保存此显示和缩放。更改显示后重整。",
   "strokeWidth": "笔画宽度",
   "strokeStyle": "笔画样式",
   "dashLength": "虚线长度",
@@ -577,13 +593,25 @@
   "@url": {
     "description": "URL field"
   },
-  "webDavUrlDescription": "您的存储提供商提供的完整的 WebDAV URL",
+  "webDavUrlDescription": "Copy the full WebDAV address from your storage provider. For Nextcloud, open Files settings and copy the WebDAV URL.\n\nExample: https://cloud.example.com/remote.php/dav/files/USERNAME/",
+  "connectionUsernameDescription": "输入您的 WebDAV 帐户的登录名。对于以 /files/USERNAME/结尾的下一个云端URL，请使用替代USERNAME 显示的值。",
+  "connectionPasswordDescription": "使用您的 WebDAV 密码或您的提供商的应用密码。 对于下一个云端，打开个人设置 -> 安全，创建一个名为Butterfly的应用程序密码并将其粘贴到这里。",
+  "connectionSyncRootDescription": "保持整个文档目录的离线可用，包括其子文件夹。例如，启用此选项可以在没有互联网连接的情况下访问您的所有便笺。",
+  "deleteConnection": "删除连接",
+  "deleteConnectionDescription": "Remove the connection \"{name}\" from Butterfly? Files stored in this connection will not be deleted.",
+  "@deleteConnectionDescription": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "connect": "连接",
   "username": "用户名",
   "password": "密码",
   "authenticationPassword": "验证密码",
   "documentEncryptionPassword": "文档加密密码",
-  "documentEncryptionPasswordDescription": "加密存储在此连接中的文档。留空以保持未加密",
+  "documentEncryptionPasswordDescription": "Choose a separate password to encrypt documents created in this connection. Use the same password on your other devices to open them. Leave empty to keep new documents unencrypted.\n\nExample: use a passphrase you can keep in your password manager.",
   "documentEncryptionEnabled": "文档加密已启用",
   "reauthenticate": "Reauthenticate",
   "addDocumentEncryptionPassword": "添加文档加密密码",
@@ -593,9 +621,10 @@
   "symmetric": "对齐",
   "perSide": "每面",
   "directory": "目录",
-  "connectionNameDescription": "仅用于识别Butterflight 中的此连接",
-  "connectionDirectoryDescription": "此连接的基础文件夹。默认情况下使用文档；在高级下更改",
-  "connectionPathDescription": "留空则禁用此目录类型。基本文件夹、相对子文件夹或绝对路径",
+  "connectionNameDescription": "Choose a name to recognize this connection in Butterfly. It does not rename any folders on your device or server.\n\nExample: Nextcloud.",
+  "connectionDirectoryDescription": "在您的 WebDAV 存储库中选择一个基础文件夹，例如Butterfly。 注释默认情况下存储在其文档子文件夹中。更改高级下的子文件夹名称。",
+  "localConnectionDirectoryDescription": "使用文件夹按钮选择此设备上的基本文件夹，或输入其完整路径，例如/path/to/folder或 C:\\path\\to\\folder。 注释默认情况下存储在其文档子文件夹中。更改高级下的子文件夹名称。",
+  "connectionPathDescription": "选择存储此类型内容的地点。例如，文档使用基本文件夹的子文件夹。 使用基本文件夹本身，空值禁用此类型。 您也可以输入一个完整路径。对于没有基础文件夹的本地连接，每个启用类型需要一个完整路径。",
   "connectionPathRequired": "选择一个绝对的基础文件夹，或使用启用的目录类型的绝对路径",
   "connectionAlreadyExists": "此名称的连接已经存在。请选择另一个名称",
   "documentsDirectory": "文档目录",
@@ -608,6 +637,8 @@
     "description": "Icon property"
   },
   "connectionIconDescription": "作为连接图标的图像的可选URL",
+  "chooseConnectionIcon": "选择图像",
+  "invalidConnectionIcon": "选择一个有效的图像文件",
   "update": "更新",
   "@update": {
     "description": "Update action"
@@ -794,6 +825,8 @@
     "description": "Note object"
   },
   "packs": "包",
+  "textures": "纹理",
+  "fonts": "字体",
   "@packs": {
     "description": "Asset pack"
   },
@@ -1704,15 +1737,57 @@
   "temporaryOnMobile": "手机上的临时模式",
   "cameraControlsVisibilityDescription": "在移动设备上临时显示缩放和旋转控制, 隐藏它们, 暂时在所有设备上显示它们, 或者总是显示它们。 临时控制在5秒后淡出，而不会缩放、旋转或与控件交互。",
   "zoomPanelControls": "相机控制布局",
-  "zoomPanelControlsDescription": "选择缩放和旋转的控件。重置按钮仍可在每个布局中使用。",
+  "zoomPanelControlsDescription": "单独显示滑块、文本字段和按钮以进行缩放和旋转。取消选择所有选项以只保留重置按钮。",
   "zoomPanelFull": "完整(滑动，文本字段和按钮)",
   "zoomPanelSliderInput": "滑块和文本字段",
   "zoomPanelSlider": "滑块",
   "zoomPanelInputButtons": "文本字段和按钮",
   "zoomPanelInput": "文本字段",
+  "zoomPanelButtons": "按钮",
+  "zoomPanelResetOnly": "仅重置",
   "rotationDisplay": "旋转显示",
   "rotationDisplayDescription": "选择旋转行出现在缩放上方的时间。这不会改变旋转手势或快捷方式。",
   "whenRotated": "旋转时",
   "hidden": "Hidden",
-  "rotateCanvasByDragging": "拖动画面旋转画布"
+  "rotateCanvasByDragging": "拖动画面旋转画布",
+  "proportionalResizing": "比例调整大小",
+  "currentView": "当前视图",
+  "images": "Images",
+  "exportAs": "导出为",
+  "moreOptions": "更多选项",
+  "saveExportSelection": "Save current selection…",
+  "managePresets": "管理预设…",
+  "addExport": "添加导出",
+  "noExportItems": "添加页面或区域到导出。",
+  "collapsePreview": "收起预览",
+  "expandPreview": "展开预览",
+  "exportRegion": "地区",
+  "exportItems": "导出项目",
+  "vectorAndPdf": "矢量和 PDF",
+  "otherImages": "其他图像",
+  "applySettingsToAll": "应用所有设置",
+  "allPagesInNote": "注解中的所有页面",
+  "allAreasOnPage": "当前页面上的所有区域",
+  "allAreasInNote": "注解中所有领域",
+  "iconExportSize": "ICO 和 CUR 要求最大256像素宽度和高度。减少大小或质量。",
+  "pvrExportSize": "PVR需要两个像素尺寸的能量至少为 8 × 8 的正方形图像。",
+  "pdfExportSummary": "{count, plural, =1{1页 · 一个PDF} other{{count} 一个PDF}}",
+  "@pdfExportSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "imageExportSummary": "{count, plural, =1{1 {format} image} other{{count} {format} images}}",
+  "@imageExportSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "format": {
+        "type": "String"
+      }
+    }
+  }
 }

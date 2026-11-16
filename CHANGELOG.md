@@ -2,9 +2,43 @@
 
 <!--ENTER CHANGELOG HERE-->
 
+## 2.6.3-rc.1 (2026-11-09)
+
+* Add unified batch export for images, SVG, and PDF ([#1267](https://github.com/LinwoodDev/Butterfly/issues/1267))
+* Add proportional resizing with stroke-width scaling to the select tool ([#1342](https://github.com/LinwoodDev/Butterfly/pull/1342))
+* Add experimental display calibration and calibrated zoom for camera controls ([#1310](https://github.com/LinwoodDev/Butterfly/issues/1310))
+* Fix Select tool gestures with touch shortcuts and clear stale selection previews ([#1346](https://github.com/LinwoodDev/Butterfly/pull/1346))
+* Fix selection grid snapping and constrain movement in proportional mode ([#1340](https://github.com/LinwoodDev/Butterfly/issues/1340))
+* Fix scrolling limits making drawings unreachable when the canvas is rotated ([#1347](https://github.com/LinwoodDev/Butterfly/issues/1347))
+* Expand shape settings by default to make fill options visible ([#1343](https://github.com/LinwoodDev/Butterfly/issues/1343))
+* Use 96 canvas units per inch for PDF imports and paper presets while preserving PDF page sizes on export
+* Fix unfinished file renames remaining active after opening a note ([#1350](https://github.com/LinwoodDev/Butterfly/issues/1350))
+
+Read more here: https://linwood.dev/butterfly/2.6.3-rc.1
+
+## 2.6.3-rc.0 (2026-11-04)
+
+* Add drag and drop imports from files and browser images ([#1314](https://github.com/LinwoodDev/Butterfly/issues/1314))
+* Redesign pack dialogs with a compact grid, unified styling, and responsive sidebar navigation
+* Allow adding assets before creating a pack
+* Simplify connection setup with help tooltips, custom icons, and deletion confirmation ([#1330](https://github.com/LinwoodDev/Butterfly/issues/1330))
+* Fix pack actions ignoring the selected connection
+* Fix memory leaks and secure embed and archive imports ([#1324](https://github.com/LinwoodDev/Butterfly/pull/1324))
+* Avoid unnecessary saves and renderer initialization when switching pages ([#1336](https://github.com/LinwoodDev/Butterfly/issues/1336))
+* Allow choosing camera sliders, text fields and buttons independently ([#1223](https://github.com/LinwoodDev/Butterfly/issues/1223))
+* Keep camera panels compact when sliders and text fields are hidden
+* Show detailed synchronization progress for nested folders and files without an additional scan ([#1337](https://github.com/LinwoodDev/Butterfly/issues/1337))
+* Use native file dialogs for imports and exports, with enforced custom save extensions
+
+Read more here: https://linwood.dev/butterfly/2.6.3-rc.0
+
 ## 2.6.2 (2026-10-28)
 
+Changes since 2.6.2-rc.0:
 * Fix selecting perfectly horizontal and vertical lines ([#1323](https://github.com/LinwoodDev/Butterfly/issues/1323))
+
+This is a stable release, it includes all the changes from the 2.6.2 nightly releases.
+Read more here: https://linwood.dev/butterfly/2.6.2
 
 ## 2.6.2-rc.0 (2026-10-24)
 

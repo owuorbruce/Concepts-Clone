@@ -79,6 +79,8 @@ class DocumentDefaults {
     Tool.grid(),
     ...BarcodeType.values.map((e) => Tool.barcode(barcodeType: e)),
     Tool.table(),
+    // New presets go last, so the core pack keeps its preset numbers.
+    Tool.wall(),
   ];
 
   static NoteData _addCoreToolPresets(NoteData pack) {
