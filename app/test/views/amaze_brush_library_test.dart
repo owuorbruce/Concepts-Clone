@@ -10,6 +10,7 @@ import 'package:butterfly/models/defaults.dart';
 import 'package:butterfly/services/font.dart';
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly/theme.dart';
+import 'package:butterfly/views/amaze/icons.dart';
 import 'package:butterfly/views/amaze/library.dart';
 import 'package:butterfly/views/amaze/shell.dart';
 import 'package:butterfly/views/amaze/tool_slots.dart';
@@ -307,6 +308,110 @@ void main() {
     expect(editor.toolCubit.state.handler.data, isA<ShapeTool>());
     // The library stays open, as after picking any other entry.
     expect(find.byKey(const ValueKey('amaze-brush-library')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(minutes: 1));
+  });
+
+  testWidgets('9: no library entry is unavailable or shows a lock', (
+    tester,
+  ) async {
+    await tester.runAsync(loadBrushRegistry);
+    setScreen(tester, tall);
+    await openEditor(tester);
+    await openLibrary(tester, slotOf<PenTool>());
+    for (final entry in LibraryEntry.values) {
+      expect(entry.available, isTrue, reason: entry.name);
+      expect(entry.createTool(), isNotNull, reason: entry.name);
+    }
+    final market = find.byKey(const ValueKey('amaze-library-market'));
+    final scrollable = find
+        .descendant(
+          of: find.byKey(const ValueKey('amaze-library-scroll')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.scrollUntilVisible(market, 200, scrollable: scrollable);
+    await tester.tap(market);
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('amaze-brush-library')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is AmazeIcon && widget.icon == AmazeIcons.unavailable,
+        ),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Tooltip &&
+            (widget.message ?? '').contains('Not available yet'),
+      ),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(minutes: 1));
+  });
+
+  testWidgets('10: a market pack shows its 4 brushes; one goes in the slot', (
+    tester,
+  ) async {
+    await tester.runAsync(loadBrushRegistry);
+    setScreen(tester, tall);
+    await openEditor(tester);
+    final slot = slotOf<PenTool>();
+    final id = slotTool(slot).id;
+    await openLibrary(tester, slot);
+    final scrollable = find
+        .descendant(
+          of: find.byKey(const ValueKey('amaze-library-scroll')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    final market = find.byKey(const ValueKey('amaze-library-market'));
+    await tester.scrollUntilVisible(market, 200, scrollable: scrollable);
+    await tester.tap(market);
+    await tester.pumpAndSettle();
+
+    for (final pack in LibraryEntry.of(LibrarySection.market)) {
+      final tile = find.byKey(ValueKey(('amaze-library-item', pack.name)));
+      await tester.scrollUntilVisible(tile, 200, scrollable: scrollable);
+      await tester.tap(tile);
+      await tester.pumpAndSettle();
+      final sheet = find.byKey(ValueKey(('amaze-library-pack', pack.name)));
+      expect(sheet, findsOneWidget, reason: pack.name);
+      for (final brush in pack.packBrushIds) {
+        expect(
+          find.descendant(
+            of: sheet,
+            matching: find.byKey(ValueKey(('amaze-library-pack-brush', brush))),
+          ),
+          findsOneWidget,
+          reason: brush,
+        );
+      }
+      expect(
+        find.descendant(of: sheet, matching: find.byType(BrushEnginePreview)),
+        findsNWidgets(4),
+      );
+    }
+
+    // The last pack is open: pick its third brush.
+    final pack = LibraryEntry.inkBlot;
+    final brush = pack.packBrushIds[2];
+    final pick = find.byKey(ValueKey(('amaze-library-pack-brush', brush)));
+    await tester.scrollUntilVisible(pick, 200, scrollable: scrollable);
+    await tester.tap(pick);
+    await pumpUntil(tester, () {
+      final tool = slotTool(slot);
+      return tool is PenTool && tool.property.brush == brush;
+    }, 'pack brush in slot');
+    final tool = slotTool(slot) as PenTool;
+    expect(tool.id, id);
+    expect(tool.displayIcon, 'amaze.${pack.name}');
+    expect(libraryEntryOf(tool), pack);
     expect(tester.takeException(), isNull);
     await tester.pump(const Duration(minutes: 1));
   });

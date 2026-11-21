@@ -103,6 +103,34 @@ sealed class BrushGrain with _$BrushGrain {
       _$BrushGrainFromJson(json);
 }
 
+/// A repeating texture that fills an outline, anchored to the canvas so
+/// patterns line up between strokes. No [texture] means a solid fill.
+@freezed
+sealed class BrushPattern with _$BrushPattern {
+  const factory BrushPattern({
+    @Default('') String texture,
+    @Default(1) double scale,
+    @Default(0) double angleDeg,
+  }) = _BrushPattern;
+
+  factory BrushPattern.fromJson(Map<String, dynamic> json) =>
+      _$BrushPatternFromJson(json);
+}
+
+/// A stamp drawn once at the last point of an outline stroke.
+@freezed
+sealed class BrushEndStamp with _$BrushEndStamp {
+  const factory BrushEndStamp({
+    @Default('') String texture,
+
+    /// Size in stroke widths.
+    @Default(1) double size,
+  }) = _BrushEndStamp;
+
+  factory BrushEndStamp.fromJson(Map<String, dynamic> json) =>
+      _$BrushEndStampFromJson(json);
+}
+
 /// One input → output response curve (MyPaint/Ink style).
 @freezed
 sealed class BrushDynamic with _$BrushDynamic {
@@ -145,6 +173,12 @@ sealed class BrushDefinition with _$BrushDefinition {
     @Default(false) bool tiltShading,
     @Default(0) double wetEdges,
     @Default(BrushBlend.normal) BrushBlend blend,
+    // Outline engine
+    @Default(BrushPattern()) BrushPattern pattern,
+    BrushEndStamp? endStamp,
+
+    /// Hides what is under it on the same layer instead of painting.
+    @Default(false) bool mask,
     // Defaults for a new tool
     double? defaultSize,
     double? defaultOpacity,

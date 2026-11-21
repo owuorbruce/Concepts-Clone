@@ -120,6 +120,10 @@ Tool _$ToolFromJson(
           return WallTool.fromJson(
             json
           );
+                case 'canvasAction':
+          return CanvasActionTool.fromJson(
+            json
+          );
         
           default:
             throw CheckedFromJsonException(
@@ -2225,6 +2229,84 @@ as String?,zoomDependent: null == zoomDependent ? _self.zoomDependent : zoomDepe
 as bool,thicknessIn: null == thicknessIn ? _self.thicknessIn : thicknessIn // ignore: cast_nullable_to_non_nullable
 as double,color: null == color ? _self.color : color // ignore: cast_nullable_to_non_nullable
 as SRGBColor,
+  ));
+}
+
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class CanvasActionTool extends Tool {
+   CanvasActionTool({this.name = '', this.displayIcon = '', @IdJsonConverter() this.id, this.kind = CanvasActionKind.rotate, this.radius = 60, this.strength = 0.6,  String? $type}): $type = $type ?? 'canvasAction',super._();
+  factory CanvasActionTool.fromJson(Map<String, dynamic> json) => _$CanvasActionToolFromJson(json);
+
+@override@JsonKey() final  String name;
+@override@JsonKey() final  String displayIcon;
+@override@IdJsonConverter() final  String? id;
+@JsonKey() final  CanvasActionKind kind;
+/// Reach of a nudge, in screen pixels.
+@JsonKey() final  double radius;
+/// Strength of a nudge, 0–1.
+@JsonKey() final  double strength;
+
+@JsonKey(name: 'type')
+final String $type;
+
+
+/// Create a copy of Tool
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$CanvasActionToolCopyWith<CanvasActionTool> get copyWith => _$CanvasActionToolCopyWithImpl<CanvasActionTool>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$CanvasActionToolToJson(this, );
+}
+
+
+
+@override
+String toString() {
+    return 'Tool.canvasAction(name: $name, displayIcon: $displayIcon, id: $id, kind: $kind, radius: $radius, strength: $strength)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $CanvasActionToolCopyWith<$Res> implements $ToolCopyWith<$Res> {
+  factory $CanvasActionToolCopyWith(CanvasActionTool value, $Res Function(CanvasActionTool) _then) = _$CanvasActionToolCopyWithImpl;
+@override @useResult
+$Res call({
+ String name, String displayIcon,@IdJsonConverter() String? id, CanvasActionKind kind, double radius, double strength
+});
+
+
+
+
+}
+/// @nodoc
+class _$CanvasActionToolCopyWithImpl<$Res>
+    implements $CanvasActionToolCopyWith<$Res> {
+  _$CanvasActionToolCopyWithImpl(this._self, this._then);
+
+  final CanvasActionTool _self;
+  final $Res Function(CanvasActionTool) _then;
+
+/// Create a copy of Tool
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? displayIcon = null,Object? id = freezed,Object? kind = null,Object? radius = null,Object? strength = null,}) {
+  return _then(CanvasActionTool(
+name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
+as String,displayIcon: null == displayIcon ? _self.displayIcon : displayIcon // ignore: cast_nullable_to_non_nullable
+as String,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String?,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
+as CanvasActionKind,radius: null == radius ? _self.radius : radius // ignore: cast_nullable_to_non_nullable
+as double,strength: null == strength ? _self.strength : strength // ignore: cast_nullable_to_non_nullable
+as double,
   ));
 }
 

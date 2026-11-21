@@ -1,0 +1,1 @@
+{"id":"amaze.softMask","version":1,"name":"Soft mask","engine":"stamp","texture":"round-soft","spacing":0.08,"flow":0.15,"buildUp":true,"angleMode":"random","width":{"pressureGamma":0.3,"minRatio":0.4},"mask":true,"defaultSize":40}

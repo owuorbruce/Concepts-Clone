@@ -688,3 +688,33 @@ Map<String, dynamic> _$WallToolToJson(WallTool instance) => <String, dynamic>{
   'color': const ColorJsonConverter().toJson(instance.color),
   'type': instance.$type,
 };
+
+CanvasActionTool _$CanvasActionToolFromJson(Map json) => CanvasActionTool(
+  name: json['name'] as String? ?? '',
+  displayIcon: json['displayIcon'] as String? ?? '',
+  id: const IdJsonConverter().fromJson(json['id'] as String?),
+  kind:
+      $enumDecodeNullable(_$CanvasActionKindEnumMap, json['kind']) ??
+      CanvasActionKind.rotate,
+  radius: (json['radius'] as num?)?.toDouble() ?? 60,
+  strength: (json['strength'] as num?)?.toDouble() ?? 0.6,
+  $type: json['type'] as String?,
+);
+
+Map<String, dynamic> _$CanvasActionToolToJson(CanvasActionTool instance) =>
+    <String, dynamic>{
+      'name': instance.name,
+      'displayIcon': instance.displayIcon,
+      'id': const IdJsonConverter().toJson(instance.id),
+      'kind': _$CanvasActionKindEnumMap[instance.kind]!,
+      'radius': instance.radius,
+      'strength': instance.strength,
+      'type': instance.$type,
+    };
+
+const _$CanvasActionKindEnumMap = {
+  CanvasActionKind.rotate: 'rotate',
+  CanvasActionKind.zoom: 'zoom',
+  CanvasActionKind.nudge: 'nudge',
+  CanvasActionKind.slice: 'slice',
+};

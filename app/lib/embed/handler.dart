@@ -355,7 +355,12 @@ class EmbedHandler {
           padding: padding,
           renderBackground: renderBackground,
         );
-        await controller.rendererCubit.prepareSvgExport(options);
+        await controller.rendererCubit.prepareSvgExport(
+          options,
+          document: state.data,
+          page: state.page,
+          info: state.info,
+        );
         sendEmbedMessage(
           'renderSVG',
           controller.rendererCubit

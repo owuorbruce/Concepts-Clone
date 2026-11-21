@@ -72,6 +72,9 @@ enum HitElementMode {
 
 enum EraserMode { stroke, path }
 
+/// What a [CanvasActionTool] does with a one-pointer drag.
+enum CanvasActionKind { rotate, zoom, nudge, slice }
+
 @Freezed(equal: false)
 sealed class Tool extends PackAsset with _$Tool {
   Tool._();
@@ -309,6 +312,20 @@ sealed class Tool extends PackAsset with _$Tool {
     @Default(SRGBColor(0xff374151)) @ColorJsonConverter() SRGBColor color,
   }) = WallTool;
 
+  /// Rotates or zooms the view, or nudges or slices strokes.
+  factory Tool.canvasAction({
+    @Default('') String name,
+    @Default('') String displayIcon,
+    @IdJsonConverter() String? id,
+    @Default(CanvasActionKind.rotate) CanvasActionKind kind,
+
+    /// Reach of a nudge, in screen pixels.
+    @Default(60) double radius,
+
+    /// Strength of a nudge, 0–1.
+    @Default(0.6) double strength,
+  }) = CanvasActionTool;
+
   factory Tool.fromJson(Map<String, dynamic> json) => _$ToolFromJson(json);
 
   ToolCategory get category => switch (this) {
@@ -338,5 +355,7 @@ sealed class Tool extends PackAsset with _$Tool {
     BarcodeTool() => .surface,
     PolygonTool() => .surface,
     WallTool() => .surface,
+    CanvasActionTool(kind: .rotate || .zoom) => .action,
+    CanvasActionTool() => .surface,
   };
 }

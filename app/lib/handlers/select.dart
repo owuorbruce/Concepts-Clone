@@ -211,6 +211,11 @@ class SelectHandler extends Handler<SelectTool> {
       _getTransformed() ??
           (_selectionManager.isTransforming && !_duplicate ? _selected : []),
     );
+    // Selected masks show as a faint gray, moved ones where they go.
+    final shown = foregrounds.isNotEmpty
+        ? foregrounds.map((renderer) => renderer.element)
+        : _selected.map((renderer) => renderer.element);
+    foregrounds.addAll(maskTints(shown.whereType<PadElement>()));
     final selectionRect = getSelectionRect();
     final settings = editorController.settingsCubit.state;
     final scheme = getThemeData(settings.design, false).colorScheme;

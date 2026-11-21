@@ -1,0 +1,1 @@
+{"id":"amaze.pattern.bricks","version":1,"name":"Bricks","engine":"outline","width":{"pressureGamma":0.35,"minRatio":0.5},"taper":{"start":0.3,"end":0.3},"pattern":{"texture":"bricks","scale":0.3},"defaultSize":40}

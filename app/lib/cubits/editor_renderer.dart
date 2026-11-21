@@ -572,6 +572,12 @@ class RendererCubit(
       reset = true;
       resetAllLayers = true;
     }
+    if (!reset && bakeNeedsReset(cameraViewport.unbakedElements)) {
+      // A mask drawn onto the cached image would erase baked pixels of
+      // other layers; rebake so it only reaches its own layer.
+      reset = true;
+      resetAllLayers = true;
+    }
     final renderers = rendererCubit.renderers;
 
     void useDirectRendering(List<Renderer<PadElement>> visibleElements) {
@@ -1041,16 +1047,41 @@ class RendererCubit(
 
   /// Renders stamp brush strokes (pencils, marker, watercolor…) to images
   /// at the export's scale, so [renderSVG] can embed them.
+  ///
+  /// A layer with a mask can't be expressed as vector shapes: with
+  /// [document], [page] and [info], it is rendered to one image of the layer
+  /// at the export's scale instead.
   Future<void> prepareSvgExport(
     SvgExportOptions options, {
     CameraViewport? cameraViewport,
+    NoteData? document,
+    DocumentPage? page,
+    DocumentInfo? info,
   }) async {
     final pixelsPerUnit = options.scale.abs().clamp(0.25, 8.0).toDouble();
+    final list = cameraViewport?.unbakedElements ?? renderers;
     await Future.wait([
-      for (final renderer in cameraViewport?.unbakedElements ?? renderers)
+      for (final renderer in list)
         if (renderer is PenRenderer)
           renderer.prepareExport(pixelsPerUnit: pixelsPerUnit),
     ]);
+    final images = <String?, MaskedLayerImage>{};
+    if (document != null && page != null && info != null) {
+      for (final layer in maskedLayersOf(list)) {
+        final image = await renderMaskedLayer(
+          [
+            for (final renderer in list)
+              if (renderer.layer == layer) renderer,
+          ],
+          document,
+          page,
+          info,
+          pixelsPerUnit: pixelsPerUnit,
+        );
+        if (image != null) images[layer] = image;
+      }
+    }
+    _maskedLayerImages[this] = images;
   }
 
   XmlDocument renderSVG(
@@ -1084,8 +1115,16 @@ class RendererCubit(
         e.buildSvg(xml, document, page, rect);
       }
     }
+    final maskedImages = _maskedLayerImages[this] ?? const {};
+    final writtenLayers = <String?>{};
     for (var e in cameraViewport?.unbakedElements ?? rendererCubit.renderers) {
       if ((invisibleLayers?.contains(e.layer) ?? false) || !e.isVisible(rect)) {
+        continue;
+      }
+      final layerImage = maskedImages[e.layer];
+      if (layerImage != null) {
+        // The whole layer, masks applied, as one image in its place.
+        if (writtenLayers.add(e.layer)) layerImage.writeSvg(svg);
         continue;
       }
       final firstChild = svg.children.length;
@@ -1340,5 +1379,88 @@ class RendererCubit(
     _controller = null;
     _repaint.dispose();
     return super.close();
+  }
+}
+
+/// Whether an incremental bake of [unbaked] is unsafe: masks remove alpha,
+/// so drawing one on top of the cached image would reach other layers.
+@visibleForTesting
+bool bakeNeedsReset(Iterable<Renderer<PadElement>> unbaked) =>
+    unbaked.any((renderer) => isMaskElement(renderer.element));
+
+final _maskedLayerImages = Expando<Map<String?, MaskedLayerImage>>();
+
+/// A layer with masks, rendered for SVG export.
+class MaskedLayerImage {
+  const MaskedLayerImage(this.png, this.bounds);
+
+  final Uint8List png;
+
+  /// Canvas area the image covers.
+  final Rect bounds;
+
+  void writeSvg(XmlElement svg) {
+    svg.createElement('image')
+      ..setAttribute('x', '${bounds.left}')
+      ..setAttribute('y', '${bounds.top}')
+      ..setAttribute('width', '${bounds.width}')
+      ..setAttribute('height', '${bounds.height}')
+      ..setAttribute('preserveAspectRatio', 'none')
+      ..setAttribute('href', 'data:image/png;base64,${base64Encode(png)}');
+  }
+}
+
+/// Renders [renderers] (one layer) to a PNG at [pixelsPerUnit], masks
+/// applied inside the layer only, at most [maxSide] pixels on a side.
+@visibleForTesting
+Future<MaskedLayerImage?> renderMaskedLayer(
+  List<Renderer> renderers,
+  NoteData document,
+  DocumentPage page,
+  DocumentInfo info, {
+  double pixelsPerUnit = 1,
+  int maxSide = 8192,
+}) async {
+  Rect? bounds;
+  for (final renderer in renderers) {
+    final rect = renderer.expandedRect ?? renderer.rect;
+    if (rect == null || !rect.isFinite) continue;
+    bounds = bounds?.expandToInclude(rect) ?? rect;
+  }
+  if (bounds == null || bounds.isEmpty) return null;
+  var scale = pixelsPerUnit;
+  final longest = max(bounds.width, bounds.height) * scale;
+  if (longest > maxSide) scale *= maxSide / longest;
+  final width = max(1, (bounds.width * scale).ceil());
+  final height = max(1, (bounds.height * scale).ceil());
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  canvas.scale(width / bounds.width, height / bounds.height);
+  canvas.translate(-bounds.left, -bounds.top);
+  canvas.saveLayer(bounds, Paint());
+  final transform = CameraTransform(1, Offset.zero, scale);
+  for (final renderer in renderers) {
+    renderer.build(
+      canvas,
+      Size(width.toDouble(), height.toDouble()),
+      document,
+      page,
+      info,
+      transform,
+    );
+  }
+  canvas.restore();
+  final picture = recorder.endRecording();
+  final image = await picture.toImage(width, height);
+  picture.dispose();
+  try {
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    if (data == null) return null;
+    return MaskedLayerImage(
+      data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+      bounds,
+    );
+  } finally {
+    image.dispose();
   }
 }

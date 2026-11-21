@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:butterfly/brushes/brush_paint.dart';
 import 'package:butterfly/cubits/settings.dart';
 import 'package:butterfly/helpers/rect.dart';
 import 'package:butterfly/models/viewport.dart';
@@ -154,6 +155,38 @@ Rect? _groupBounds(Iterable<Renderer> renderers) {
   return bounds;
 }
 
+/// Paints element [renderers] as the canvas and the bake do, masks included.
+@visibleForTesting
+void paintElementRenderers(
+  Canvas canvas,
+  Size size,
+  NoteData document,
+  DocumentPage page,
+  DocumentInfo info,
+  CameraTransform transform,
+  Iterable<Renderer> renderers,
+) => _paintRenderers(
+  canvas,
+  size,
+  document,
+  page,
+  info,
+  transform,
+  null,
+  renderers,
+);
+
+/// The layers of [renderers] that contain a mask stroke.
+Set<String?> maskedLayersOf(Iterable<Renderer> renderers) => {
+  for (final renderer in renderers)
+    if (renderer is PenRenderer && isMaskElement(renderer.element))
+      renderer.layer,
+};
+
+/// Paints [renderers] in order. A layer with a mask is painted inside one
+/// layer of its own, so the mask's dstOut only removes that layer's earlier
+/// strokes, never other layers or the background. Layers without masks are
+/// painted directly.
 void _paintRenderers(
   Canvas canvas,
   Size size,
@@ -169,6 +202,62 @@ void _paintRenderers(
   final rendererList = renderers is List<Renderer>
       ? renderers
       : renderers.toList();
+  final masked = maskedLayersOf(rendererList);
+  void paint(List<Renderer> list) => _paintRendererList(
+    canvas,
+    size,
+    document,
+    page,
+    info,
+    transform,
+    colorScheme,
+    list,
+    foreground: foreground,
+    reduceDetail: reduceDetail,
+  );
+  if (masked.isEmpty) {
+    paint(rendererList);
+    return;
+  }
+  final painted = <String?>{};
+  final run = <Renderer>[];
+  void flush() {
+    if (run.isEmpty) return;
+    paint(List.of(run));
+    run.clear();
+  }
+
+  for (final renderer in rendererList) {
+    final layer = renderer.layer;
+    if (!masked.contains(layer)) {
+      run.add(renderer);
+      continue;
+    }
+    if (!painted.add(layer)) continue;
+    flush();
+    final layerRenderers = [
+      for (final other in rendererList)
+        if (other.layer == layer) other,
+    ];
+    canvas.saveLayer(_groupBounds(layerRenderers), Paint());
+    paint(layerRenderers);
+    canvas.restore();
+  }
+  flush();
+}
+
+void _paintRendererList(
+  Canvas canvas,
+  Size size,
+  NoteData document,
+  DocumentPage page,
+  DocumentInfo info,
+  CameraTransform transform,
+  ColorScheme? colorScheme,
+  List<Renderer> rendererList, {
+  bool foreground = false,
+  bool reduceDetail = false,
+}) {
   Map<String, List<PenRenderer>>? groups;
   for (final renderer in rendererList.whereType<PenRenderer>()) {
     final combineId = renderer.element.combineId;

@@ -7,6 +7,8 @@ import 'package:animations/animations.dart';
 import 'package:butterfly/api/file_system.dart';
 import 'package:butterfly/api/open.dart';
 import 'package:butterfly/bloc/document_bloc.dart';
+import 'package:butterfly/brushes/brush_paint.dart';
+import 'package:butterfly/brushes/mask_tint.dart';
 import 'package:butterfly/cubits/settings.dart';
 import 'package:butterfly/cubits/transform.dart';
 import 'package:butterfly/dialogs/area/context.dart';
@@ -20,12 +22,14 @@ import 'package:butterfly/helpers/rect.dart';
 import 'package:butterfly/models/cursor.dart';
 import 'package:butterfly/renderers/foregrounds/area.dart';
 import 'package:butterfly/renderers/foregrounds/select.dart';
+import 'package:butterfly/services/display_calibration.dart';
 import 'package:butterfly/services/export.dart';
 import 'package:butterfly/views/toolbar/polygon.dart';
 import 'package:butterfly/views/toolbar/wall.dart';
 import 'package:butterfly/views/amaze/floor_plan/floor_plan.dart';
 import 'package:butterfly/views/amaze/objects/object_store.dart';
 import 'package:butterfly/visualizer/tool.dart';
+import 'package:butterfly/views/zoom.dart' show formatZoomPercent;
 import 'package:butterfly_api/butterfly_api.dart';
 import 'package:butterfly_api/butterfly_text.dart' as text;
 import 'package:collection/collection.dart';
@@ -98,6 +102,11 @@ part 'spacer.dart';
 part 'stamp.dart';
 part 'texture.dart';
 part 'undo.dart';
+part 'canvas_actions/common.dart';
+part 'canvas_actions/nudge.dart';
+part 'canvas_actions/rotate.dart';
+part 'canvas_actions/slice.dart';
+part 'canvas_actions/zoom.dart';
 
 @immutable
 class EventContext {
@@ -345,6 +354,12 @@ abstract class Handler<T> {
       BarcodeTool() => BarcodeHandler(tool),
       PolygonTool() => PolygonHandler(tool),
       WallTool() => WallHandler(tool),
+      CanvasActionTool(:final kind) => switch (kind) {
+        .rotate => RotateViewHandler(tool),
+        .zoom => ZoomViewHandler(tool),
+        .nudge => CanvasNudgeHandler(tool),
+        .slice => CanvasSliceHandler(tool),
+      },
     } as Handler<T>;
   }
 

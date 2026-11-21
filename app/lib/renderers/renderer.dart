@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 
 import 'package:butterfly/api/image.dart';
 import 'package:butterfly/bloc/document_bloc.dart';
+import 'package:butterfly/brushes/brush_paint.dart';
 import 'package:butterfly/brushes/brush_registry.dart';
 import 'package:butterfly/brushes/outline_engine.dart';
 import 'package:butterfly/brushes/stamp_engine.dart';

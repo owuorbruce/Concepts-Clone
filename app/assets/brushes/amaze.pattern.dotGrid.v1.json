@@ -1,0 +1,1 @@
+{"id":"amaze.pattern.dotGrid","version":1,"name":"Dot grid","engine":"outline","width":{"pressureGamma":0.35,"minRatio":0.5},"taper":{"start":0.3,"end":0.3},"pattern":{"texture":"dots-grid","scale":0.3},"defaultSize":40}

@@ -307,6 +307,9 @@ class DocumentExportSource extends ExportSource {
       await bloc.editorController.rendererCubit.prepareSvgExport(
         svgOptions,
         cameraViewport: viewport,
+        document: state.data,
+        page: page,
+        info: state.info,
       );
       return bloc.editorController.rendererCubit
           .renderSVG(

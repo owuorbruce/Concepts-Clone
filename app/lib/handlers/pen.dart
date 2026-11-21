@@ -34,14 +34,24 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
     DocumentPage page,
     DocumentInfo info, [
     Area? currentArea,
-  ]) => [...elements.values, ..._submittedElements]
-      .map(
-        (e) => e.points.length > 1
-            ? (PenRenderer(e.copyWith(id: createUniqueId()))..brushSeed = e.id)
-            : null,
-      )
-      .whereType<Renderer>()
-      .toList();
+  ]) {
+    final drawing = [...elements.values, ..._submittedElements];
+    return [
+      ...drawing
+          .map(
+            (e) => e.points.length > 1
+                ? (PenRenderer(e.copyWith(id: createUniqueId()))
+                    ..brushSeed = e.id)
+                : null,
+          )
+          .whereType<Renderer>(),
+      // While the mask tool is active, every mask shows as a faint gray.
+      if (isMaskBrush(data.property.brush, data.property.brushVersion)) ...[
+        ...pageMaskTints(page),
+        ...maskTints(drawing.where((e) => e.points.length > 1)),
+      ],
+    ];
+  }
 
   // Reset the input for the handler.
   @override

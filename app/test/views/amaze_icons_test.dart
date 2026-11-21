@@ -222,25 +222,8 @@ void main() {
 
     test('only offers what the canvas can do', () {
       final available = LibraryEntry.values.where((entry) => entry.available);
-      expect(available.toSet(), {
-        LibraryEntry.pen,
-        LibraryEntry.fountain,
-        LibraryEntry.dynamicPen,
-        LibraryEntry.fixedWidth,
-        LibraryEntry.wire,
-        LibraryEntry.softPencil,
-        LibraryEntry.hardPencil,
-        LibraryEntry.marker,
-        LibraryEntry.watercolor,
-        LibraryEntry.airbrush,
-        LibraryEntry.fill,
-        LibraryEntry.dotted,
-        LibraryEntry.lasso,
-        LibraryEntry.nudge,
-        LibraryEntry.slice,
-        LibraryEntry.text,
-        LibraryEntry.pan,
-      });
+      // Every entry is available now.
+      expect(available.toSet(), LibraryEntry.values.toSet());
       for (final entry in LibraryEntry.values) {
         if (entry.available) continue;
         expect(entry.createTool(), isNull, reason: entry.name);
@@ -262,7 +245,10 @@ void main() {
         (LibraryEntry.lasso.createTool()! as SelectTool).mode,
         SelectMode.lasso,
       );
-      expect(LibraryEntry.slice.createTool(), isA<EraserTool>());
+      expect(
+        (LibraryEntry.slice.createTool()! as CanvasActionTool).kind,
+        CanvasActionKind.slice,
+      );
       expect(LibraryEntry.text.createTool(), isA<LabelTool>());
       expect(LibraryEntry.pan.createTool(), isA<HandTool>());
       final fill = LibraryEntry.fill.createTool()! as PenTool;

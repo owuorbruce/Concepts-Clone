@@ -560,7 +560,9 @@ void main() {
     await tester.pump(const Duration(minutes: 1));
   });
 
-  testWidgets('unavailable library items cannot be picked', (tester) async {
+  testWidgets('every library item can be picked, masks included', (
+    tester,
+  ) async {
     setScreen(tester, const Size(1280, 800));
     await openEditor(tester);
     final pen = slotOf<PenTool>();
@@ -575,13 +577,17 @@ void main() {
     }
     await tester.ensureVisible(libraryItem(LibraryEntry.hardMask));
     await tester.pumpAndSettle();
-    await tester.tap(libraryItem(LibraryEntry.hardMask), warnIfMissed: false);
+    await tester.tap(libraryItem(LibraryEntry.hardMask));
     await tester.pumpAndSettle();
-    expect(slotTool(pen), same(before));
+    final picked = slotTool(pen);
+    expect(picked, isA<PenTool>());
+    expect((picked as PenTool).property.brush, 'amaze.hardMask');
+    expect(picked.id, before.id);
     await tester.ensureVisible(libraryItem(LibraryEntry.lasso));
     await tester.pumpAndSettle();
     await capture(tester, 'library-tools');
     expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(minutes: 1));
   });
 
   testWidgets('the brush market expands', (tester) async {
@@ -607,7 +613,7 @@ void main() {
     await tester.pumpAndSettle();
     for (final entry in LibraryEntry.of(LibrarySection.market)) {
       expect(libraryItem(entry), findsOneWidget);
-      expect(entry.available, isFalse);
+      expect(entry.available, isTrue);
     }
     await capture(tester, 'library-market');
     expect(tester.takeException(), isNull);

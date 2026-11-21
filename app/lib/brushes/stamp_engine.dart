@@ -228,11 +228,13 @@ void drawStampStroke(
   final blur = def.wetEdges > 0 ? max(stamps.meanWidth * 0.15, 0.01) : 0.0;
   final bounds = stamps.bounds.inflate(blur * 3 + 1);
   final layerPaint = Paint()
-    ..color = Color.fromRGBO(0, 0, 0, def.buildUp ? 1 : opacity)
-    ..blendMode = def.blend == BrushBlend.multiply
+    ..color = Color.fromRGBO(0, 0, 0, def.buildUp && !def.mask ? 1 : opacity)
+    ..blendMode = def.mask
+        ? BlendMode.dstOut
+        : def.blend == BrushBlend.multiply
         ? BlendMode.multiply
         : BlendMode.srcOver;
-  final colors = stamps.colors(color, def.buildUp ? opacity : 1);
+  final colors = stamps.colors(color, def.buildUp && !def.mask ? opacity : 1);
   final atlasPaint = Paint()..filterQuality = FilterQuality.low;
 
   void atlas() => canvas.drawRawAtlas(
@@ -248,12 +250,33 @@ void drawStampStroke(
   final grain = def.grain;
   final paper = grain.strength > 0 ? brushTexture(grain.texture) : null;
   final layered =
+      def.mask ||
       !def.buildUp ||
       def.wetEdges > 0 ||
       paper != null ||
       def.blend != BrushBlend.normal;
   if (!layered) {
     atlas();
+    return;
+  }
+  if (def.mask) {
+    // A mask builds up to full strength in an inner layer, so its opacity
+    // alone (on the outer, dstOut layer) decides how much it hides; the
+    // soft edge stays soft.
+    canvas.saveLayer(bounds, layerPaint);
+    canvas.saveLayer(
+      bounds,
+      Paint()
+        ..colorFilter = const ColorFilter.matrix([
+          0, 0, 0, 0, 0, //
+          0, 0, 0, 0, 0, //
+          0, 0, 0, 0, 0, //
+          0, 0, 0, 3, 0,
+        ]),
+    );
+    atlas();
+    canvas.restore();
+    canvas.restore();
     return;
   }
   canvas.saveLayer(bounds, layerPaint);

@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:butterfly/bloc/document_bloc.dart';
+import 'package:butterfly/brushes/brush_paint.dart';
 import 'package:butterfly/cubits/editor_controller.dart';
 import 'package:butterfly/embed/embedding.dart';
 import 'package:butterfly/handlers/handler.dart';

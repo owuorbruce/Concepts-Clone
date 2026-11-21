@@ -124,7 +124,15 @@ class PenRenderer extends Renderer<PenElement> {
       return bounds == null || bounds.isEmpty ? rect : bounds.shift(origin);
     }
     if (brush.hairline) return rect.inflate(2 / _brushZoom);
-    return _cachedStrokePath?.getBounds().shift(origin);
+    final bounds = _cachedStrokePath?.getBounds().shift(origin);
+    final last = element.points.last;
+    final stamp = endStampBounds(
+      brush,
+      Offset(last.x, last.y),
+      element.property.strokeWidth,
+    );
+    if (bounds == null || stamp == null) return bounds;
+    return bounds.expandToInclude(stamp);
   }
 
   /// Draws a brush stroke. Returns false when the classic fill draws it.
@@ -438,7 +446,7 @@ class PenRenderer extends Renderer<PenElement> {
     if (property.paint.previewColor.a > 0 &&
         _cachedStrokePath != null &&
         !_buildBrush(canvas, blendMode)) {
-      final paint =
+      var paint =
           _strokePaint.build(
               property.paint,
               expandedRect.shift(-origin),
@@ -446,7 +454,29 @@ class PenRenderer extends Renderer<PenElement> {
             )
             ..strokeCap = StrokeCap.round
             ..blendMode = blendMode ?? BlendMode.srcOver;
+      final brush = brushDefinition;
+      final color = property.paint.previewColor.toColor();
+      if (brush != null) {
+        // Pattern fills and masks; other brushes keep the plain paint.
+        paint = outlinePaint(
+          brush,
+          color,
+          paint,
+          origin: origin,
+          points: points,
+        );
+      }
       canvas.drawPath(_cachedStrokePath!, paint);
+      if (brush != null && brush.endStamp != null && !brush.mask) {
+        final last = points.last;
+        drawEndStamp(
+          canvas,
+          brush,
+          Offset(last.x - origin.dx, last.y - origin.dy),
+          property.strokeWidth,
+          color,
+        );
+      }
     }
     if (!local) canvas.restore();
   }

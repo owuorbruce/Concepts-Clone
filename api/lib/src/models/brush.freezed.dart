@@ -901,6 +901,299 @@ as double,
 
 
 /// @nodoc
+mixin _$BrushPattern {
+
+ String get texture; double get scale; double get angleDeg;
+/// Create a copy of BrushPattern
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$BrushPatternCopyWith<BrushPattern> get copyWith => _$BrushPatternCopyWithImpl<BrushPattern>(this as BrushPattern, _$identity);
+
+  /// Serializes this BrushPattern to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  final _this = this as BrushPattern;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BrushPattern&&(identical(other.texture, _this.texture) || other.texture == _this.texture)&&(identical(other.scale, _this.scale) || other.scale == _this.scale)&&(identical(other.angleDeg, _this.angleDeg) || other.angleDeg == _this.angleDeg));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode {
+  final _this = this as BrushPattern;
+  return Object.hash(runtimeType,_this.texture,_this.scale,_this.angleDeg);
+}
+
+@override
+String toString() {
+  final _this = this as BrushPattern;
+  return 'BrushPattern(texture: ${_this.texture}, scale: ${_this.scale}, angleDeg: ${_this.angleDeg})';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $BrushPatternCopyWith<$Res>  {
+  factory $BrushPatternCopyWith(BrushPattern value, $Res Function(BrushPattern) _then) = _$BrushPatternCopyWithImpl;
+@useResult
+$Res call({
+ String texture, double scale, double angleDeg
+});
+
+
+
+
+}
+/// @nodoc
+class _$BrushPatternCopyWithImpl<$Res>
+    implements $BrushPatternCopyWith<$Res> {
+  _$BrushPatternCopyWithImpl(this._self, this._then);
+
+  final BrushPattern _self;
+  final $Res Function(BrushPattern) _then;
+
+/// Create a copy of BrushPattern
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? texture = null,Object? scale = null,Object? angleDeg = null,}) {
+  return _then(BrushPattern(
+texture: null == texture ? _self.texture : texture // ignore: cast_nullable_to_non_nullable
+as String,scale: null == scale ? _self.scale : scale // ignore: cast_nullable_to_non_nullable
+as double,angleDeg: null == angleDeg ? _self.angleDeg : angleDeg // ignore: cast_nullable_to_non_nullable
+as double,
+  ));
+}
+
+}
+
+
+
+/// @nodoc
+@JsonSerializable()
+
+class _BrushPattern implements BrushPattern {
+  const _BrushPattern({this.texture = '', this.scale = 1, this.angleDeg = 0});
+  factory _BrushPattern.fromJson(Map<String, dynamic> json) => _$BrushPatternFromJson(json);
+
+@override@JsonKey() final  String texture;
+@override@JsonKey() final  double scale;
+@override@JsonKey() final  double angleDeg;
+
+/// Create a copy of BrushPattern
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$BrushPatternCopyWith<_BrushPattern> get copyWith => __$BrushPatternCopyWithImpl<_BrushPattern>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$BrushPatternToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _BrushPattern&&(identical(other.texture, texture) || other.texture == texture)&&(identical(other.scale, scale) || other.scale == scale)&&(identical(other.angleDeg, angleDeg) || other.angleDeg == angleDeg));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode {
+    return Object.hash(runtimeType,texture,scale,angleDeg);
+}
+
+@override
+String toString() {
+    return 'BrushPattern(texture: $texture, scale: $scale, angleDeg: $angleDeg)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$BrushPatternCopyWith<$Res> implements $BrushPatternCopyWith<$Res> {
+  factory _$BrushPatternCopyWith(_BrushPattern value, $Res Function(_BrushPattern) _then) = __$BrushPatternCopyWithImpl;
+@override @useResult
+$Res call({
+ String texture, double scale, double angleDeg
+});
+
+
+
+
+}
+/// @nodoc
+class __$BrushPatternCopyWithImpl<$Res>
+    implements _$BrushPatternCopyWith<$Res> {
+  __$BrushPatternCopyWithImpl(this._self, this._then);
+
+  final _BrushPattern _self;
+  final $Res Function(_BrushPattern) _then;
+
+/// Create a copy of BrushPattern
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? texture = null,Object? scale = null,Object? angleDeg = null,}) {
+  return _then(_BrushPattern(
+texture: null == texture ? _self.texture : texture // ignore: cast_nullable_to_non_nullable
+as String,scale: null == scale ? _self.scale : scale // ignore: cast_nullable_to_non_nullable
+as double,angleDeg: null == angleDeg ? _self.angleDeg : angleDeg // ignore: cast_nullable_to_non_nullable
+as double,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
+mixin _$BrushEndStamp {
+
+ String get texture;/// Size in stroke widths.
+ double get size;
+/// Create a copy of BrushEndStamp
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$BrushEndStampCopyWith<BrushEndStamp> get copyWith => _$BrushEndStampCopyWithImpl<BrushEndStamp>(this as BrushEndStamp, _$identity);
+
+  /// Serializes this BrushEndStamp to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  final _this = this as BrushEndStamp;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BrushEndStamp&&(identical(other.texture, _this.texture) || other.texture == _this.texture)&&(identical(other.size, _this.size) || other.size == _this.size));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode {
+  final _this = this as BrushEndStamp;
+  return Object.hash(runtimeType,_this.texture,_this.size);
+}
+
+@override
+String toString() {
+  final _this = this as BrushEndStamp;
+  return 'BrushEndStamp(texture: ${_this.texture}, size: ${_this.size})';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $BrushEndStampCopyWith<$Res>  {
+  factory $BrushEndStampCopyWith(BrushEndStamp value, $Res Function(BrushEndStamp) _then) = _$BrushEndStampCopyWithImpl;
+@useResult
+$Res call({
+ String texture, double size
+});
+
+
+
+
+}
+/// @nodoc
+class _$BrushEndStampCopyWithImpl<$Res>
+    implements $BrushEndStampCopyWith<$Res> {
+  _$BrushEndStampCopyWithImpl(this._self, this._then);
+
+  final BrushEndStamp _self;
+  final $Res Function(BrushEndStamp) _then;
+
+/// Create a copy of BrushEndStamp
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? texture = null,Object? size = null,}) {
+  return _then(BrushEndStamp(
+texture: null == texture ? _self.texture : texture // ignore: cast_nullable_to_non_nullable
+as String,size: null == size ? _self.size : size // ignore: cast_nullable_to_non_nullable
+as double,
+  ));
+}
+
+}
+
+
+
+/// @nodoc
+@JsonSerializable()
+
+class _BrushEndStamp implements BrushEndStamp {
+  const _BrushEndStamp({this.texture = '', this.size = 1});
+  factory _BrushEndStamp.fromJson(Map<String, dynamic> json) => _$BrushEndStampFromJson(json);
+
+@override@JsonKey() final  String texture;
+/// Size in stroke widths.
+@override@JsonKey() final  double size;
+
+/// Create a copy of BrushEndStamp
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$BrushEndStampCopyWith<_BrushEndStamp> get copyWith => __$BrushEndStampCopyWithImpl<_BrushEndStamp>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$BrushEndStampToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _BrushEndStamp&&(identical(other.texture, texture) || other.texture == texture)&&(identical(other.size, size) || other.size == size));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode {
+    return Object.hash(runtimeType,texture,size);
+}
+
+@override
+String toString() {
+    return 'BrushEndStamp(texture: $texture, size: $size)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$BrushEndStampCopyWith<$Res> implements $BrushEndStampCopyWith<$Res> {
+  factory _$BrushEndStampCopyWith(_BrushEndStamp value, $Res Function(_BrushEndStamp) _then) = __$BrushEndStampCopyWithImpl;
+@override @useResult
+$Res call({
+ String texture, double size
+});
+
+
+
+
+}
+/// @nodoc
+class __$BrushEndStampCopyWithImpl<$Res>
+    implements _$BrushEndStampCopyWith<$Res> {
+  __$BrushEndStampCopyWithImpl(this._self, this._then);
+
+  final _BrushEndStamp _self;
+  final $Res Function(_BrushEndStamp) _then;
+
+/// Create a copy of BrushEndStamp
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? texture = null,Object? size = null,}) {
+  return _then(_BrushEndStamp(
+texture: null == texture ? _self.texture : texture // ignore: cast_nullable_to_non_nullable
+as String,size: null == size ? _self.size : size // ignore: cast_nullable_to_non_nullable
+as double,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
 mixin _$BrushDynamic {
 
  BrushInput get input; BrushOutput get output;/// Piecewise-linear points `[x, y]`, x in 0–1, sorted by x.
@@ -1059,7 +1352,8 @@ as List<List<double>>,
 /// @nodoc
 mixin _$BrushDefinition {
 
- String get id; int get version; String get name; BrushEngine get engine; BrushWidth get width; BrushNib get nib; BrushTaper get taper; BrushDash get dash; bool get hairline; BrushOpacity get opacity; String get texture; double get spacing; double get scatter; double get sizeJitter; double get angleJitter; BrushAngleMode get angleMode; double get flow; bool get buildUp; BrushGrain get grain; bool get tiltShading; double get wetEdges; BrushBlend get blend; double? get defaultSize; double? get defaultOpacity; List<BrushDynamic> get dynamics;
+ String get id; int get version; String get name; BrushEngine get engine; BrushWidth get width; BrushNib get nib; BrushTaper get taper; BrushDash get dash; bool get hairline; BrushOpacity get opacity; String get texture; double get spacing; double get scatter; double get sizeJitter; double get angleJitter; BrushAngleMode get angleMode; double get flow; bool get buildUp; BrushGrain get grain; bool get tiltShading; double get wetEdges; BrushBlend get blend; BrushPattern get pattern; BrushEndStamp? get endStamp;/// Hides what is under it on the same layer instead of painting.
+ bool get mask; double? get defaultSize; double? get defaultOpacity; List<BrushDynamic> get dynamics;
 /// Create a copy of BrushDefinition
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1073,20 +1367,20 @@ $BrushDefinitionCopyWith<BrushDefinition> get copyWith => _$BrushDefinitionCopyW
 @override
 bool operator ==(Object other) {
   final _this = this as BrushDefinition;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is BrushDefinition&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.version, _this.version) || other.version == _this.version)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.engine, _this.engine) || other.engine == _this.engine)&&(identical(other.width, _this.width) || other.width == _this.width)&&(identical(other.nib, _this.nib) || other.nib == _this.nib)&&(identical(other.taper, _this.taper) || other.taper == _this.taper)&&(identical(other.dash, _this.dash) || other.dash == _this.dash)&&(identical(other.hairline, _this.hairline) || other.hairline == _this.hairline)&&(identical(other.opacity, _this.opacity) || other.opacity == _this.opacity)&&(identical(other.texture, _this.texture) || other.texture == _this.texture)&&(identical(other.spacing, _this.spacing) || other.spacing == _this.spacing)&&(identical(other.scatter, _this.scatter) || other.scatter == _this.scatter)&&(identical(other.sizeJitter, _this.sizeJitter) || other.sizeJitter == _this.sizeJitter)&&(identical(other.angleJitter, _this.angleJitter) || other.angleJitter == _this.angleJitter)&&(identical(other.angleMode, _this.angleMode) || other.angleMode == _this.angleMode)&&(identical(other.flow, _this.flow) || other.flow == _this.flow)&&(identical(other.buildUp, _this.buildUp) || other.buildUp == _this.buildUp)&&(identical(other.grain, _this.grain) || other.grain == _this.grain)&&(identical(other.tiltShading, _this.tiltShading) || other.tiltShading == _this.tiltShading)&&(identical(other.wetEdges, _this.wetEdges) || other.wetEdges == _this.wetEdges)&&(identical(other.blend, _this.blend) || other.blend == _this.blend)&&(identical(other.defaultSize, _this.defaultSize) || other.defaultSize == _this.defaultSize)&&(identical(other.defaultOpacity, _this.defaultOpacity) || other.defaultOpacity == _this.defaultOpacity)&&const DeepCollectionEquality().equals(other.dynamics, _this.dynamics));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BrushDefinition&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.version, _this.version) || other.version == _this.version)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.engine, _this.engine) || other.engine == _this.engine)&&(identical(other.width, _this.width) || other.width == _this.width)&&(identical(other.nib, _this.nib) || other.nib == _this.nib)&&(identical(other.taper, _this.taper) || other.taper == _this.taper)&&(identical(other.dash, _this.dash) || other.dash == _this.dash)&&(identical(other.hairline, _this.hairline) || other.hairline == _this.hairline)&&(identical(other.opacity, _this.opacity) || other.opacity == _this.opacity)&&(identical(other.texture, _this.texture) || other.texture == _this.texture)&&(identical(other.spacing, _this.spacing) || other.spacing == _this.spacing)&&(identical(other.scatter, _this.scatter) || other.scatter == _this.scatter)&&(identical(other.sizeJitter, _this.sizeJitter) || other.sizeJitter == _this.sizeJitter)&&(identical(other.angleJitter, _this.angleJitter) || other.angleJitter == _this.angleJitter)&&(identical(other.angleMode, _this.angleMode) || other.angleMode == _this.angleMode)&&(identical(other.flow, _this.flow) || other.flow == _this.flow)&&(identical(other.buildUp, _this.buildUp) || other.buildUp == _this.buildUp)&&(identical(other.grain, _this.grain) || other.grain == _this.grain)&&(identical(other.tiltShading, _this.tiltShading) || other.tiltShading == _this.tiltShading)&&(identical(other.wetEdges, _this.wetEdges) || other.wetEdges == _this.wetEdges)&&(identical(other.blend, _this.blend) || other.blend == _this.blend)&&(identical(other.pattern, _this.pattern) || other.pattern == _this.pattern)&&(identical(other.endStamp, _this.endStamp) || other.endStamp == _this.endStamp)&&(identical(other.mask, _this.mask) || other.mask == _this.mask)&&(identical(other.defaultSize, _this.defaultSize) || other.defaultSize == _this.defaultSize)&&(identical(other.defaultOpacity, _this.defaultOpacity) || other.defaultOpacity == _this.defaultOpacity)&&const DeepCollectionEquality().equals(other.dynamics, _this.dynamics));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as BrushDefinition;
-  return Object.hashAll([runtimeType,_this.id,_this.version,_this.name,_this.engine,_this.width,_this.nib,_this.taper,_this.dash,_this.hairline,_this.opacity,_this.texture,_this.spacing,_this.scatter,_this.sizeJitter,_this.angleJitter,_this.angleMode,_this.flow,_this.buildUp,_this.grain,_this.tiltShading,_this.wetEdges,_this.blend,_this.defaultSize,_this.defaultOpacity,const DeepCollectionEquality().hash(_this.dynamics)]);
+  return Object.hashAll([runtimeType,_this.id,_this.version,_this.name,_this.engine,_this.width,_this.nib,_this.taper,_this.dash,_this.hairline,_this.opacity,_this.texture,_this.spacing,_this.scatter,_this.sizeJitter,_this.angleJitter,_this.angleMode,_this.flow,_this.buildUp,_this.grain,_this.tiltShading,_this.wetEdges,_this.blend,_this.pattern,_this.endStamp,_this.mask,_this.defaultSize,_this.defaultOpacity,const DeepCollectionEquality().hash(_this.dynamics)]);
 }
 
 @override
 String toString() {
   final _this = this as BrushDefinition;
-  return 'BrushDefinition(id: ${_this.id}, version: ${_this.version}, name: ${_this.name}, engine: ${_this.engine}, width: ${_this.width}, nib: ${_this.nib}, taper: ${_this.taper}, dash: ${_this.dash}, hairline: ${_this.hairline}, opacity: ${_this.opacity}, texture: ${_this.texture}, spacing: ${_this.spacing}, scatter: ${_this.scatter}, sizeJitter: ${_this.sizeJitter}, angleJitter: ${_this.angleJitter}, angleMode: ${_this.angleMode}, flow: ${_this.flow}, buildUp: ${_this.buildUp}, grain: ${_this.grain}, tiltShading: ${_this.tiltShading}, wetEdges: ${_this.wetEdges}, blend: ${_this.blend}, defaultSize: ${_this.defaultSize}, defaultOpacity: ${_this.defaultOpacity}, dynamics: ${_this.dynamics})';
+  return 'BrushDefinition(id: ${_this.id}, version: ${_this.version}, name: ${_this.name}, engine: ${_this.engine}, width: ${_this.width}, nib: ${_this.nib}, taper: ${_this.taper}, dash: ${_this.dash}, hairline: ${_this.hairline}, opacity: ${_this.opacity}, texture: ${_this.texture}, spacing: ${_this.spacing}, scatter: ${_this.scatter}, sizeJitter: ${_this.sizeJitter}, angleJitter: ${_this.angleJitter}, angleMode: ${_this.angleMode}, flow: ${_this.flow}, buildUp: ${_this.buildUp}, grain: ${_this.grain}, tiltShading: ${_this.tiltShading}, wetEdges: ${_this.wetEdges}, blend: ${_this.blend}, pattern: ${_this.pattern}, endStamp: ${_this.endStamp}, mask: ${_this.mask}, defaultSize: ${_this.defaultSize}, defaultOpacity: ${_this.defaultOpacity}, dynamics: ${_this.dynamics})';
 }
 
 
@@ -1097,11 +1391,11 @@ abstract mixin class $BrushDefinitionCopyWith<$Res>  {
   factory $BrushDefinitionCopyWith(BrushDefinition value, $Res Function(BrushDefinition) _then) = _$BrushDefinitionCopyWithImpl;
 @useResult
 $Res call({
- String id, int version, String name, BrushEngine engine, BrushWidth width, BrushNib nib, BrushTaper taper, BrushDash dash, bool hairline, BrushOpacity opacity, String texture, double spacing, double scatter, double sizeJitter, double angleJitter, BrushAngleMode angleMode, double flow, bool buildUp, BrushGrain grain, bool tiltShading, double wetEdges, BrushBlend blend, double? defaultSize, double? defaultOpacity, List<BrushDynamic> dynamics
+ String id, int version, String name, BrushEngine engine, BrushWidth width, BrushNib nib, BrushTaper taper, BrushDash dash, bool hairline, BrushOpacity opacity, String texture, double spacing, double scatter, double sizeJitter, double angleJitter, BrushAngleMode angleMode, double flow, bool buildUp, BrushGrain grain, bool tiltShading, double wetEdges, BrushBlend blend, BrushPattern pattern, BrushEndStamp? endStamp, bool mask, double? defaultSize, double? defaultOpacity, List<BrushDynamic> dynamics
 });
 
 
-$BrushWidthCopyWith<$Res> get width;$BrushNibCopyWith<$Res> get nib;$BrushTaperCopyWith<$Res> get taper;$BrushDashCopyWith<$Res> get dash;$BrushOpacityCopyWith<$Res> get opacity;$BrushGrainCopyWith<$Res> get grain;
+$BrushWidthCopyWith<$Res> get width;$BrushNibCopyWith<$Res> get nib;$BrushTaperCopyWith<$Res> get taper;$BrushDashCopyWith<$Res> get dash;$BrushOpacityCopyWith<$Res> get opacity;$BrushGrainCopyWith<$Res> get grain;$BrushPatternCopyWith<$Res> get pattern;$BrushEndStampCopyWith<$Res>? get endStamp;
 
 }
 /// @nodoc
@@ -1114,7 +1408,7 @@ class _$BrushDefinitionCopyWithImpl<$Res>
 
 /// Create a copy of BrushDefinition
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? version = null,Object? name = null,Object? engine = null,Object? width = null,Object? nib = null,Object? taper = null,Object? dash = null,Object? hairline = null,Object? opacity = null,Object? texture = null,Object? spacing = null,Object? scatter = null,Object? sizeJitter = null,Object? angleJitter = null,Object? angleMode = null,Object? flow = null,Object? buildUp = null,Object? grain = null,Object? tiltShading = null,Object? wetEdges = null,Object? blend = null,Object? defaultSize = freezed,Object? defaultOpacity = freezed,Object? dynamics = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? version = null,Object? name = null,Object? engine = null,Object? width = null,Object? nib = null,Object? taper = null,Object? dash = null,Object? hairline = null,Object? opacity = null,Object? texture = null,Object? spacing = null,Object? scatter = null,Object? sizeJitter = null,Object? angleJitter = null,Object? angleMode = null,Object? flow = null,Object? buildUp = null,Object? grain = null,Object? tiltShading = null,Object? wetEdges = null,Object? blend = null,Object? pattern = null,Object? endStamp = freezed,Object? mask = null,Object? defaultSize = freezed,Object? defaultOpacity = freezed,Object? dynamics = null,}) {
   return _then(BrushDefinition(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,version: null == version ? _self.version : version // ignore: cast_nullable_to_non_nullable
@@ -1138,7 +1432,10 @@ as bool,grain: null == grain ? _self.grain : grain // ignore: cast_nullable_to_n
 as BrushGrain,tiltShading: null == tiltShading ? _self.tiltShading : tiltShading // ignore: cast_nullable_to_non_nullable
 as bool,wetEdges: null == wetEdges ? _self.wetEdges : wetEdges // ignore: cast_nullable_to_non_nullable
 as double,blend: null == blend ? _self.blend : blend // ignore: cast_nullable_to_non_nullable
-as BrushBlend,defaultSize: freezed == defaultSize ? _self.defaultSize : defaultSize // ignore: cast_nullable_to_non_nullable
+as BrushBlend,pattern: null == pattern ? _self.pattern : pattern // ignore: cast_nullable_to_non_nullable
+as BrushPattern,endStamp: freezed == endStamp ? _self.endStamp : endStamp // ignore: cast_nullable_to_non_nullable
+as BrushEndStamp?,mask: null == mask ? _self.mask : mask // ignore: cast_nullable_to_non_nullable
+as bool,defaultSize: freezed == defaultSize ? _self.defaultSize : defaultSize // ignore: cast_nullable_to_non_nullable
 as double?,defaultOpacity: freezed == defaultOpacity ? _self.defaultOpacity : defaultOpacity // ignore: cast_nullable_to_non_nullable
 as double?,dynamics: null == dynamics ? _self.dynamics : dynamics // ignore: cast_nullable_to_non_nullable
 as List<BrushDynamic>,
@@ -1198,6 +1495,27 @@ $BrushGrainCopyWith<$Res> get grain {
   return $BrushGrainCopyWith<$Res>(_self.grain, (value) {
     return _then(_self.copyWith(grain: value));
   });
+}/// Create a copy of BrushDefinition
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$BrushPatternCopyWith<$Res> get pattern {
+  
+  return $BrushPatternCopyWith<$Res>(_self.pattern, (value) {
+    return _then(_self.copyWith(pattern: value));
+  });
+}/// Create a copy of BrushDefinition
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$BrushEndStampCopyWith<$Res>? get endStamp {
+    if (_self.endStamp == null) {
+    return null;
+  }
+
+  return $BrushEndStampCopyWith<$Res>(_self.endStamp!, (value) {
+    return _then(_self.copyWith(endStamp: value));
+  });
 }
 }
 
@@ -1207,7 +1525,7 @@ $BrushGrainCopyWith<$Res> get grain {
 @JsonSerializable()
 
 class _BrushDefinition implements BrushDefinition {
-  const _BrushDefinition({this.id = '', this.version = 1, this.name = '', this.engine = BrushEngine.outline, this.width = const BrushWidth(), this.nib = const BrushNib(), this.taper = const BrushTaper(), this.dash = const BrushDash(), this.hairline = false, this.opacity = const BrushOpacity(), this.texture = '', this.spacing = 0.1, this.scatter = 0, this.sizeJitter = 0, this.angleJitter = 0, this.angleMode = BrushAngleMode.direction, this.flow = 1, this.buildUp = true, this.grain = const BrushGrain(), this.tiltShading = false, this.wetEdges = 0, this.blend = BrushBlend.normal, this.defaultSize, this.defaultOpacity,  List<BrushDynamic> dynamics = const <BrushDynamic>[]}): _dynamics = dynamics;
+  const _BrushDefinition({this.id = '', this.version = 1, this.name = '', this.engine = BrushEngine.outline, this.width = const BrushWidth(), this.nib = const BrushNib(), this.taper = const BrushTaper(), this.dash = const BrushDash(), this.hairline = false, this.opacity = const BrushOpacity(), this.texture = '', this.spacing = 0.1, this.scatter = 0, this.sizeJitter = 0, this.angleJitter = 0, this.angleMode = BrushAngleMode.direction, this.flow = 1, this.buildUp = true, this.grain = const BrushGrain(), this.tiltShading = false, this.wetEdges = 0, this.blend = BrushBlend.normal, this.pattern = const BrushPattern(), this.endStamp, this.mask = false, this.defaultSize, this.defaultOpacity,  List<BrushDynamic> dynamics = const <BrushDynamic>[]}): _dynamics = dynamics;
   factory _BrushDefinition.fromJson(Map<String, dynamic> json) => _$BrushDefinitionFromJson(json);
 
 @override@JsonKey() final  String id;
@@ -1232,6 +1550,10 @@ class _BrushDefinition implements BrushDefinition {
 @override@JsonKey() final  bool tiltShading;
 @override@JsonKey() final  double wetEdges;
 @override@JsonKey() final  BrushBlend blend;
+@override@JsonKey() final  BrushPattern pattern;
+@override final  BrushEndStamp? endStamp;
+/// Hides what is under it on the same layer instead of painting.
+@override@JsonKey() final  bool mask;
 @override final  double? defaultSize;
 @override final  double? defaultOpacity;
  final  List<BrushDynamic> _dynamics;
@@ -1255,18 +1577,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _BrushDefinition&&(identical(other.id, id) || other.id == id)&&(identical(other.version, version) || other.version == version)&&(identical(other.name, name) || other.name == name)&&(identical(other.engine, engine) || other.engine == engine)&&(identical(other.width, width) || other.width == width)&&(identical(other.nib, nib) || other.nib == nib)&&(identical(other.taper, taper) || other.taper == taper)&&(identical(other.dash, dash) || other.dash == dash)&&(identical(other.hairline, hairline) || other.hairline == hairline)&&(identical(other.opacity, opacity) || other.opacity == opacity)&&(identical(other.texture, texture) || other.texture == texture)&&(identical(other.spacing, spacing) || other.spacing == spacing)&&(identical(other.scatter, scatter) || other.scatter == scatter)&&(identical(other.sizeJitter, sizeJitter) || other.sizeJitter == sizeJitter)&&(identical(other.angleJitter, angleJitter) || other.angleJitter == angleJitter)&&(identical(other.angleMode, angleMode) || other.angleMode == angleMode)&&(identical(other.flow, flow) || other.flow == flow)&&(identical(other.buildUp, buildUp) || other.buildUp == buildUp)&&(identical(other.grain, grain) || other.grain == grain)&&(identical(other.tiltShading, tiltShading) || other.tiltShading == tiltShading)&&(identical(other.wetEdges, wetEdges) || other.wetEdges == wetEdges)&&(identical(other.blend, blend) || other.blend == blend)&&(identical(other.defaultSize, defaultSize) || other.defaultSize == defaultSize)&&(identical(other.defaultOpacity, defaultOpacity) || other.defaultOpacity == defaultOpacity)&&const DeepCollectionEquality().equals(other.dynamics, _dynamics));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _BrushDefinition&&(identical(other.id, id) || other.id == id)&&(identical(other.version, version) || other.version == version)&&(identical(other.name, name) || other.name == name)&&(identical(other.engine, engine) || other.engine == engine)&&(identical(other.width, width) || other.width == width)&&(identical(other.nib, nib) || other.nib == nib)&&(identical(other.taper, taper) || other.taper == taper)&&(identical(other.dash, dash) || other.dash == dash)&&(identical(other.hairline, hairline) || other.hairline == hairline)&&(identical(other.opacity, opacity) || other.opacity == opacity)&&(identical(other.texture, texture) || other.texture == texture)&&(identical(other.spacing, spacing) || other.spacing == spacing)&&(identical(other.scatter, scatter) || other.scatter == scatter)&&(identical(other.sizeJitter, sizeJitter) || other.sizeJitter == sizeJitter)&&(identical(other.angleJitter, angleJitter) || other.angleJitter == angleJitter)&&(identical(other.angleMode, angleMode) || other.angleMode == angleMode)&&(identical(other.flow, flow) || other.flow == flow)&&(identical(other.buildUp, buildUp) || other.buildUp == buildUp)&&(identical(other.grain, grain) || other.grain == grain)&&(identical(other.tiltShading, tiltShading) || other.tiltShading == tiltShading)&&(identical(other.wetEdges, wetEdges) || other.wetEdges == wetEdges)&&(identical(other.blend, blend) || other.blend == blend)&&(identical(other.pattern, pattern) || other.pattern == pattern)&&(identical(other.endStamp, endStamp) || other.endStamp == endStamp)&&(identical(other.mask, mask) || other.mask == mask)&&(identical(other.defaultSize, defaultSize) || other.defaultSize == defaultSize)&&(identical(other.defaultOpacity, defaultOpacity) || other.defaultOpacity == defaultOpacity)&&const DeepCollectionEquality().equals(other.dynamics, _dynamics));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hashAll([runtimeType,id,version,name,engine,width,nib,taper,dash,hairline,opacity,texture,spacing,scatter,sizeJitter,angleJitter,angleMode,flow,buildUp,grain,tiltShading,wetEdges,blend,defaultSize,defaultOpacity,const DeepCollectionEquality().hash(_dynamics)]);
+    return Object.hashAll([runtimeType,id,version,name,engine,width,nib,taper,dash,hairline,opacity,texture,spacing,scatter,sizeJitter,angleJitter,angleMode,flow,buildUp,grain,tiltShading,wetEdges,blend,pattern,endStamp,mask,defaultSize,defaultOpacity,const DeepCollectionEquality().hash(_dynamics)]);
 }
 
 @override
 String toString() {
-    return 'BrushDefinition(id: $id, version: $version, name: $name, engine: $engine, width: $width, nib: $nib, taper: $taper, dash: $dash, hairline: $hairline, opacity: $opacity, texture: $texture, spacing: $spacing, scatter: $scatter, sizeJitter: $sizeJitter, angleJitter: $angleJitter, angleMode: $angleMode, flow: $flow, buildUp: $buildUp, grain: $grain, tiltShading: $tiltShading, wetEdges: $wetEdges, blend: $blend, defaultSize: $defaultSize, defaultOpacity: $defaultOpacity, dynamics: $dynamics)';
+    return 'BrushDefinition(id: $id, version: $version, name: $name, engine: $engine, width: $width, nib: $nib, taper: $taper, dash: $dash, hairline: $hairline, opacity: $opacity, texture: $texture, spacing: $spacing, scatter: $scatter, sizeJitter: $sizeJitter, angleJitter: $angleJitter, angleMode: $angleMode, flow: $flow, buildUp: $buildUp, grain: $grain, tiltShading: $tiltShading, wetEdges: $wetEdges, blend: $blend, pattern: $pattern, endStamp: $endStamp, mask: $mask, defaultSize: $defaultSize, defaultOpacity: $defaultOpacity, dynamics: $dynamics)';
 }
 
 
@@ -1277,11 +1599,11 @@ abstract mixin class _$BrushDefinitionCopyWith<$Res> implements $BrushDefinition
   factory _$BrushDefinitionCopyWith(_BrushDefinition value, $Res Function(_BrushDefinition) _then) = __$BrushDefinitionCopyWithImpl;
 @override @useResult
 $Res call({
- String id, int version, String name, BrushEngine engine, BrushWidth width, BrushNib nib, BrushTaper taper, BrushDash dash, bool hairline, BrushOpacity opacity, String texture, double spacing, double scatter, double sizeJitter, double angleJitter, BrushAngleMode angleMode, double flow, bool buildUp, BrushGrain grain, bool tiltShading, double wetEdges, BrushBlend blend, double? defaultSize, double? defaultOpacity, List<BrushDynamic> dynamics
+ String id, int version, String name, BrushEngine engine, BrushWidth width, BrushNib nib, BrushTaper taper, BrushDash dash, bool hairline, BrushOpacity opacity, String texture, double spacing, double scatter, double sizeJitter, double angleJitter, BrushAngleMode angleMode, double flow, bool buildUp, BrushGrain grain, bool tiltShading, double wetEdges, BrushBlend blend, BrushPattern pattern, BrushEndStamp? endStamp, bool mask, double? defaultSize, double? defaultOpacity, List<BrushDynamic> dynamics
 });
 
 
-@override $BrushWidthCopyWith<$Res> get width;@override $BrushNibCopyWith<$Res> get nib;@override $BrushTaperCopyWith<$Res> get taper;@override $BrushDashCopyWith<$Res> get dash;@override $BrushOpacityCopyWith<$Res> get opacity;@override $BrushGrainCopyWith<$Res> get grain;
+@override $BrushWidthCopyWith<$Res> get width;@override $BrushNibCopyWith<$Res> get nib;@override $BrushTaperCopyWith<$Res> get taper;@override $BrushDashCopyWith<$Res> get dash;@override $BrushOpacityCopyWith<$Res> get opacity;@override $BrushGrainCopyWith<$Res> get grain;@override $BrushPatternCopyWith<$Res> get pattern;@override $BrushEndStampCopyWith<$Res>? get endStamp;
 
 }
 /// @nodoc
@@ -1294,7 +1616,7 @@ class __$BrushDefinitionCopyWithImpl<$Res>
 
 /// Create a copy of BrushDefinition
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? version = null,Object? name = null,Object? engine = null,Object? width = null,Object? nib = null,Object? taper = null,Object? dash = null,Object? hairline = null,Object? opacity = null,Object? texture = null,Object? spacing = null,Object? scatter = null,Object? sizeJitter = null,Object? angleJitter = null,Object? angleMode = null,Object? flow = null,Object? buildUp = null,Object? grain = null,Object? tiltShading = null,Object? wetEdges = null,Object? blend = null,Object? defaultSize = freezed,Object? defaultOpacity = freezed,Object? dynamics = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? version = null,Object? name = null,Object? engine = null,Object? width = null,Object? nib = null,Object? taper = null,Object? dash = null,Object? hairline = null,Object? opacity = null,Object? texture = null,Object? spacing = null,Object? scatter = null,Object? sizeJitter = null,Object? angleJitter = null,Object? angleMode = null,Object? flow = null,Object? buildUp = null,Object? grain = null,Object? tiltShading = null,Object? wetEdges = null,Object? blend = null,Object? pattern = null,Object? endStamp = freezed,Object? mask = null,Object? defaultSize = freezed,Object? defaultOpacity = freezed,Object? dynamics = null,}) {
   return _then(_BrushDefinition(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,version: null == version ? _self.version : version // ignore: cast_nullable_to_non_nullable
@@ -1318,7 +1640,10 @@ as bool,grain: null == grain ? _self.grain : grain // ignore: cast_nullable_to_n
 as BrushGrain,tiltShading: null == tiltShading ? _self.tiltShading : tiltShading // ignore: cast_nullable_to_non_nullable
 as bool,wetEdges: null == wetEdges ? _self.wetEdges : wetEdges // ignore: cast_nullable_to_non_nullable
 as double,blend: null == blend ? _self.blend : blend // ignore: cast_nullable_to_non_nullable
-as BrushBlend,defaultSize: freezed == defaultSize ? _self.defaultSize : defaultSize // ignore: cast_nullable_to_non_nullable
+as BrushBlend,pattern: null == pattern ? _self.pattern : pattern // ignore: cast_nullable_to_non_nullable
+as BrushPattern,endStamp: freezed == endStamp ? _self.endStamp : endStamp // ignore: cast_nullable_to_non_nullable
+as BrushEndStamp?,mask: null == mask ? _self.mask : mask // ignore: cast_nullable_to_non_nullable
+as bool,defaultSize: freezed == defaultSize ? _self.defaultSize : defaultSize // ignore: cast_nullable_to_non_nullable
 as double?,defaultOpacity: freezed == defaultOpacity ? _self.defaultOpacity : defaultOpacity // ignore: cast_nullable_to_non_nullable
 as double?,dynamics: null == dynamics ? _self._dynamics : dynamics // ignore: cast_nullable_to_non_nullable
 as List<BrushDynamic>,
@@ -1378,6 +1703,27 @@ $BrushGrainCopyWith<$Res> get grain {
   
   return $BrushGrainCopyWith<$Res>(_self.grain, (value) {
     return _then(_self.copyWith(grain: value));
+  });
+}/// Create a copy of BrushDefinition
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$BrushPatternCopyWith<$Res> get pattern {
+  
+  return $BrushPatternCopyWith<$Res>(_self.pattern, (value) {
+    return _then(_self.copyWith(pattern: value));
+  });
+}/// Create a copy of BrushDefinition
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$BrushEndStampCopyWith<$Res>? get endStamp {
+    if (_self.endStamp == null) {
+    return null;
+  }
+
+  return $BrushEndStampCopyWith<$Res>(_self.endStamp!, (value) {
+    return _then(_self.copyWith(endStamp: value));
   });
 }
 }

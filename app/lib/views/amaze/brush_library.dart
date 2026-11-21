@@ -1,4 +1,5 @@
 import 'package:butterfly/brushes/brush_preview.dart';
+import 'package:butterfly/brushes/brush_registry.dart';
 import 'package:butterfly/bloc/document_bloc.dart';
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly/visualizer/tool.dart';
@@ -18,8 +19,8 @@ const kBrushLibraryWidth = 360.0;
 /// The brush library: picks the brush or tool of one wheel slot.
 ///
 /// Shows the slot's current tool at the top, then the basic brushes, the
-/// tools and the brush market in one scroll view. Entries the canvas cannot
-/// do yet are shown dimmed and cannot be picked.
+/// tools and the brush market in one scroll view. A market pack opens a
+/// small sheet with its brushes.
 class BrushLibrarySidebar extends StatefulWidget {
   const BrushLibrarySidebar({
     super.key,
@@ -50,6 +51,28 @@ class BrushLibrarySidebar extends StatefulWidget {
 
 class _BrushLibrarySidebarState extends State<BrushLibrarySidebar> {
   bool _marketOpen = false;
+  LibraryEntry? _openPack;
+
+  void _selectEntry(LibraryEntry entry) {
+    if (entry.isPack) {
+      setState(() => _openPack = _openPack == entry ? null : entry);
+      return;
+    }
+    widget.onSelect(entry);
+  }
+
+  void _selectPackBrush(LibraryEntry pack, String brushId) {
+    final tool = pack.createPackTool(brushId);
+    if (tool == null) return;
+    final onSelectTool = widget.onSelectTool;
+    if (onSelectTool != null) {
+      onSelectTool(tool);
+    } else {
+      // Without a tool callback the pack's first brush is all that fits.
+      widget.onSelect(pack);
+    }
+  }
+
   late final List<Tool> _catalog = slotToolCatalog();
 
   @override
@@ -71,6 +94,7 @@ class _BrushLibrarySidebarState extends State<BrushLibrarySidebar> {
     final style = AmazeStyle.of(context);
     final loc = AppLocalizations.of(context);
     final current = tool == null ? null : libraryEntryOf(tool);
+    final currentBrush = tool is PenTool ? tool.property.brush : null;
     final textTheme = Theme.of(context).textTheme;
     Widget heading(String text, {Key? key}) {
       return Padding(
@@ -105,7 +129,7 @@ class _BrushLibrarySidebarState extends State<BrushLibrarySidebar> {
         entries: LibraryEntry.of(section),
         current: current,
         style: style,
-        onSelect: widget.onSelect,
+        onSelect: _selectEntry,
       );
     }
 
@@ -149,6 +173,15 @@ class _BrushLibrarySidebarState extends State<BrushLibrarySidebar> {
                   onTap: () => setState(() => _marketOpen = !_marketOpen),
                 ),
                 if (_marketOpen) grid(LibrarySection.market),
+                if (_openPack case final pack? when _marketOpen)
+                  _PackSheet(
+                    key: ValueKey(('amaze-library-pack', pack.name)),
+                    pack: pack,
+                    currentBrush: current == pack ? currentBrush : null,
+                    style: style,
+                    onSelect: (id) => _selectPackBrush(pack, id),
+                    onClose: () => setState(() => _openPack = null),
+                  ),
               ],
             ),
           ),
@@ -181,10 +214,14 @@ class _LibraryHeader extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final tool = this.tool;
     final name = tool?.getDisplay(context) ?? loc.emptySlot;
+    // The slot's own brush, so a pack shows the brush that was picked.
+    final brush = tool is PenTool
+        ? brushById(tool.property.brush, tool.property.brushVersion) ??
+              entry?.brushDefinition
+        : entry?.brushDefinition;
     final glyph = entry?.glyph;
     final Widget preview;
-    final brush = entry?.brushDefinition;
-    if (brush != null) {
+    if (brush != null && !brush.mask) {
       preview = BrushEnginePreview(brush, color: style.onSurface);
     } else if (glyph != null && glyph.isBrush) {
       preview = AmazeBrushPreview(glyph, color: style.onSurface);
@@ -438,13 +475,12 @@ class _LibraryTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final textTheme = Theme.of(context).textTheme;
-    final available = entry.available;
     final name = entry.getLocalizedName(loc);
     final foreground = selected ? style.onAccent : style.onSurface;
     final glyph = entry.glyph;
     final Widget icon;
     final brush = entry.brushDefinition;
-    if (brush != null) {
+    if (brush != null && !brush.mask) {
       // Brushes draw their preview stroke with their own engine.
       icon = Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
@@ -467,7 +503,7 @@ class _LibraryTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: available ? () => onSelect(entry) : null,
+        onTap: () => onSelect(entry),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
           child: Column(
@@ -489,32 +525,154 @@ class _LibraryTile extends StatelessWidget {
         ),
       ),
     );
-    if (available) {
-      return Semantics(
-        button: true,
-        selected: selected,
-        label: name,
-        child: tile,
-      );
-    }
-    return Tooltip(
-      message: '$name: ${loc.notAvailableYet}',
-      child: Semantics(
-        enabled: false,
-        label: '$name, ${loc.notAvailableYet}',
-        child: Stack(
-          children: [
-            Positioned.fill(child: Opacity(opacity: 0.38, child: tile)),
-            Positioned(
-              top: 5,
-              right: 5,
-              child: AmazeIcon(
-                AmazeIcons.unavailable,
-                size: 14,
-                color: style.muted,
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: name,
+      child: tile,
+    );
+  }
+}
+
+/// The brushes of a market pack, drawn by their engine.
+class _PackSheet extends StatelessWidget {
+  const _PackSheet({
+    super.key,
+    required this.pack,
+    required this.currentBrush,
+    required this.style,
+    required this.onSelect,
+    required this.onClose,
+  });
+
+  final LibraryEntry pack;
+  final String? currentBrush;
+  final AmazeStyle style;
+  final ValueChanged<String> onSelect;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.fromLTRB(10, 4, 4, 10),
+      decoration: BoxDecoration(
+        border: Border.all(color: style.outline),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: .stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  pack.getLocalizedName(loc),
+                  style: textTheme.titleSmall?.copyWith(
+                    color: style.onSurface,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
+              IconButton(
+                tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                onPressed: onClose,
+                icon: PhosphorIcon(
+                  PhosphorIconsLight.x,
+                  size: 18,
+                  color: style.muted,
+                ),
+              ),
+            ],
+          ),
+          GridView.count(
+            crossAxisCount: 4,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(right: 6),
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            childAspectRatio: 0.8,
+            children: [
+              for (final id in pack.packBrushIds)
+                _PackBrushTile(
+                  brushId: id,
+                  selected: id == currentBrush,
+                  style: style,
+                  onSelect: onSelect,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PackBrushTile extends StatelessWidget {
+  const _PackBrushTile({
+    required this.brushId,
+    required this.selected,
+    required this.style,
+    required this.onSelect,
+  });
+
+  final String brushId;
+  final bool selected;
+  final AmazeStyle style;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final definition = brushById(brushId);
+    final name = definition?.name ?? brushId;
+    final foreground = selected ? style.onAccent : style.onSurface;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: name,
+      child: Material(
+        key: ValueKey(('amaze-library-pack-brush', brushId)),
+        color: selected ? style.accent : style.surfaceVariant,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => onSelect(brushId),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
+            child: Column(
+              children: [
+                Expanded(
+                  child: definition == null
+                      ? const SizedBox.shrink()
+                      : Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 4,
+                          ),
+                          child: BrushEnginePreview(
+                            definition,
+                            color: foreground,
+                          ),
+                        ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  name,
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.labelSmall?.copyWith(
+                    color: foreground,
+                    height: 1.15,
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

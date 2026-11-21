@@ -71,6 +71,27 @@ Map<String, dynamic> _$BrushGrainToJson(_BrushGrain instance) =>
       'strength': instance.strength,
     };
 
+_BrushPattern _$BrushPatternFromJson(Map json) => _BrushPattern(
+  texture: json['texture'] as String? ?? '',
+  scale: (json['scale'] as num?)?.toDouble() ?? 1,
+  angleDeg: (json['angleDeg'] as num?)?.toDouble() ?? 0,
+);
+
+Map<String, dynamic> _$BrushPatternToJson(_BrushPattern instance) =>
+    <String, dynamic>{
+      'texture': instance.texture,
+      'scale': instance.scale,
+      'angleDeg': instance.angleDeg,
+    };
+
+_BrushEndStamp _$BrushEndStampFromJson(Map json) => _BrushEndStamp(
+  texture: json['texture'] as String? ?? '',
+  size: (json['size'] as num?)?.toDouble() ?? 1,
+);
+
+Map<String, dynamic> _$BrushEndStampToJson(_BrushEndStamp instance) =>
+    <String, dynamic>{'texture': instance.texture, 'size': instance.size};
+
 _BrushDynamic _$BrushDynamicFromJson(Map json) => _BrushDynamic(
   input:
       $enumDecodeNullable(_$BrushInputEnumMap, json['input']) ??
@@ -154,6 +175,17 @@ _BrushDefinition _$BrushDefinitionFromJson(Map json) => _BrushDefinition(
   blend:
       $enumDecodeNullable(_$BrushBlendEnumMap, json['blend']) ??
       BrushBlend.normal,
+  pattern: json['pattern'] == null
+      ? const BrushPattern()
+      : BrushPattern.fromJson(
+          Map<String, dynamic>.from(json['pattern'] as Map),
+        ),
+  endStamp: json['endStamp'] == null
+      ? null
+      : BrushEndStamp.fromJson(
+          Map<String, dynamic>.from(json['endStamp'] as Map),
+        ),
+  mask: json['mask'] as bool? ?? false,
   defaultSize: (json['defaultSize'] as num?)?.toDouble(),
   defaultOpacity: (json['defaultOpacity'] as num?)?.toDouble(),
   dynamics:
@@ -189,6 +221,9 @@ Map<String, dynamic> _$BrushDefinitionToJson(_BrushDefinition instance) =>
       'tiltShading': instance.tiltShading,
       'wetEdges': instance.wetEdges,
       'blend': _$BrushBlendEnumMap[instance.blend]!,
+      'pattern': instance.pattern.toJson(),
+      'endStamp': instance.endStamp?.toJson(),
+      'mask': instance.mask,
       'defaultSize': instance.defaultSize,
       'defaultOpacity': instance.defaultOpacity,
       'dynamics': instance.dynamics.map((e) => e.toJson()).toList(),

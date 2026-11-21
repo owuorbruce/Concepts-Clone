@@ -12,10 +12,8 @@ const kLibraryIconPrefix = 'amaze.';
 /// Where an entry is shown in the brush library.
 enum LibrarySection { basics, tools, market }
 
-/// An item of the brush library.
-///
-/// Entries that the canvas cannot do yet have no [createTool] result and are
-/// shown as unavailable, never replaced by another tool.
+/// An item of the brush library. Market entries are packs of brushes; the
+/// library opens them to pick one with [createPackTool].
 enum LibraryEntry {
   pen(.basics, AmazeGlyph.pen),
   fountain(.basics, AmazeGlyph.fountain),
@@ -78,7 +76,10 @@ enum LibraryEntry {
         PhosphorIconsLight.magnifyingGlassPlus,
         PhosphorIconsFill.magnifyingGlassPlus,
       ),
-      _ => AmazeIcons.unavailable,
+      _ => const PhosphorAmazeIcon(
+        PhosphorIconsLight.paintBrush,
+        PhosphorIconsFill.paintBrush,
+      ),
     };
   }
 
@@ -142,8 +143,59 @@ enum LibraryEntry {
     marker => 'amaze.marker',
     airbrush => 'amaze.airbrush',
     watercolor => 'amaze.watercolor',
+    hardMask => 'amaze.hardMask',
+    softMask => 'amaze.softMask',
+    // A pack previews and starts with its first brush.
+    tilingPatterns ||
+    waterful ||
+    crosshatching ||
+    inkBlot => packBrushIds.first,
     _ => null,
   };
+
+  /// Whether this entry is a pack of brushes.
+  bool get isPack => section == LibrarySection.market;
+
+  /// The brushes of a market pack, in library order. Empty for other
+  /// entries.
+  List<String> get packBrushIds => switch (this) {
+    tilingPatterns => const [
+      'amaze.pattern.bricks',
+      'amaze.pattern.hexagons',
+      'amaze.pattern.scales',
+      'amaze.pattern.dotGrid',
+    ],
+    waterful => const [
+      'amaze.waterful.wetWash',
+      'amaze.waterful.bleed',
+      'amaze.waterful.granulate',
+      'amaze.waterful.glaze',
+    ],
+    crosshatching => const [
+      'amaze.hatch.hatch',
+      'amaze.hatch.crosshatch',
+      'amaze.hatch.stipple',
+      'amaze.hatch.byPressure',
+    ],
+    inkBlot => const [
+      'amaze.ink.splatter',
+      'amaze.ink.blot',
+      'amaze.ink.dripPen',
+      'amaze.ink.woodGrain',
+    ],
+    _ => const [],
+  };
+
+  /// A pen of this pack drawing with [brushId], or null if the brush is not
+  /// in the pack. The tool is named after the brush.
+  Tool? createPackTool(String brushId, {String? name}) {
+    if (!packBrushIds.contains(brushId)) return null;
+    final definition = brushById(brushId);
+    return _brushTool(const PenProperty(), id: brushId).copyWith(
+      name: name ?? definition?.name ?? '',
+      displayIcon: '$kLibraryIconPrefix${this.name}',
+    );
+  }
 
   /// The definition of [brushId], once the registry has loaded.
   BrushDefinition? get brushDefinition {
@@ -167,16 +219,23 @@ enum LibraryEntry {
       hardPencil ||
       marker ||
       airbrush ||
-      watercolor => _brushTool(const PenProperty()),
+      watercolor ||
+      hardMask ||
+      softMask ||
+      tilingPatterns ||
+      waterful ||
+      crosshatching ||
+      inkBlot => _brushTool(const PenProperty()),
       fill => Tool.pen(
         property: const PenProperty(fillPaint: ElementPaint.solid()),
       ),
       lasso => Tool.select(mode: SelectMode.lasso),
-      nudge => Tool.hand(),
-      slice => Tool.eraser(mode: EraserMode.stroke),
+      nudge => Tool.canvasAction(kind: CanvasActionKind.nudge),
+      slice => Tool.canvasAction(kind: CanvasActionKind.slice),
+      rotate => Tool.canvasAction(kind: CanvasActionKind.rotate),
+      zoom => Tool.canvasAction(kind: CanvasActionKind.zoom),
       text => Tool.label(),
       pan => Tool.hand(),
-      _ => null,
     };
   }
 
@@ -186,8 +245,9 @@ enum LibraryEntry {
     PenProperty base, {
     bool zoomDependent = false,
     bool keepSize = false,
+    String? id,
   }) {
-    final id = brushId!;
+    id ??= brushId!;
     final definition = brushById(id);
     var property = base.copyWith(
       brush: id,
@@ -223,6 +283,12 @@ LibraryEntry? libraryEntryOf(Tool tool) {
     SelectTool(mode: SelectMode.lasso) => LibraryEntry.lasso,
     LabelTool(mode: LabelMode.text) => LibraryEntry.text,
     HandTool() => LibraryEntry.pan,
+    CanvasActionTool(:final kind) => switch (kind) {
+      CanvasActionKind.rotate => LibraryEntry.rotate,
+      CanvasActionKind.zoom => LibraryEntry.zoom,
+      CanvasActionKind.nudge => LibraryEntry.nudge,
+      CanvasActionKind.slice => LibraryEntry.slice,
+    },
     _ => null,
   };
 }
