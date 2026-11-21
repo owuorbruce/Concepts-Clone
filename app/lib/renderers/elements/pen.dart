@@ -35,6 +35,23 @@ class PenRenderer extends Renderer<PenElement> {
   final _strokePaint = ElementPaintRenderer();
   final _fillPaint = ElementPaintRenderer();
 
+  // Brush engine state, only used when `property.brush` names a brush.
+  StampStroke? _stamps;
+  ui.Picture? _stampPicture;
+  Uint8List? _exportPng;
+  Rect? _exportPngBounds;
+  double _exportPngScale = 0;
+
+  /// Seeds the stamp randomness instead of the element id, so a preview of
+  /// a stroke being drawn (which gets a fresh id) looks like the result.
+  String? brushSeed;
+
+  /// The brush of this stroke, or null for a classic pen and unknown ids.
+  BrushDefinition? get brushDefinition =>
+      brushById(element.property.brush, element.property.brushVersion);
+
+  double get _brushZoom => element.zoom ?? 1;
+
   // Creation and import handlers can transform strokes before asset setup.
   // Their local bounds must already be available to preserve the pivot.
   static Rect _calculateRect(List<PathPoint> points) {
@@ -56,6 +73,185 @@ class PenRenderer extends Renderer<PenElement> {
     _cachedFillPath = null;
     _cachedStrokePath = null;
     _cachedHitCalculator = null;
+    _stamps = null;
+    _stampPicture?.dispose();
+    _stampPicture = null;
+  }
+
+  /// Computes the stroke of a brush. Returns false for classic pens.
+  bool _computeBrushPath(Offset origin) {
+    final brush = brushDefinition;
+    if (brush == null) return false;
+    final points = element.points;
+    final strokeWidth = element.property.strokeWidth;
+    switch (brush.engine) {
+      case BrushEngine.outline:
+        _cachedStrokePath = brush.hairline
+            ? buildCenterline(points, zoom: _brushZoom, origin: origin)
+            : buildOutline(
+                points,
+                brush,
+                strokeWidth,
+                zoom: _brushZoom,
+                origin: origin,
+              );
+      case BrushEngine.stamp:
+        _stamps = StampStroke.build(
+          points,
+          brush,
+          strokeWidth,
+          zoom: _brushZoom,
+          origin: origin,
+          seed: brushSeed ?? element.id ?? '',
+        );
+        // Marks the paths as computed; stamps are drawn from [_stamps].
+        _cachedStrokePath = Path();
+    }
+    return true;
+  }
+
+  /// World bounds of a brush stroke, or null for classic pens.
+  Rect? _brushBounds() {
+    final brush = brushDefinition;
+    if (brush == null || element.property.paint.previewColor.a == 0) {
+      return null;
+    }
+    _clearCachedPaths();
+    _computePaths();
+    final origin = _pathOrigin;
+    if (brush.engine == BrushEngine.stamp) {
+      final bounds = _stamps?.bounds;
+      return bounds == null || bounds.isEmpty ? rect : bounds.shift(origin);
+    }
+    if (brush.hairline) return rect.inflate(2 / _brushZoom);
+    return _cachedStrokePath?.getBounds().shift(origin);
+  }
+
+  /// Draws a brush stroke. Returns false when the classic fill draws it.
+  bool _buildBrush(Canvas canvas, BlendMode? blendMode) {
+    final brush = brushDefinition;
+    if (brush == null) return false;
+    final property = element.property;
+    if (brush.engine == BrushEngine.stamp) {
+      final stamps = _stamps;
+      if (stamps == null || !brushTexturesReady) return true;
+      _stampPicture ??= recordStampStroke(
+        stamps,
+        brush,
+        property.paint.previewColor.toColor(),
+        origin: _pathOrigin,
+      );
+      canvas.drawPicture(_stampPicture!);
+      return true;
+    }
+    if (!brush.hairline) return false;
+    final paint =
+        _strokePaint.build(
+            property.paint,
+            expandedRect.shift(-_pathOrigin),
+            style: .stroke,
+          )
+          ..strokeWidth = 0
+          ..blendMode = blendMode ?? BlendMode.srcOver;
+    canvas.drawPath(_cachedStrokePath!, paint);
+    return true;
+  }
+
+  /// Renders a stamp stroke for SVG export at [pixelsPerUnit]. Other
+  /// strokes need no preparation.
+  Future<void> prepareExport({double pixelsPerUnit = 1}) async {
+    final brush = brushDefinition;
+    if (brush == null || brush.engine != BrushEngine.stamp) return;
+    if (_exportPng != null && _exportPngScale >= pixelsPerUnit) return;
+    if (_stamps == null) _computePaths();
+    final stamps = _stamps;
+    if (stamps == null) return;
+    await loadBrushTextures();
+    _exportPng = await renderStampPng(
+      stamps,
+      brush,
+      element.property.paint.previewColor.toColor(),
+      origin: _pathOrigin,
+      pixelsPerUnit: pixelsPerUnit,
+    );
+    _exportPngBounds = stamps.bounds.shift(_pathOrigin);
+    _exportPngScale = pixelsPerUnit;
+  }
+
+  void _addSvgCenterline(
+    XmlElement? svg,
+    String hex,
+    String opacity,
+    String width, {
+    bool nonScaling = false,
+  }) {
+    final origin = rect.topLeft;
+    final sink = SvgOutlineSink(origin);
+    writeCenterline(
+      sink,
+      hairlineGeometry(element.points, zoom: _brushZoom, origin: origin),
+    );
+    final path = svg?.createElement('path');
+    path
+      ?..setAttribute('d', sink.toString())
+      ..setAttribute('fill', 'none')
+      ..setAttribute('stroke', hex)
+      ..setAttribute('stroke-opacity', opacity)
+      ..setAttribute('stroke-width', width)
+      ..setAttribute('stroke-linecap', 'round')
+      ..setAttribute('stroke-linejoin', 'round');
+    if (nonScaling) path?.setAttribute('vector-effect', 'non-scaling-stroke');
+  }
+
+  /// Writes a brush stroke to SVG. Returns false for classic pens.
+  bool _buildBrushSvg(XmlDocument xml, SRGBColor color) {
+    final brush = brushDefinition;
+    if (brush == null) return false;
+    final strokeWidth = element.property.strokeWidth;
+    final origin = rect.topLeft;
+    final svg = xml.getElement('svg');
+    final hex = color.toHexString(alpha: false);
+    final opacity = '${color.a / 255}';
+    if (brush.engine == BrushEngine.stamp) {
+      final png = _exportPng;
+      final bounds = _exportPngBounds;
+      if (png == null || bounds == null) {
+        // Not prepared for export: the centerline at the stroke's width.
+        _addSvgCenterline(svg, hex, opacity, '$strokeWidth');
+        return true;
+      }
+      svg?.createElement('image')
+        ?..setAttribute('x', '${bounds.left}')
+        ..setAttribute('y', '${bounds.top}')
+        ..setAttribute('width', '${bounds.width}')
+        ..setAttribute('height', '${bounds.height}')
+        ..setAttribute('preserveAspectRatio', 'none')
+        ..setAttribute('href', 'data:image/png;base64,${base64Encode(png)}');
+      return true;
+    }
+    if (brush.hairline) {
+      _addSvgCenterline(svg, hex, opacity, '1', nonScaling: true);
+      return true;
+    }
+    final sink = SvgOutlineSink(origin);
+    writeOutline(
+      sink,
+      StrokeGeometry.build(
+        element.points,
+        brush,
+        strokeWidth,
+        zoom: _brushZoom,
+        origin: origin,
+      ),
+      brush,
+      strokeWidth,
+    );
+    svg?.createElement('path')
+      ?..setAttribute('d', sink.toString())
+      ..setAttribute('fill', hex)
+      ..setAttribute('fill-opacity', opacity)
+      ..setAttribute('stroke', 'none');
+    return true;
   }
 
   void _computePaths() {
@@ -74,7 +270,7 @@ class PenRenderer extends Renderer<PenElement> {
       }
     }
 
-    if (property.paint.previewColor.a > 0) {
+    if (property.paint.previewColor.a > 0 && !_computeBrushPath(origin)) {
       final outlinePoints = [
         for (final point in _getOutlinePoints()) point - origin,
       ];
@@ -142,6 +338,7 @@ class PenRenderer extends Renderer<PenElement> {
       bottomRightCorner.dx,
       bottomRightCorner.dy,
     );
+    _localExpandedRect = _brushBounds() ?? _localExpandedRect;
     expandedRect = Renderer._expandedAabbFor(
       _localExpandedRect,
       rotation / 180 * pi,
@@ -156,6 +353,7 @@ class PenRenderer extends Renderer<PenElement> {
 
   @override
   void dispose() {
+    _exportPng = null;
     _strokePaint.dispose();
     _fillPaint.dispose();
     _clearCachedPaths();
@@ -237,7 +435,9 @@ class PenRenderer extends Renderer<PenElement> {
             ..blendMode = blendMode ?? BlendMode.srcOver;
       canvas.drawPath(_cachedFillPath!, paint);
     }
-    if (property.paint.previewColor.a > 0 && _cachedStrokePath != null) {
+    if (property.paint.previewColor.a > 0 &&
+        _cachedStrokePath != null &&
+        !_buildBrush(canvas, blendMode)) {
       final paint =
           _strokePaint.build(
               property.paint,
@@ -304,7 +504,7 @@ class PenRenderer extends Renderer<PenElement> {
         ..setAttribute('stroke-linecap', 'round')
         ..setAttribute('stroke-linejoin', 'round');
     }
-    if (color.a > 0) {
+    if (color.a > 0 && !_buildBrushSvg(xml, color)) {
       // 1. Get the outline points from the input points
       var outlinePoints = _getOutlinePoints();
 

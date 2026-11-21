@@ -11,6 +11,9 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
   final Map<int, Offset> lastPosition = {};
   // Steadies each stroke in screen space, per pointer.
   final Map<int, StrokeStabilizer> _stabilizers = {};
+  // Time stamp of the first event of each stroke, per pointer.
+  final Map<int, Duration> _strokeStart = {};
+  static bool _tiltLogged = false;
   // List for shapeDetection
   final points = <Offset>[];
   // For control if the pointer has not moved
@@ -34,7 +37,7 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
   ]) => [...elements.values, ..._submittedElements]
       .map(
         (e) => e.points.length > 1
-            ? PenRenderer(e.copyWith(id: createUniqueId()))
+            ? (PenRenderer(e.copyWith(id: createUniqueId()))..brushSeed = e.id)
             : null,
       )
       .whereType<Renderer>()
@@ -69,6 +72,7 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
       getPressureOfEvent(event),
       event.kind,
       refresh: false,
+      event: event,
     );
     _finishStroke(
       context.buildContext,
@@ -164,6 +168,7 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
     PointerDeviceKind kind, {
     bool refresh = true,
     bool shouldCreate = false,
+    PointerEvent? event,
   }) {
     final bloc = context.read<DocumentBloc>();
     final editorController = context.read<EditorController>();
@@ -192,12 +197,32 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
     if (createNew && !shouldCreate) return;
     if (createNew) {
       _stabilizers[pointer] = StrokeStabilizer(data.property.smoothing);
+      if (event != null) _strokeStart[pointer] = event.timeStamp;
     }
     // Smoothing steadies the path in screen space; pressure stays raw.
     final stabilized = _stabilizers[pointer]?.add(localPos) ?? localPos;
     final globalPos = transform.localToGlobal(stabilized);
     final element = elements[pointer];
-    final point = PathPoint.fromPoint(globalPos.toPoint(), pressure);
+    // Brushes read tilt (stylus only) and time; classic pens ignore them.
+    final stylus = kind == .stylus || kind == .invertedStylus;
+    final tilt = stylus ? event?.tilt : null;
+    final azimuth = stylus ? event?.orientation : null;
+    final start = _strokeStart[pointer];
+    final time = event == null || start == null
+        ? null
+        : (event.timeStamp - start).inMilliseconds;
+    if (kDebugMode && stylus && !_tiltLogged && (tilt ?? 0) != 0) {
+      _tiltLogged = true;
+      debugPrint('Stylus tilt: $tilt, azimuth: $azimuth');
+    }
+    final point = PathPoint(
+      globalPos.dx,
+      globalPos.dy,
+      pressure,
+      tilt,
+      azimuth,
+      time,
+    );
     if (element != null) {
       final points = _elementPoints[pointer] ?? element.points.toList();
       points.add(point);
@@ -244,12 +269,18 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
     final catchUp = stabilizer.finish(raw);
     if (catchUp.isEmpty) return;
     final points = _elementPoints[pointer] ?? element.points.toList();
-    final pressure = points.isEmpty ? 1.0 : points.last.pressure;
+    final last = points.lastOrNull;
+    final pressure = last?.pressure ?? 1.0;
     for (final position in catchUp) {
+      final global = transform.localToGlobal(position);
       points.add(
-        PathPoint.fromPoint(
-          transform.localToGlobal(position).toPoint(),
+        PathPoint(
+          global.dx,
+          global.dy,
           pressure,
+          last?.tilt,
+          last?.azimuth,
+          last?.time,
         ),
       );
     }
@@ -273,6 +304,7 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
     elements.remove(event.pointer);
     _elementPoints.remove(event.pointer);
     _stabilizers.remove(event.pointer);
+    _strokeStart.remove(event.pointer);
     addPoint(
       context.buildContext,
       event.pointer,
@@ -281,6 +313,7 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
       getPressureOfEvent(event),
       event.kind,
       shouldCreate: true,
+      event: event,
     );
   }
 
@@ -308,6 +341,7 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
       context.viewportSize,
       getPressureOfEvent(event),
       event.kind,
+      event: event,
     );
     points.add(event.localPosition);
   }

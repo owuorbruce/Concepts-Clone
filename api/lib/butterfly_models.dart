@@ -8,6 +8,7 @@ export 'src/models/archive.dart';
 export 'src/models/area.dart';
 export 'src/models/asset.dart';
 export 'src/models/background.dart';
+export 'src/models/brush.dart';
 export 'src/models/colors.dart';
 export 'src/models/data.dart';
 export 'src/models/element.dart';

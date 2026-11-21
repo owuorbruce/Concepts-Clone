@@ -29,8 +29,14 @@ abstract class SimplePoint with _$SimplePoint {
 @freezed
 sealed class PathPoint extends SimplePoint with _$PathPoint {
   const PathPoint._() : super._();
-  const factory PathPoint(double x, double y, [@Default(1) double pressure]) =
-      _PathPoint;
+  const factory PathPoint(
+    double x,
+    double y, [
+    @Default(1) double pressure,
+    @JsonKey(includeIfNull: false) double? tilt,
+    @JsonKey(includeIfNull: false) double? azimuth,
+    @JsonKey(includeIfNull: false) int? time,
+  ]) = _PathPoint;
 
   factory PathPoint.fromPoint(Point<double> point, [double pressure = 1]) =>
       PathPoint(point.x, point.y, pressure);

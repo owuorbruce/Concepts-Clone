@@ -294,20 +294,25 @@ class DocumentExportSource extends ExportSource {
     try {
       if (item.page != currentPage) viewport = await _viewport(page);
       final o = item.options;
+      final svgOptions = SvgExportOptions(
+        width: o.width,
+        height: o.height,
+        x: o.x,
+        y: o.y,
+        scale: o.scale,
+        rotation: o.rotation,
+        padding: o.padding,
+        renderBackground: o.renderBackground,
+      );
+      await bloc.editorController.rendererCubit.prepareSvgExport(
+        svgOptions,
+        cameraViewport: viewport,
+      );
       return bloc.editorController.rendererCubit
           .renderSVG(
             state.data,
             page,
-            SvgExportOptions(
-              width: o.width,
-              height: o.height,
-              x: o.x,
-              y: o.y,
-              scale: o.scale,
-              rotation: o.rotation,
-              padding: o.padding,
-              renderBackground: o.renderBackground,
-            ),
+            svgOptions,
             cameraViewport: viewport,
             invisibleLayers: state.invisibleLayers,
           )

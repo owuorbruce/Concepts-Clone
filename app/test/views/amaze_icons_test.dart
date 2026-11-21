@@ -224,10 +224,17 @@ void main() {
       final available = LibraryEntry.values.where((entry) => entry.available);
       expect(available.toSet(), {
         LibraryEntry.pen,
+        LibraryEntry.fountain,
         LibraryEntry.dynamicPen,
         LibraryEntry.fixedWidth,
         LibraryEntry.wire,
+        LibraryEntry.softPencil,
+        LibraryEntry.hardPencil,
+        LibraryEntry.marker,
+        LibraryEntry.watercolor,
+        LibraryEntry.airbrush,
         LibraryEntry.fill,
+        LibraryEntry.dotted,
         LibraryEntry.lasso,
         LibraryEntry.nudge,
         LibraryEntry.slice,

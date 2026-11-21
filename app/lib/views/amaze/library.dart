@@ -1,3 +1,4 @@
+import 'package:butterfly/brushes/brush_registry.dart';
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly/visualizer/tool.dart';
 import 'package:butterfly_api/butterfly_api.dart';
@@ -128,15 +129,45 @@ enum LibraryEntry {
     );
   }
 
+  /// The brush id this entry draws with, or null.
+  String? get brushId => switch (this) {
+    pen => 'amaze.pen',
+    fountain => 'amaze.fountain',
+    dynamicPen => 'amaze.dynamic',
+    fixedWidth => 'amaze.fixed',
+    wire => 'amaze.wire',
+    dotted => 'amaze.dotted',
+    softPencil => 'amaze.softPencil',
+    hardPencil => 'amaze.hardPencil',
+    marker => 'amaze.marker',
+    airbrush => 'amaze.airbrush',
+    watercolor => 'amaze.watercolor',
+    _ => null,
+  };
+
+  /// The definition of [brushId], once the registry has loaded.
+  BrushDefinition? get brushDefinition {
+    final id = brushId;
+    return id == null ? null : brushById(id);
+  }
+
   Tool? _build() {
     return switch (this) {
-      pen => Tool.pen(),
-      dynamicPen => Tool.pen(property: const PenProperty(thinning: 0.8)),
-      fixedWidth => Tool.pen(property: const PenProperty(thinning: 0)),
-      wire => Tool.pen(
+      pen => _brushTool(const PenProperty()),
+      dynamicPen => _brushTool(const PenProperty(thinning: 0.8)),
+      fixedWidth => _brushTool(const PenProperty(thinning: 0)),
+      wire => _brushTool(
+        const PenProperty(strokeWidth: 1, thinning: 0),
         zoomDependent: true,
-        property: const PenProperty(strokeWidth: 1, thinning: 0),
+        keepSize: true,
       ),
+      fountain ||
+      dotted ||
+      softPencil ||
+      hardPencil ||
+      marker ||
+      airbrush ||
+      watercolor => _brushTool(const PenProperty()),
       fill => Tool.pen(
         property: const PenProperty(fillPaint: ElementPaint.solid()),
       ),
@@ -147,6 +178,32 @@ enum LibraryEntry {
       pan => Tool.hand(),
       _ => null,
     };
+  }
+
+  /// A pen drawing with [brushId] at its newest version. The definition's
+  /// default size and opacity apply unless [keepSize].
+  Tool _brushTool(
+    PenProperty base, {
+    bool zoomDependent = false,
+    bool keepSize = false,
+  }) {
+    final id = brushId!;
+    final definition = brushById(id);
+    var property = base.copyWith(
+      brush: id,
+      brushVersion: definition?.version ?? 1,
+    );
+    final size = definition?.defaultSize;
+    if (size != null && !keepSize) {
+      property = property.copyWith(strokeWidth: size);
+    }
+    final opacity = definition?.defaultOpacity;
+    if (opacity != null) {
+      property = property.copyWith(
+        paint: property.paint.withAlpha((opacity.clamp(0, 1) * 255).round()),
+      );
+    }
+    return Tool.pen(zoomDependent: zoomDependent, property: property);
   }
 }
 

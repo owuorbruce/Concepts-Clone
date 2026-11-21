@@ -1039,6 +1039,20 @@ class RendererCubit(
     }
   }
 
+  /// Renders stamp brush strokes (pencils, marker, watercolor…) to images
+  /// at the export's scale, so [renderSVG] can embed them.
+  Future<void> prepareSvgExport(
+    SvgExportOptions options, {
+    CameraViewport? cameraViewport,
+  }) async {
+    final pixelsPerUnit = options.scale.abs().clamp(0.25, 8.0).toDouble();
+    await Future.wait([
+      for (final renderer in cameraViewport?.unbakedElements ?? renderers)
+        if (renderer is PenRenderer)
+          renderer.prepareExport(pixelsPerUnit: pixelsPerUnit),
+    ]);
+  }
+
   XmlDocument renderSVG(
     NoteData document,
     DocumentPage page,

@@ -884,7 +884,7 @@ $ElementPaintCopyWith<$Res> get paint {
 @JsonSerializable()
 
 class PenProperty implements Property, PathProperty {
-  const PenProperty({this.strokeWidth = 5, this.thinning = 0.4, this.paint = const ElementPaint.solid(), this.fillPaint = const ElementPaint.solid(color: SRGBColor.transparent), this.smoothing = 0.5, this.streamline = 0.3,  String? $type}): $type = $type ?? 'pen';
+  const PenProperty({this.strokeWidth = 5, this.thinning = 0.4, this.paint = const ElementPaint.solid(), this.fillPaint = const ElementPaint.solid(color: SRGBColor.transparent), this.smoothing = 0.5, this.streamline = 0.3, @JsonKey(includeIfNull: false)@EmptyStringAsNullConverter() this.brush = '', @JsonKey(includeIfNull: false)@DefaultOneAsNullConverter() this.brushVersion = 1,  String? $type}): $type = $type ?? 'pen';
   factory PenProperty.fromJson(Map<String, dynamic> json) => _$PenPropertyFromJson(json);
 
 @override@JsonKey() final  double strokeWidth;
@@ -893,6 +893,10 @@ class PenProperty implements Property, PathProperty {
 @JsonKey() final  ElementPaint fillPaint;
 @JsonKey() final  double smoothing;
 @JsonKey() final  double streamline;
+/// Brush definition id (see [BrushDefinition]); empty = classic pen.
+@JsonKey(includeIfNull: false)@EmptyStringAsNullConverter() final  String brush;
+/// Version of the brush definition the stroke was drawn with.
+@JsonKey(includeIfNull: false)@DefaultOneAsNullConverter() final  int brushVersion;
 
 @JsonKey(name: 'type')
 final String $type;
@@ -911,18 +915,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is PenProperty&&(identical(other.strokeWidth, strokeWidth) || other.strokeWidth == strokeWidth)&&(identical(other.thinning, thinning) || other.thinning == thinning)&&(identical(other.paint, paint) || other.paint == paint)&&(identical(other.fillPaint, fillPaint) || other.fillPaint == fillPaint)&&(identical(other.smoothing, smoothing) || other.smoothing == smoothing)&&(identical(other.streamline, streamline) || other.streamline == streamline));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is PenProperty&&(identical(other.strokeWidth, strokeWidth) || other.strokeWidth == strokeWidth)&&(identical(other.thinning, thinning) || other.thinning == thinning)&&(identical(other.paint, paint) || other.paint == paint)&&(identical(other.fillPaint, fillPaint) || other.fillPaint == fillPaint)&&(identical(other.smoothing, smoothing) || other.smoothing == smoothing)&&(identical(other.streamline, streamline) || other.streamline == streamline)&&(identical(other.brush, brush) || other.brush == brush)&&(identical(other.brushVersion, brushVersion) || other.brushVersion == brushVersion));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,strokeWidth,thinning,paint,fillPaint,smoothing,streamline);
+    return Object.hash(runtimeType,strokeWidth,thinning,paint,fillPaint,smoothing,streamline,brush,brushVersion);
 }
 
 @override
 String toString() {
-    return 'Property.pen(strokeWidth: $strokeWidth, thinning: $thinning, paint: $paint, fillPaint: $fillPaint, smoothing: $smoothing, streamline: $streamline)';
+    return 'Property.pen(strokeWidth: $strokeWidth, thinning: $thinning, paint: $paint, fillPaint: $fillPaint, smoothing: $smoothing, streamline: $streamline, brush: $brush, brushVersion: $brushVersion)';
 }
 
 
@@ -933,7 +937,7 @@ abstract mixin class $PenPropertyCopyWith<$Res> implements $PropertyCopyWith<$Re
   factory $PenPropertyCopyWith(PenProperty value, $Res Function(PenProperty) _then) = _$PenPropertyCopyWithImpl;
 @override @useResult
 $Res call({
- double strokeWidth, double thinning, ElementPaint paint, ElementPaint fillPaint, double smoothing, double streamline
+ double strokeWidth, double thinning, ElementPaint paint, ElementPaint fillPaint, double smoothing, double streamline,@JsonKey(includeIfNull: false)@EmptyStringAsNullConverter() String brush,@JsonKey(includeIfNull: false)@DefaultOneAsNullConverter() int brushVersion
 });
 
 
@@ -950,7 +954,7 @@ class _$PenPropertyCopyWithImpl<$Res>
 
 /// Create a copy of Property
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? strokeWidth = null,Object? thinning = null,Object? paint = null,Object? fillPaint = null,Object? smoothing = null,Object? streamline = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? strokeWidth = null,Object? thinning = null,Object? paint = null,Object? fillPaint = null,Object? smoothing = null,Object? streamline = null,Object? brush = null,Object? brushVersion = null,}) {
   return _then(PenProperty(
 strokeWidth: null == strokeWidth ? _self.strokeWidth : strokeWidth // ignore: cast_nullable_to_non_nullable
 as double,thinning: null == thinning ? _self.thinning : thinning // ignore: cast_nullable_to_non_nullable
@@ -958,7 +962,9 @@ as double,paint: null == paint ? _self.paint : paint // ignore: cast_nullable_to
 as ElementPaint,fillPaint: null == fillPaint ? _self.fillPaint : fillPaint // ignore: cast_nullable_to_non_nullable
 as ElementPaint,smoothing: null == smoothing ? _self.smoothing : smoothing // ignore: cast_nullable_to_non_nullable
 as double,streamline: null == streamline ? _self.streamline : streamline // ignore: cast_nullable_to_non_nullable
-as double,
+as double,brush: null == brush ? _self.brush : brush // ignore: cast_nullable_to_non_nullable
+as String,brushVersion: null == brushVersion ? _self.brushVersion : brushVersion // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
 

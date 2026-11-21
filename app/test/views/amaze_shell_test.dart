@@ -573,9 +573,9 @@ void main() {
       await tester.ensureVisible(libraryItem(entry));
       expect(libraryItem(entry), findsOneWidget);
     }
-    await tester.ensureVisible(libraryItem(LibraryEntry.watercolor));
+    await tester.ensureVisible(libraryItem(LibraryEntry.hardMask));
     await tester.pumpAndSettle();
-    await tester.tap(libraryItem(LibraryEntry.watercolor), warnIfMissed: false);
+    await tester.tap(libraryItem(LibraryEntry.hardMask), warnIfMissed: false);
     await tester.pumpAndSettle();
     expect(slotTool(pen), same(before));
     await tester.ensureVisible(libraryItem(LibraryEntry.lasso));

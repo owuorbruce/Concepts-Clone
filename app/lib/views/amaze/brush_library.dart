@@ -1,3 +1,4 @@
+import 'package:butterfly/brushes/brush_preview.dart';
 import 'package:butterfly/bloc/document_bloc.dart';
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly/visualizer/tool.dart';
@@ -182,7 +183,10 @@ class _LibraryHeader extends StatelessWidget {
     final name = tool?.getDisplay(context) ?? loc.emptySlot;
     final glyph = entry?.glyph;
     final Widget preview;
-    if (glyph != null && glyph.isBrush) {
+    final brush = entry?.brushDefinition;
+    if (brush != null) {
+      preview = BrushEnginePreview(brush, color: style.onSurface);
+    } else if (glyph != null && glyph.isBrush) {
       preview = AmazeBrushPreview(glyph, color: style.onSurface);
     } else if (tool != null) {
       preview = Center(
@@ -439,7 +443,14 @@ class _LibraryTile extends StatelessWidget {
     final foreground = selected ? style.onAccent : style.onSurface;
     final glyph = entry.glyph;
     final Widget icon;
-    if (glyph != null && (glyph.isBrush || glyph.isPack)) {
+    final brush = entry.brushDefinition;
+    if (brush != null) {
+      // Brushes draw their preview stroke with their own engine.
+      icon = Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        child: BrushEnginePreview(brush, color: foreground),
+      );
+    } else if (glyph != null && (glyph.isBrush || glyph.isPack)) {
       // Brushes show a long stroke so their character reads at a glance.
       icon = Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),

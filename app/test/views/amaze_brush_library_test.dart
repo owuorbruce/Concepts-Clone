@@ -2,12 +2,15 @@ import 'package:butterfly/actions/shortcuts.dart';
 import 'package:butterfly/api/file_system.dart';
 import 'package:butterfly/api/open.dart';
 import 'package:butterfly/bloc/document_bloc.dart';
+import 'package:butterfly/brushes/brush_preview.dart';
+import 'package:butterfly/brushes/brush_registry.dart';
 import 'package:butterfly/cubits/editor_controller.dart';
 import 'package:butterfly/cubits/settings.dart';
 import 'package:butterfly/models/defaults.dart';
 import 'package:butterfly/services/font.dart';
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly/theme.dart';
+import 'package:butterfly/views/amaze/library.dart';
 import 'package:butterfly/views/amaze/shell.dart';
 import 'package:butterfly/views/amaze/tool_slots.dart';
 import 'package:butterfly/views/main.dart';
@@ -216,6 +219,38 @@ void main() {
 
   // Tall enough that the whole library, More tools included, is built.
   const tall = Size(1280, 4000);
+
+  testWidgets('22: every Basics brush is available with its own preview', (
+    tester,
+  ) async {
+    await tester.runAsync(loadBrushRegistry);
+    setScreen(tester, tall);
+    await openEditor(tester);
+    await openLibrary(tester, slotOf<PenTool>());
+
+    final basics = LibraryEntry.of(LibrarySection.basics);
+    for (final entry in basics) {
+      expect(entry.available, isTrue, reason: entry.name);
+      final tile = find.byKey(ValueKey(('amaze-library-item', entry.name)));
+      expect(tile, findsOneWidget, reason: entry.name);
+      if (entry == LibraryEntry.fill) continue;
+      expect(entry.brushDefinition, isNotNull, reason: entry.name);
+      final preview = find.descendant(
+        of: tile,
+        matching: find.byType(BrushEnginePreview),
+      );
+      expect(preview, findsOneWidget, reason: entry.name);
+      expect(
+        find.descendant(of: preview, matching: find.byType(RawImage)),
+        findsOneWidget,
+        reason: entry.name,
+      );
+      final tool = entry.createTool() as PenTool;
+      expect(tool.property.brush, entry.brushId, reason: entry.name);
+    }
+    expect(find.byType(BrushEnginePreview), findsAtLeastNWidgets(11));
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('Tools ends with More tools: one tile per catalog tool', (
     tester,
