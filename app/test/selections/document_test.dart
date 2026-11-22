@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:archive/archive.dart';
+import 'package:butterfly/views/zoom.dart' show LogZoomSlider;
 import 'package:butterfly/api/file_system.dart';
 import 'package:butterfly/bloc/document_bloc.dart';
 import 'package:butterfly/cubits/editor_controller.dart';
@@ -91,10 +92,13 @@ void main() {
     await tester.tap(find.text('Camera'));
     await tester.pumpAndSettle();
 
-    List<double> sliderValues() => tester
-        .widgetList<ExactSlider>(find.byType(ExactSlider))
-        .map((slider) => slider.value)
-        .toList();
+    // Zoom is a logarithmic LogZoomSlider; rotation stays an ExactSlider.
+    List<double> sliderValues() => [
+      tester.widget<LogZoomSlider>(find.byType(LogZoomSlider)).value,
+      ...tester
+          .widgetList<ExactSlider>(find.byType(ExactSlider))
+          .map((slider) => slider.value),
+    ];
 
     expect(sliderValues(), [100, 0]);
 

@@ -22,6 +22,7 @@ import 'package:butterfly/views/main.dart';
 import 'package:butterfly/views/navigator/view.dart';
 import 'package:butterfly/views/toolbar/color.dart';
 import 'package:butterfly/views/view.dart';
+import 'package:butterfly/cubits/transform.dart' show kMaxZoom, kMinZoom;
 import 'package:butterfly/views/zoom.dart';
 import 'package:butterfly/widgets/document_page_preview.dart';
 import 'package:butterfly/widgets/context_menu.dart';
@@ -796,14 +797,12 @@ void main() {
   }
 
   Finder cameraZoomSlider() => find.descendant(
-    of: find.byWidgetPredicate(
-      (widget) =>
-          widget is ExactSlider &&
-          widget.header is Text &&
-          (widget.header as Text).data == 'Zoom',
-    ),
+    of: find.byKey(const ValueKey('document-zoom')),
     matching: find.byType(Slider),
   );
+
+  // Zoom sliders are logarithmic: their track runs over log10(percent).
+  double percentOf(double sliderValue) => pow(10, sliderValue).toDouble();
 
   for (final controls in [
     ZoomPanelControls.sliderAndButtons,
@@ -883,7 +882,7 @@ void main() {
     await tester.tap(cameraButton('Rotate left'));
     await tester.pumpAndSettle();
     expect(editor.transformCubit.state.rotation, closeTo(0, 1e-9));
-    editor.transformCubit.size(10);
+    editor.transformCubit.size(kMaxZoom);
     editor.transformCubit.rotate(pi);
     await tester.pumpAndSettle();
     expect(
@@ -899,7 +898,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(editor.transformCubit.state.size, 1);
     expect(editor.transformCubit.state.rotation, 0);
-    editor.transformCubit.size(.1);
+    editor.transformCubit.size(kMinZoom);
     await tester.pumpAndSettle();
     expect(
       tester.widget<IconButton>(cameraButton('Zoom out')).onPressed,
@@ -1103,7 +1102,10 @@ void main() {
       );
       await openCamera(tester, editor);
       expect(find.text('Calibrate display'), findsNothing);
-      expect(tester.widget<Slider>(cameraZoomSlider()).value, 100);
+      expect(
+        percentOf(tester.widget<Slider>(cameraZoomSlider()).value),
+        closeTo(100, 1e-9),
+      );
       final toggle = find.widgetWithText(SwitchListTile, 'Calibrated zoom');
       await tester.ensureVisible(toggle);
       await tester.pumpAndSettle();
@@ -1126,7 +1128,7 @@ void main() {
       expect(editor.settingsCubit.state.useCalibratedZoom, isTrue);
       expect(editor.transformCubit.state.size, 1);
       expect(
-        tester.widget<Slider>(cameraZoomSlider()).value,
+        percentOf(tester.widget<Slider>(cameraZoomSlider()).value),
         closeTo(100 / (4 * 25.4 / kCanvasUnitsPerInch), 1e-9),
       );
       expect(
@@ -1156,7 +1158,7 @@ void main() {
         closeTo(4 * 25.4 / kCanvasUnitsPerInch, 1e-9),
       );
       expect(
-        tester.widget<Slider>(cameraZoomSlider()).value,
+        percentOf(tester.widget<Slider>(cameraZoomSlider()).value),
         closeTo(4 * 25.4 / kCanvasUnitsPerInch * 100, 1e-9),
       );
       expect(
@@ -1209,8 +1211,8 @@ void main() {
       matching: find.byType(Slider),
     );
     final zoomSlider = tester.widget<Slider>(slider);
-    expect(zoomSlider.min, closeTo(100 / 30, 1e-9));
-    expect(zoomSlider.max, closeTo(1000 / 3, 1e-9));
+    expect(percentOf(zoomSlider.min), closeTo(100 / 30, 1e-9));
+    expect(percentOf(zoomSlider.max), closeTo(1000 / 3, 1e-9));
     zoomSlider.onChanged!(zoomSlider.max);
     await tester.pumpAndSettle();
     expect(editor.transformCubit.state.size, 10);
@@ -1245,15 +1247,16 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(editor.transformCubit.state.size, 3);
+    // Ctrl+ multiplies by 1.25.
     Actions.invoke(tester.element(find.byType(ZoomView)), const ZoomIntent());
     await tester.pumpAndSettle();
-    expect(editor.transformCubit.state.size, closeTo(3.3, 1e-9));
+    expect(editor.transformCubit.state.size, closeTo(3.75, 1e-9));
     await openCamera(tester, editor);
     final panelSlider = tester.widget<Slider>(cameraZoomSlider());
-    expect(panelSlider.value, closeTo(110, 1e-9));
-    expect(panelSlider.min, closeTo(100 / 30, 1e-9));
-    expect(panelSlider.max, closeTo(1000 / 3, 1e-9));
-    panelSlider.onChangeEnd!(100);
+    expect(percentOf(panelSlider.value), closeTo(125, 1e-9));
+    expect(percentOf(panelSlider.min), closeTo(100 / 30, 1e-9));
+    expect(percentOf(panelSlider.max), closeTo(1000 / 3, 1e-9));
+    panelSlider.onChangeEnd!(2);
     await tester.pumpAndSettle();
     expect(editor.transformCubit.state.size, 3);
     expect(tester.widget<TextField>(field).controller!.text, '100.0');
@@ -1329,7 +1332,7 @@ void main() {
       await tester.tap(cameraButton('Zoom out'));
       await tester.pumpAndSettle();
       expect(editor.transformCubit.state.size, closeTo(1, 1e-9));
-      editor.transformCubit.size(10);
+      editor.transformCubit.size(kMaxZoom);
       await tester.pumpAndSettle();
       expect(
         tester.widget<IconButton>(cameraButton('Zoom in')).onPressed,
@@ -1338,7 +1341,7 @@ void main() {
       await tester.tap(cameraButton('Reset zoom'));
       await tester.pumpAndSettle();
       expect(editor.transformCubit.state.size, 1);
-      editor.transformCubit.size(0.1);
+      editor.transformCubit.size(kMinZoom);
       await tester.pumpAndSettle();
       expect(
         tester.widget<IconButton>(cameraButton('Zoom out')).onPressed,
@@ -1375,16 +1378,16 @@ void main() {
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
       expect(editor.transformCubit.state.size, 1.255);
-      await tester.enterText(field, '9999');
+      await tester.enterText(field, '200000');
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
       expect(editor.transformCubit.state.size, 1.255);
       expect(tester.widget<TextField>(field).decoration?.errorText, isNotNull);
-      await tester.enterText(field, '1000');
+      await tester.enterText(field, '100000');
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
-      expect(editor.transformCubit.state.size, 10);
-      expect(controller.text, '1000.0');
+      expect(editor.transformCubit.state.size, kMaxZoom);
+      expect(controller.text, '100000.0');
       expect(tester.takeException(), isNull);
     },
   );

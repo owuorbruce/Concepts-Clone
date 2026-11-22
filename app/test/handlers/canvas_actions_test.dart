@@ -1,6 +1,8 @@
 import 'dart:math';
 import 'dart:ui';
 
+import 'package:butterfly/brushes/dynamics.dart' show stableHash;
+import 'package:butterfly/brushes/stamp_engine.dart' show kBrushSeedKey;
 import 'package:butterfly/cubits/transform.dart';
 import 'package:butterfly/handlers/handler.dart';
 import 'package:butterfly/views/amaze/library.dart';
@@ -280,7 +282,8 @@ void main() {
         expect(piece.property.strokeWidth, 7);
         expect(piece.property.paint, sCurve.property.paint);
         expect(piece.collection, 'c');
-        expect(piece.extra, {'note': 1});
+        // The pieces keep the stroke's extra and its texture seed.
+        expect(piece.extra, {'note': 1, kBrushSeedKey: stableHash('s')});
       }
     });
 

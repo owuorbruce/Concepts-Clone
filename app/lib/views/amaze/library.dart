@@ -119,6 +119,12 @@ enum LibraryEntry {
     };
   }
 
+  /// What this entry does, in one sentence, for entries that need one.
+  String? getLocalizedInfo(AppLocalizations loc) => switch (this) {
+    fill => loc.amazeInfoFill,
+    _ => null,
+  };
+
   /// A new tool for this entry, named [name], or null if it is unavailable.
   ///
   /// The tool remembers its entry in its display icon, so the wheel can show
@@ -475,6 +481,13 @@ enum ToolFamily {
     eyedropper => loc.amazeToolEyedropper,
     fullScreen => loc.amazeToolFullScreen,
     collections => loc.amazeToolCollections,
+  };
+
+  /// The name of a slot holding this family's tool. Only the More tools
+  /// tile tells the classic pen apart; in a slot it is just the pen.
+  String getSlotName(AppLocalizations loc) => switch (this) {
+    classicPen => loc.pen,
+    _ => getLocalizedName(loc),
   };
 
   /// One plain sentence: what the tool does and how to use it.

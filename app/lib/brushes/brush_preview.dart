@@ -132,3 +132,257 @@ class BrushEnginePreview extends StatelessWidget {
     );
   }
 }
+
+/// An S-curve across a [size] strip with a pressure ramp of 0.3 → 1 → 0.4,
+/// [inset] from the ends, in the strip's own units.
+List<PathPoint> brushStripPoints(Size size, {double inset = 16}) {
+  const count = 64;
+  final amplitude = size.height * .22;
+  return [
+    for (var i = 0; i < count; i++)
+      () {
+        final t = i / (count - 1);
+        final pressure = t < 0.5 ? 0.3 + 1.4 * t : 1 - 1.2 * (t - 0.5);
+        return PathPoint(
+          inset + t * (size.width - 2 * inset),
+          size.height / 2 - sin((2 * t - 1) * pi) * amplitude,
+          pressure,
+          null,
+          null,
+          i * 14,
+        );
+      }(),
+  ];
+}
+
+void _paintStroke(Canvas canvas, PenElement element) {
+  final renderer = PenRenderer(element);
+  canvas.save();
+  final origin = renderer.localOrigin;
+  canvas.translate(origin.dx, origin.dy);
+  renderer.buildLocal(canvas);
+  canvas.restore();
+  renderer.dispose();
+}
+
+/// Draws [definition] in action across a [size] strip by its own engine: an
+/// S-curve in [color] at [strokeWidth], or for a mask, a colored stroke
+/// that the mask's stroke hides (hard) or fades (soft) in the middle.
+void paintBrushStrip(
+  Canvas canvas,
+  Size size,
+  BrushDefinition definition,
+  Color color, {
+  required double strokeWidth,
+  double pixelRatio = 1,
+}) {
+  final zoom = max(pixelRatio, 1.0);
+  final width = strokeWidth.clamp(1.0, size.height * .4).toDouble();
+  final paint = ElementPaint.solid(color: SRGBColor(color.toARGB32()));
+  if (!definition.mask) {
+    _paintStroke(
+      canvas,
+      PenElement(
+        id: 'strip:${definition.id}',
+        zoom: zoom,
+        points: brushStripPoints(size),
+        property: PenProperty(
+          brush: definition.id,
+          brushVersion: definition.version,
+          strokeWidth: width,
+          paint: paint,
+        ),
+      ),
+    );
+    return;
+  }
+  final y = size.height / 2;
+  _paintStroke(
+    canvas,
+    PenElement(
+      id: 'strip:base',
+      zoom: zoom,
+      points: [
+        for (var i = 0; i <= 16; i++)
+          PathPoint(size.width * (.12 + .76 * i / 16), y, 1),
+      ],
+      property: PenProperty(
+        strokeWidth: size.height * .42,
+        thinning: 0,
+        paint: paint,
+      ),
+    ),
+  );
+  // The mask crosses the middle of the colored stroke.
+  final maskWidth = min(width, size.height * .35);
+  _paintStroke(
+    canvas,
+    PenElement(
+      id: 'strip:${definition.id}',
+      zoom: zoom,
+      points: [
+        for (var i = 0; i <= 24; i++)
+          () {
+            final t = i / 24;
+            return PathPoint(
+              size.width * (.42 + .16 * t),
+              size.height * (.08 + .84 * t),
+              0.3 + 0.7 * sin(t * pi),
+              null,
+              null,
+              i * 14,
+            );
+          }(),
+      ],
+      property: PenProperty(
+        brush: definition.id,
+        brushVersion: definition.version,
+        strokeWidth: maskWidth,
+        paint: const ElementPaint.solid(color: SRGBColor(0xFF000000)),
+      ),
+    ),
+  );
+}
+
+final Map<Object, ui.Image> _stripCache = {};
+
+/// [paint] recorded at [size] × [pixelRatio] and cached under [key] with the
+/// size, so each library item, size and theme is drawn once.
+ui.Image cachedPreviewImage(
+  Object key,
+  Size size,
+  double pixelRatio,
+  void Function(Canvas canvas) paint,
+) {
+  final width = max(1, (size.width * pixelRatio).round());
+  final height = max(1, (size.height * pixelRatio).round());
+  final fullKey = (key, width, height);
+  final cached = _stripCache[fullKey];
+  if (cached != null) return cached;
+  // A long session resizing the library keeps a bounded cache. Images may
+  // still be on screen, so they are dropped, not disposed.
+  if (_stripCache.length > 64) _stripCache.clear();
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  canvas.scale(pixelRatio);
+  paint(canvas);
+  final picture = recorder.endRecording();
+  final image = picture.toImageSync(width, height);
+  picture.dispose();
+  return _stripCache[fullKey] = image;
+}
+
+/// A cached image of [paint] that fills its box, redrawn only for a new
+/// [cacheKey] or size.
+class CachedPreview extends StatelessWidget {
+  const CachedPreview({
+    super.key,
+    required this.cacheKey,
+    required this.painter,
+    this.ready = true,
+  });
+
+  final Object cacheKey;
+  final void Function(Canvas canvas, Size size, double pixelRatio) painter;
+
+  /// False while what the preview needs (stamp textures) is still loading.
+  final bool ready;
+
+  @override
+  Widget build(BuildContext context) {
+    final pixelRatio = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = constraints.biggest;
+        if (!ready || !size.isFinite || size.isEmpty) {
+          return const SizedBox.expand();
+        }
+        final image = cachedPreviewImage(
+          cacheKey,
+          size,
+          pixelRatio,
+          (canvas) => painter(canvas, size, pixelRatio),
+        );
+        return RawImage(
+          image: image,
+          width: size.width,
+          height: size.height,
+          fit: BoxFit.fill,
+        );
+      },
+    );
+  }
+}
+
+/// [definition] in action across the library's preview strip.
+class BrushStripPreview extends StatelessWidget {
+  const BrushStripPreview(
+    this.definition, {
+    super.key,
+    required this.color,
+    required this.strokeWidth,
+  });
+
+  final BrushDefinition definition;
+  final Color color;
+  final double strokeWidth;
+
+  @override
+  Widget build(BuildContext context) => CachedPreview(
+    cacheKey: (
+      'brush',
+      definition.id,
+      definition.version,
+      color.toARGB32(),
+      strokeWidth,
+    ),
+    ready: definition.engine != BrushEngine.stamp || brushTexturesReady,
+    painter: (canvas, size, pixelRatio) => paintBrushStrip(
+      canvas,
+      size,
+      definition,
+      color,
+      strokeWidth: strokeWidth,
+      pixelRatio: pixelRatio,
+    ),
+  );
+}
+
+/// Draws a classic pen with [property] across a [size] strip by the classic
+/// engine: the S-curve, or a closed loop when the pen fills ([closed]).
+void paintPenStrip(
+  Canvas canvas,
+  Size size,
+  PenProperty property, {
+  bool closed = false,
+  double pixelRatio = 1,
+}) {
+  final List<PathPoint> points;
+  if (closed) {
+    const count = 48;
+    final center = size.center(Offset.zero);
+    points = [
+      for (var i = 0; i <= count; i++)
+        () {
+          final a = i / count * 2 * pi;
+          return PathPoint(
+            center.dx + cos(a) * size.width * .3,
+            center.dy + sin(a) * size.height * .32,
+          );
+        }(),
+    ];
+  } else {
+    points = brushStripPoints(size);
+  }
+  _paintStroke(
+    canvas,
+    PenElement(
+      id: 'strip:pen',
+      zoom: max(pixelRatio, 1.0),
+      points: points,
+      property: property.copyWith(
+        strokeWidth: property.strokeWidth.clamp(1.0, size.height * .4),
+      ),
+    ),
+  );
+}

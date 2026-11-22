@@ -204,7 +204,11 @@ class SliceHandler extends Handler<EraserTool> {
         if (pieces == null) continue;
         changes[entry.key] = [
           for (final piece in pieces)
-            element.copyWith(points: piece, id: createUniqueId()),
+            element.copyWith(
+              points: piece,
+              id: createUniqueId(),
+              extra: brushPieceExtra(element, piece),
+            ),
         ];
       }
       if (changes.isNotEmpty && !gesture.cancelled && !_disposed) {

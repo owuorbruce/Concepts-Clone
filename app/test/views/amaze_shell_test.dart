@@ -1774,8 +1774,9 @@ void main() {
       final state = painter(tester);
       expect(state.center, screen.center(Offset.zero));
       expect(state.holeRadius, 0);
-      // The default wheel size for 1280x800 is 176.
-      expect(state.geometry.innerRadius, 88);
+      // The bar opens the color wheel at the layer's wheel size, the same
+      // source as the wheel: 176 by default at 1280x800, fitted to 160 here.
+      expect(state.geometry.innerRadius, 80);
       expect(find.byKey(const ValueKey('amaze-color-center')), findsOneWidget);
       await tapCode(tester, 'R29');
       await pumpUntil(tester, () => penColor(pen) == 0xFFEF0047, 'R29 color');

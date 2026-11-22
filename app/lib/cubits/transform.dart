@@ -200,12 +200,17 @@ class TransformCubit(double pixelRatio, [Offset? position])
     extends Cubit<CameraTransform> {
   this : super(CameraTransform(pixelRatio, position ?? .zero));
 
-  double toCameraScale(double percent, double reference) {
+  double toCameraScale(
+    double percent,
+    double reference, {
+    double min = kMinZoom,
+    double max = kMaxZoom,
+  }) {
     if (!percent.isFinite || !reference.isFinite || reference <= 0) {
       return state.size;
     }
-    if (percent <= kMinZoom / reference * 100) return kMinZoom;
-    if (percent >= kMaxZoom / reference * 100) return kMaxZoom;
+    if (percent <= min / reference * 100) return min;
+    if (percent >= max / reference * 100) return max;
     return percent / 100 * reference;
   }
 

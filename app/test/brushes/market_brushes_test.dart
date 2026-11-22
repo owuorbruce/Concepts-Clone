@@ -14,6 +14,7 @@ import 'package:butterfly_api/butterfly_api.dart';
 import 'package:dart_leap/dart_leap.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:xml/xml.dart';
 
 BrushDefinition asset(String id) => BrushDefinition.fromJson(
   jsonDecode(File('assets/brushes/$id.v1.json').readAsStringSync())
@@ -214,4 +215,40 @@ void main() {
     );
     renderer.dispose();
   });
+
+  test(
+    'SVG export embeds a pattern stroke as an image, not a solid fill',
+    () async {
+      final renderer = PenRenderer(
+        PenElement(
+          id: 'bricks',
+          zoom: 1,
+          points: line(const Offset(10, 10), const Offset(200, 80)),
+          property: const PenProperty(
+            brush: 'amaze.pattern.bricks',
+            strokeWidth: 20,
+          ),
+        ),
+      );
+      await renderer.prepareExport(pixelsPerUnit: 2);
+      final xml = XmlDocument.parse('<svg/>');
+      renderer.buildSvg(
+        xml,
+        NoteData(Archive()),
+        const DocumentPage(),
+        Rect.largest,
+      );
+      final image = xml.findAllElements('image').single;
+      expect(image.getAttribute('href'), startsWith('data:image/png;base64,'));
+      expect(xml.findAllElements('path'), isEmpty);
+      final rect = Rect.fromLTWH(
+        double.parse(image.getAttribute('x')!),
+        double.parse(image.getAttribute('y')!),
+        double.parse(image.getAttribute('width')!),
+        double.parse(image.getAttribute('height')!),
+      );
+      expect(rect.contains(const Offset(105, 45)), isTrue);
+      renderer.dispose();
+    },
+  );
 }

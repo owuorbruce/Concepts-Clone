@@ -659,12 +659,15 @@ abstract class Renderer<T> {
     );
   }
 
-  bool transformCanvas(Canvas canvas) {
+  /// Applies the element's rotation and shear around its center. With
+  /// [origin], the canvas origin has already been moved there, so the center
+  /// is taken relative to it.
+  bool transformCanvas(Canvas canvas, [Offset origin = Offset.zero]) {
     final radians = rotation * pi / 180;
     if (radians == 0 && shear == 0) {
       return false;
     }
-    final center = rect?.center;
+    final center = rect?.center.translate(-origin.dx, -origin.dy);
     canvas.save();
     if (center != null) canvas.translate(center.dx, center.dy);
     canvas.rotate(radians);

@@ -78,6 +78,9 @@ class ChannelRingLayout {
             4);
   }
 
+  /// Inner edge of the innermost arc (alpha) around [clearRadius].
+  static double innerEdgeFor(double clearRadius) => clearRadius + _gap / 2;
+
   Offset get center => size.center(Offset.zero);
 
   double get outerRadius => math.max(0, size.shortestSide / 2 - band / 2 - 4);

@@ -20,7 +20,12 @@ Map<String, List<PadElement>> sliceElements(
     final kept = pieces.where((piece) => piece.length >= 2).toList();
     if (kept.length < 2) continue;
     changes[element.id!] = [
-      for (final piece in kept) element.copyWith(points: piece, id: createId()),
+      for (final piece in kept)
+        element.copyWith(
+          points: piece,
+          id: createId(),
+          extra: brushPieceExtra(element, piece),
+        ),
     ];
   }
   return changes;

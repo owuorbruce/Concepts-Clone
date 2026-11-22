@@ -246,6 +246,10 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
       _elementPoints[pointer] = points;
       elements[pointer] = PenElement(
         id: createUniqueId(),
+        // A brush stroke keeps its texture when it is cut or moved.
+        extra: data.property.brush.isEmpty
+            ? const {}
+            : {kBrushSeedKey: createBrushSeed()},
         zoom: transform.size,
         combineId: data.combinePaths ? data.id : null,
         collection: state.currentCollection,

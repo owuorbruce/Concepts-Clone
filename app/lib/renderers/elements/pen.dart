@@ -102,7 +102,8 @@ class PenRenderer extends Renderer<PenElement> {
           strokeWidth,
           zoom: _brushZoom,
           origin: origin,
-          seed: brushSeed ?? element.id ?? '',
+          seed: brushSeedOf(element.extra, brushSeed ?? element.id),
+          start: StampWalkStart.of(element.extra),
         );
         // Marks the paths as computed; stamps are drawn from [_stamps].
         _cachedStrokePath = Path();
@@ -165,12 +166,62 @@ class PenRenderer extends Renderer<PenElement> {
     return true;
   }
 
-  /// Renders a stamp stroke for SVG export at [pixelsPerUnit]. Other
-  /// strokes need no preparation.
+  /// Whether this stroke is filled with a brush pattern texture, which SVG
+  /// cannot express, so it is exported as an image like stamp strokes.
+  bool get _isPatternBrush {
+    final brush = brushDefinition;
+    return brush != null &&
+        brush.engine == BrushEngine.outline &&
+        !brush.mask &&
+        !brush.hairline &&
+        brush.pattern.texture.isNotEmpty;
+  }
+
+  /// Renders the pattern stroke to a PNG over its bounds, as SVG export
+  /// embeds it.
+  Future<void> _preparePatternExport(double pixelsPerUnit) async {
+    if (_cachedStrokePath == null) _computePaths();
+    final path = _cachedStrokePath;
+    if (path == null) return;
+    await loadBrushTextures();
+    final origin = _pathOrigin;
+    final bounds = path.getBounds().shift(origin).inflate(1);
+    if (bounds.isEmpty) return;
+    var scale = pixelsPerUnit;
+    final longest = max(bounds.width, bounds.height) * scale;
+    if (longest > 4096) scale *= 4096 / longest;
+    final width = max(1, (bounds.width * scale).ceil());
+    final height = max(1, (bounds.height * scale).ceil());
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.scale(width / bounds.width, height / bounds.height);
+    canvas.translate(origin.dx - bounds.left, origin.dy - bounds.top);
+    buildLocal(canvas);
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(width, height);
+    picture.dispose();
+    try {
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (data == null) return;
+      _exportPng = data.buffer.asUint8List(
+        data.offsetInBytes,
+        data.lengthInBytes,
+      );
+      _exportPngBounds = bounds;
+      _exportPngScale = pixelsPerUnit;
+    } finally {
+      image.dispose();
+    }
+  }
+
+  /// Renders a stamp or pattern stroke for SVG export at [pixelsPerUnit].
+  /// Other strokes need no preparation.
   Future<void> prepareExport({double pixelsPerUnit = 1}) async {
     final brush = brushDefinition;
-    if (brush == null || brush.engine != BrushEngine.stamp) return;
+    if (brush == null) return;
     if (_exportPng != null && _exportPngScale >= pixelsPerUnit) return;
+    if (_isPatternBrush) return _preparePatternExport(pixelsPerUnit);
+    if (brush.engine != BrushEngine.stamp) return;
     if (_stamps == null) _computePaths();
     final stamps = _stamps;
     if (stamps == null) return;
@@ -211,6 +262,16 @@ class PenRenderer extends Renderer<PenElement> {
     if (nonScaling) path?.setAttribute('vector-effect', 'non-scaling-stroke');
   }
 
+  void _addSvgImage(XmlElement? svg, Uint8List png, Rect bounds) {
+    svg?.createElement('image')
+      ?..setAttribute('x', '${bounds.left}')
+      ..setAttribute('y', '${bounds.top}')
+      ..setAttribute('width', '${bounds.width}')
+      ..setAttribute('height', '${bounds.height}')
+      ..setAttribute('preserveAspectRatio', 'none')
+      ..setAttribute('href', 'data:image/png;base64,${base64Encode(png)}');
+  }
+
   /// Writes a brush stroke to SVG. Returns false for classic pens.
   bool _buildBrushSvg(XmlDocument xml, SRGBColor color) {
     final brush = brushDefinition;
@@ -220,21 +281,19 @@ class PenRenderer extends Renderer<PenElement> {
     final svg = xml.getElement('svg');
     final hex = color.toHexString(alpha: false);
     final opacity = '${color.a / 255}';
+    final png = _exportPng;
+    final bounds = _exportPngBounds;
+    if (_isPatternBrush && png != null && bounds != null) {
+      _addSvgImage(svg, png, bounds);
+      return true;
+    }
     if (brush.engine == BrushEngine.stamp) {
-      final png = _exportPng;
-      final bounds = _exportPngBounds;
       if (png == null || bounds == null) {
         // Not prepared for export: the centerline at the stroke's width.
         _addSvgCenterline(svg, hex, opacity, '$strokeWidth');
         return true;
       }
-      svg?.createElement('image')
-        ?..setAttribute('x', '${bounds.left}')
-        ..setAttribute('y', '${bounds.top}')
-        ..setAttribute('width', '${bounds.width}')
-        ..setAttribute('height', '${bounds.height}')
-        ..setAttribute('preserveAspectRatio', 'none')
-        ..setAttribute('href', 'data:image/png;base64,${base64Encode(png)}');
+      _addSvgImage(svg, png, bounds);
       return true;
     }
     if (brush.hairline) {

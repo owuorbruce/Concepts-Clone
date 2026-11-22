@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:butterfly/brushes/brush_preview.dart';
 import 'package:butterfly/brushes/brush_registry.dart';
 import 'package:butterfly/bloc/document_bloc.dart';
@@ -6,12 +8,14 @@ import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly/visualizer/tool.dart';
 import 'package:butterfly_api/butterfly_api.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:material_leap/material_leap.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'icons.dart';
 import 'library.dart';
 import 'style.dart';
+import 'tool_preview.dart';
 import 'tool_slots.dart';
 
 /// Width of the brush library sidebar.
@@ -287,7 +291,9 @@ class _BrushLibrarySidebarState extends State<BrushLibrarySidebar> {
             tool: tool,
             entry: current,
             family: currentFamily,
-            info: infoFamily?.getLocalizedInfo(loc),
+            info:
+                infoFamily?.getLocalizedInfo(loc) ??
+                current?.getLocalizedInfo(loc),
             slot: widget.slot,
             style: style,
             onClose: widget.onClose,
@@ -372,7 +378,7 @@ class _LibraryHeader extends StatelessWidget {
     if (tool == null) {
       name = loc.emptySlot;
     } else if (tool.name.trim().isEmpty && family != null) {
-      name = family.getLocalizedName(loc);
+      name = family.getSlotName(loc);
     } else {
       name = tool.getDisplay(context);
     }
@@ -383,90 +389,133 @@ class _LibraryHeader extends StatelessWidget {
               entry?.brushDefinition
         : entry?.brushDefinition;
     final glyph = entry?.glyph;
+    // The strip sits on a light checkerboard in either theme.
+    const ink = Color(0xFF262626);
+    const accent = Color(0xFF117C72);
     final Widget preview;
-    if (brush != null && !brush.mask) {
-      preview = BrushEnginePreview(brush, color: style.onSurface);
+    final toolKind = tool == null ? null : toolPreviewKind(tool);
+    if (brush != null) {
+      final pen = tool is PenTool ? tool.property : null;
+      preview = BrushStripPreview(
+        brush,
+        color: pen?.paint.previewColor.toColor() ?? ink,
+        strokeWidth: pen?.strokeWidth ?? brushPreviewWidth(brush),
+      );
+    } else if (tool is PenTool) {
+      // Classic pens and Fill draw with the classic engine.
+      final property = tool.property;
+      preview = CachedPreview(
+        cacheKey: ('pen', jsonEncode(property.toJson())),
+        painter: (canvas, size, pixelRatio) => paintPenStrip(
+          canvas,
+          size,
+          property,
+          closed: property.fillPaint.previewColor.a > 0,
+          pixelRatio: pixelRatio,
+        ),
+      );
+    } else if (toolKind != null) {
+      preview = ToolStripPreview(toolKind, ink: ink, accent: accent);
     } else if (glyph != null && glyph.isBrush) {
-      preview = AmazeBrushPreview(glyph, color: style.onSurface);
+      preview = AmazeBrushPreview(glyph, color: ink);
     } else if (tool != null) {
       preview = Center(
-        child: AmazeIcon(amazeToolIcon(tool), size: 36, color: style.onSurface),
+        child: AmazeIcon(amazeToolIcon(tool), size: 36, color: ink),
       );
     } else {
-      preview = Center(
+      preview = const Center(
         child: PhosphorIcon(
           PhosphorIconsLight.plus,
           size: 32,
-          color: style.muted,
+          color: Color(0xFF8A8A8A),
         ),
       );
     }
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-      child: Row(
+      child: Column(
+        mainAxisSize: .min,
         children: [
-          Container(
-            key: const ValueKey('amaze-library-preview'),
-            width: 96,
-            height: 60,
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: style.surfaceVariant,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: preview,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: .start,
-              mainAxisSize: .min,
-              children: [
-                Text(
-                  loc.brushLibrary,
-                  style: textTheme.labelMedium?.copyWith(color: style.muted),
-                ),
-                Text(
-                  name,
-                  key: const ValueKey('amaze-library-name'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: textTheme.titleMedium?.copyWith(
-                    color: style.onSurface,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                if (info != null)
-                  Text(
-                    info,
-                    key: const ValueKey('amaze-library-info'),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: textTheme.labelSmall?.copyWith(
-                      color: style.muted,
-                      height: 1.2,
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: .start,
+                  mainAxisSize: .min,
+                  children: [
+                    Text(
+                      loc.brushLibrary,
+                      style: textTheme.labelMedium?.copyWith(
+                        color: style.muted,
+                      ),
                     ),
-                  )
-                else
-                  Text(
-                    loc.toolSlot(slot + 1),
-                    style: textTheme.labelSmall?.copyWith(color: style.muted),
+                    Text(
+                      name,
+                      key: const ValueKey('amaze-library-name'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.titleMedium?.copyWith(
+                        color: style.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (info != null)
+                      Text(
+                        info,
+                        key: const ValueKey('amaze-library-info'),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.labelSmall?.copyWith(
+                          color: style.muted,
+                          height: 1.2,
+                        ),
+                      )
+                    else
+                      Text(
+                        loc.toolSlot(slot + 1),
+                        style: textTheme.labelSmall?.copyWith(
+                          color: style.muted,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (onSlotOptions != null)
+                IconButton(
+                  key: const ValueKey('amaze-library-slot-menu'),
+                  tooltip: loc.slotOptions,
+                  onPressed: onSlotOptions,
+                  icon: AmazeIcon(
+                    AmazeIcons.slotOptions,
+                    color: style.onSurface,
                   ),
-              ],
-            ),
+                ),
+              IconButton(
+                key: const ValueKey('amaze-library-close'),
+                tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                onPressed: onClose,
+                icon: PhosphorIcon(
+                  PhosphorIconsLight.x,
+                  color: style.onSurface,
+                ),
+              ),
+            ],
           ),
-          if (onSlotOptions != null)
-            IconButton(
-              key: const ValueKey('amaze-library-slot-menu'),
-              tooltip: loc.slotOptions,
-              onPressed: onSlotOptions,
-              icon: AmazeIcon(AmazeIcons.slotOptions, color: style.onSurface),
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ClipRRect(
+              key: const ValueKey('amaze-library-preview'),
+              borderRadius: BorderRadius.circular(14),
+              child: SizedBox(
+                height: 72,
+                width: double.infinity,
+                child: CustomPaint(
+                  painter: const CheckerboardPainter(),
+                  child: preview,
+                ),
+              ),
             ),
-          IconButton(
-            key: const ValueKey('amaze-library-close'),
-            tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
-            onPressed: onClose,
-            icon: PhosphorIcon(PhosphorIconsLight.x, color: style.onSurface),
           ),
         ],
       ),

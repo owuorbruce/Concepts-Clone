@@ -11,6 +11,8 @@ import 'package:butterfly/bloc/document_bloc.dart';
 import 'package:butterfly/brushes/brush_paint.dart';
 import 'package:butterfly/brushes/brush_registry.dart';
 import 'package:butterfly/brushes/mask_tint.dart';
+import 'package:butterfly/brushes/stamp_engine.dart'
+    show brushPieceExtra, createBrushSeed, kBrushSeedKey;
 import 'package:butterfly/cubits/settings.dart';
 import 'package:butterfly/cubits/transform.dart';
 import 'package:butterfly/dialogs/area/context.dart';

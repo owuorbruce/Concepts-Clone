@@ -453,8 +453,27 @@ void main() {
                 greaterThan(radius),
                 reason: '$key over the tool wheel, $reason',
               );
-              // In a corner the arcs can still reach under a control; the
-              // arcs are redesigned separately.
+              // The HSL/RGB labels never touch the alpha arc, wherever
+              // the row is shifted to stay on screen.
+              if (key.startsWith('amaze-color-mode-')) {
+                final alphaEdge =
+                    layout.radiusOf(ColorChannel.alpha) -
+                    ChannelRingLayout.band / 2;
+                for (final corner in [
+                  control.topLeft,
+                  control.topRight,
+                  control.bottomLeft,
+                  control.bottomRight,
+                ]) {
+                  expect(
+                    (corner - center).distance,
+                    lessThan(alphaEdge),
+                    reason: '$key on the alpha arc, $reason',
+                  );
+                }
+              }
+              // In a corner the outer arcs can still reach under the other
+              // controls; the arcs are redesigned separately.
               final middle = center == screen.center(Offset.zero);
               for (final corner in [
                 control.topLeft,

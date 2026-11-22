@@ -83,6 +83,36 @@ void main() {
       expect(geometry.wedgeLabelDistance, closeTo(0.92 * r, 1e-9));
     });
 
+    test('undo and redo stay at least 32 px and fit the gap at any size', () {
+      for (var d = kToolWheelMinDiameter; d <= kToolWheelMaxDiameter; d += 8) {
+        final geometry = ToolWheelGeometry(diameter: d);
+        final r = geometry.historyRadius;
+        expect(2 * r, greaterThanOrEqualTo(kMinHistoryHitSize), reason: '$d');
+        expect(
+          (geometry.undoCenter - geometry.redoCenter).distance,
+          greaterThanOrEqualTo(2 * r),
+          reason: '$d',
+        );
+        for (final center in [geometry.undoCenter, geometry.redoCenter]) {
+          expect(
+            center.distance - r,
+            greaterThanOrEqualTo(geometry.wedgeInnerRadius - 1e-9),
+          );
+          expect(
+            center.distance + r,
+            lessThanOrEqualTo(geometry.radius + 1e-9),
+          );
+          // A tap at the button's edge still hits it.
+          final edge = center + Offset(r - 0.5, 0);
+          expect(
+            geometry.hitTest(edge).type,
+            isIn([WheelHitType.undo, WheelHitType.redo]),
+            reason: '$d',
+          );
+        }
+      }
+    });
+
     test('the default size is 22% of the shorter side', () {
       expect(defaultToolWheelDiameter(const Size(1280, 800)), 176);
       expect(defaultToolWheelDiameter(const Size(800, 1280)), 176);

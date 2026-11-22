@@ -14,15 +14,42 @@ import 'package:material_leap/material_leap.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 /// Number of decimals that keeps [percent] readable at any zoom: none from
-/// 10 % up, one from 1 %, then two significant digits below 1 %.
+/// 1,000 % up, one from 1 %, then two significant digits below 1 %.
 int zoomFractionDigits(double percent) {
-  if (!percent.isFinite || percent <= 0 || percent >= 10) return 0;
+  if (!percent.isFinite || percent <= 0 || percent >= 1000) return 0;
   if (percent >= 1) return 1;
   return (1 - (log(percent) / ln10).floor()).clamp(0, 10);
 }
 
+/// Decimals of the zoom input: typed zoom always keeps one, so 33.3 % stays
+/// 33.3 %.
+int zoomInputFractionDigits(double percent) =>
+    max(1, zoomFractionDigits(percent));
+
+/// Snaps [percent] to a round zoom (…, 50, 100, 200, 500, …) within 1 %.
+double snapZoomPercent(double percent) {
+  if (!percent.isFinite || percent <= 0) return percent;
+  final magnitude = pow(10, (log(percent) / ln10).floor()).toDouble();
+  for (final factor in const [1, 2, 5, 10]) {
+    final round = factor * magnitude;
+    if ((percent - round).abs() <= round * .01) return round;
+  }
+  return percent;
+}
+
+/// One multiplicative zoom step from [percent]: `× factor` in, `÷ factor`
+/// out. A step landing within 1 % of a round zoom snaps to it, so 100 % stays
+/// reachable, but never back past where it started.
+double stepZoomPercent(double percent, double factor, int direction) {
+  if (!percent.isFinite || percent <= 0 || factor <= 1) return percent;
+  final next = direction > 0 ? percent * factor : percent / factor;
+  final snapped = snapZoomPercent(next);
+  final moves = direction > 0 ? snapped > percent : snapped < percent;
+  return moves ? snapped : next;
+}
+
 /// Formats a zoom percentage without the unit, for example `0.0001`, `0.05`,
-/// `12`, `250` or `50,000`.
+/// `12`, `33.3`, `250` or `50,000`.
 String formatZoomPercent(double percent) {
   if (!percent.isFinite) return '–';
   final digits = zoomFractionDigits(percent);
@@ -76,8 +103,14 @@ class _ZoomViewState extends State<ZoomView> {
 
   void _zoom(double percent) {
     final controller = context.read<EditorController>();
+    final range = cameraZoomRange(context);
     controller.transformCubit.sizeConstrained(
-      controller.transformCubit.toCameraScale(percent, displayZoom(context)),
+      controller.transformCubit.toCameraScale(
+        percent,
+        displayZoom(context),
+        min: range.min,
+        max: range.max,
+      ),
       cursor: _center,
       force: true,
       runtime: controller,
@@ -116,6 +149,7 @@ class _ZoomViewState extends State<ZoomView> {
     String Function(double value)? format,
     int fractionDigits = 1,
     bool logarithmic = false,
+    double Function(double value, int direction)? stepper,
   }) => LayoutBuilder(
     key: key,
     builder: (context, constraints) {
@@ -136,9 +170,15 @@ class _ZoomViewState extends State<ZoomView> {
       // A logarithmic slider gives every factor of ten the same travel, so
       // 0.0001 % to 100,000 % stays usable on one track.
       double toSlider(double value) => logarithmic ? log(value) / ln10 : value;
-      double fromSlider(double value) =>
-          logarithmic ? pow(10, value).toDouble() : value;
       final sliderMin = toSlider(min), sliderMax = toSlider(max);
+      // The ends map back exactly, so dragging to the end reaches the limit.
+      double fromSlider(double value) {
+        if (!logarithmic) return value;
+        if (value <= sliderMin) return min;
+        if (value >= sliderMax) return max;
+        return pow(10, value).toDouble();
+      }
+
       final slider = Semantics(
         label: label,
         child: Tooltip(
@@ -165,21 +205,24 @@ class _ZoomViewState extends State<ZoomView> {
           ),
         ),
       );
-      if (!controls.showInput) {
-        Widget stepButton(int direction, Widget icon) {
-          final next = (value + direction * step).clamp(min, max).toDouble();
-          return IconButton(
-            onPressed: next == value
-                ? null
-                : () {
-                    FocusScope.of(context).unfocus();
-                    onChanged(next);
-                    onChangeEnd(next);
-                  },
-            icon: icon,
-          );
-        }
+      Widget stepButton(int direction, Widget icon) {
+        final next =
+            (stepper?.call(value, direction) ?? value + direction * step)
+                .clamp(min, max)
+                .toDouble();
+        return IconButton(
+          onPressed: next == value
+              ? null
+              : () {
+                  FocusScope.of(context).unfocus();
+                  onChanged(next);
+                  onChangeEnd(next);
+                },
+          icon: icon,
+        );
+      }
 
+      if (!controls.showInput) {
         return Row(
           mainAxisSize: controls.showSlider
               ? MainAxisSize.max
@@ -195,7 +238,10 @@ class _ZoomViewState extends State<ZoomView> {
           ],
         );
       }
-      final input = Focus(
+      // NumberInput's own buttons step additively; a custom stepper gets
+      // buttons of its own around the field.
+      final ownButtons = controls.showButtons && stepper != null;
+      final field = Focus(
         onFocusChange: onFocusChanged,
         child: NumberInput(
           label: label,
@@ -205,13 +251,22 @@ class _ZoomViewState extends State<ZoomView> {
           step: step,
           fractionDigits: fractionDigits,
           roundValues: true,
-          showButtons: controls.showButtons,
+          showButtons: controls.showButtons && !ownButtons,
           decrementIcon: decrementIcon,
           incrementIcon: incrementIcon,
           onChanged: onChanged,
           onChangeEnd: onChangeEnd,
         ),
       );
+      final input = ownButtons
+          ? Row(
+              children: [
+                stepButton(-1, decrementIcon),
+                Expanded(child: field),
+                stepButton(1, incrementIcon),
+              ],
+            )
+          : field;
       // Share the available width on small windows without stacking controls.
       // Reserve space for the reset and separator before sizing the input.
       final inputWidth = ((constraints.maxWidth - 40) * .65)
@@ -276,6 +331,7 @@ class _ZoomViewState extends State<ZoomView> {
       return const SizedBox.shrink();
     }
     final reference = displayZoom(context, listen: true);
+    final range = cameraZoomRange(context, listen: true);
     final zoomPercent = transform.size / reference * 100;
     final l10n = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
@@ -348,15 +404,16 @@ class _ZoomViewState extends State<ZoomView> {
                   unit: '%',
                   color: colorScheme.primary,
                   value: zoomPercent,
-                  min: kMinZoom / reference * 100,
-                  max: kMaxZoom / reference * 100,
+                  min: range.min / reference * 100,
+                  max: range.max / reference * 100,
                   defaultValue: 100,
-                  // Step relative to the current zoom: at 100 % this is the
-                  // configured step, at 0.05 % it no longer jumps to the
-                  // minimum.
+                  // Arrow keys step relative to the current zoom, so 0.05 %
+                  // no longer jumps to the minimum. The buttons multiply.
                   step: max(zoomPercent * settings.zoomStep, 1e-9),
+                  stepper: (value, direction) =>
+                      stepZoomPercent(value, 1 + settings.zoomStep, direction),
                   format: formatZoomPercent,
-                  fractionDigits: zoomFractionDigits(zoomPercent),
+                  fractionDigits: zoomInputFractionDigits(zoomPercent),
                   logarithmic: true,
                   controls: settings.controls,
                   resetTooltip: l10n.resetZoom,
@@ -378,6 +435,87 @@ class _ZoomViewState extends State<ZoomView> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// A zoom percentage slider whose every factor of ten has the same travel,
+/// with an exact input and the zoom view's formatting.
+class LogZoomSlider extends StatefulWidget {
+  final Widget header;
+  final double value, min, max, defaultValue;
+  final ValueChanged<double> onChangeEnd;
+
+  const LogZoomSlider({
+    super.key,
+    required this.header,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.onChangeEnd,
+    this.defaultValue = 100,
+  });
+
+  @override
+  State<LogZoomSlider> createState() => _LogZoomSliderState();
+}
+
+class _LogZoomSliderState extends State<LogZoomSlider> {
+  double? _dragging;
+
+  double get _sliderMin => log(widget.min) / ln10;
+  double get _sliderMax => log(widget.max) / ln10;
+
+  double _fromSlider(double value) {
+    if (value <= _sliderMin) return widget.min;
+    if (value >= _sliderMax) return widget.max;
+    return pow(10, value).toDouble();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final value = (_dragging ?? widget.value)
+        .clamp(widget.min, widget.max)
+        .toDouble();
+    return ListTile(
+      title: Row(
+        children: [
+          Expanded(child: widget.header),
+          SizedBox(
+            width: 112,
+            child: NumberInput(
+              value: value,
+              min: widget.min,
+              max: widget.max,
+              step: max(value * .1, 1e-9),
+              fractionDigits: zoomInputFractionDigits(value),
+              roundValues: true,
+              showButtons: false,
+              onChangeEnd: widget.onChangeEnd,
+            ),
+          ),
+          IconButton(
+            tooltip: AppLocalizations.of(context).resetZoom,
+            onPressed: (widget.value - widget.defaultValue).abs() < 1e-6
+                ? null
+                : () => widget.onChangeEnd(widget.defaultValue),
+            icon: const PhosphorIcon(PhosphorIconsLight.clockCounterClockwise),
+          ),
+        ],
+      ),
+      subtitle: Slider(
+        value: (log(value) / ln10).clamp(_sliderMin, _sliderMax),
+        min: _sliderMin,
+        max: _sliderMax,
+        label: '${formatZoomPercent(value)}%',
+        semanticFormatterCallback: (value) =>
+            '${formatZoomPercent(_fromSlider(value))}%',
+        onChanged: (value) => setState(() => _dragging = _fromSlider(value)),
+        onChangeEnd: (value) {
+          setState(() => _dragging = null);
+          widget.onChangeEnd(_fromSlider(value));
+        },
       ),
     );
   }

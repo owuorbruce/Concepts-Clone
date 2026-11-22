@@ -1509,12 +1509,18 @@ class AmazeToolBar extends StatelessWidget {
   const AmazeToolBar({
     super.key,
     required this.onShowWheel,
+    this.wheelDiameter,
     this.openAdjustment,
     this.onAdjustmentTap,
     this.onOpenLibrary,
   });
 
   final VoidCallback onShowWheel;
+
+  /// Diameter of the wheel this bar stands in for. The color wheel opens
+  /// around it, the same size as from the wheel. Without it, the default
+  /// wheel size for the screen.
+  final double? wheelDiameter;
   final ToolAdjustment? openAdjustment;
   final ValueChanged<ToolAdjustment>? onAdjustmentTap;
   final ValueChanged<int>? onOpenLibrary;
@@ -1588,9 +1594,10 @@ class AmazeToolBar extends StatelessWidget {
                         buttonContext,
                         center: null,
                         innerRadius:
-                            defaultToolWheelDiameter(
-                              MediaQuery.sizeOf(buttonContext),
-                            ) /
+                            (wheelDiameter ??
+                                defaultToolWheelDiameter(
+                                  MediaQuery.sizeOf(buttonContext),
+                                )) /
                             2,
                       ),
                     ),
@@ -2743,6 +2750,7 @@ class _AmazeToolWheelLayerState extends State<AmazeToolWheelLayer> {
         bottom: 0,
         child: Center(
           child: AmazeToolBar(
+            wheelDiameter: _diameter,
             openAdjustment: _openAdjustment,
             onAdjustmentTap: _toggleAdjustment,
             onShowWheel: _showWheel,

@@ -1934,6 +1934,7 @@
   "amazeInfoClassicPen": "Pen (classic): the original smooth vector pen.",
   "amazeInfoStamp": "Stamp: pick an object, then tap to place copies of it.",
   "amazeInfoPatternFill": "Pattern fill: drag to make a rectangle of lines, dots or grid.",
+  "amazeInfoFill": "Draw a closed shape; it's filled with the current color.",
   "amazeInfoTable": "Table: tap to place a table, then tap a cell to edit it.",
   "amazeInfoBarcode": "Barcode: tap where it goes and enter its content.",
   "amazeInfoStraightedge": "Straightedge: drag to move it, twist with two fingers; strokes near its edge run straight.",

@@ -820,7 +820,33 @@ class _AmazeColorOverlayState extends State<_AmazeColorOverlay>
         : below;
     // The row moves sideways as a whole to stay on screen.
     final shift = shiftOnScreen(hull(chosen));
-
+    // Shifted near a screen edge, the mode labels could reach the alpha
+    // arc: move them inward together, keeping their spacing, until they
+    // clear it.
+    final arcLimit = plain
+        ? ChannelRingLayout.innerEdgeFor(_plainControlsRadius) - 2
+        : double.infinity;
+    double reach(Rect r) => [
+      r.topLeft,
+      r.topRight,
+      r.bottomLeft,
+      r.bottomRight,
+    ].map((corner) => (corner - _center).distance).reduce(math.max);
+    final modeRects = [
+      for (final (rect, _) in chosen.take(modes.length)) rect.shift(shift),
+    ];
+    var modeShift = Offset.zero;
+    if (modeRects.isNotEmpty) {
+      final direction =
+          modeRects.reduce((a, b) => a.expandToInclude(b)).center - _center;
+      for (var i = 0; i < 8 && direction.distance > 0; i++) {
+        final excess =
+            modeRects.map((r) => reach(r.shift(modeShift))).reduce(math.max) -
+            arcLimit;
+        if (excess <= 0) break;
+        modeShift -= direction / direction.distance * excess;
+      }
+    }
     // The eyedropper sits right of the tool wheel, or left of it at the
     // right edge of the screen.
     final eyeRadius = (plain ? _plainArcRadius - 32 : _innerRadius) + 30;
@@ -833,8 +859,13 @@ class _AmazeColorOverlayState extends State<_AmazeColorOverlay>
       eye = eye.shift(Offset(-2 * eyeRadius, 0));
     }
     return [
-      for (final (rect, widget) in chosen)
-        Positioned.fromRect(rect: rect.shift(shift), child: widget),
+      for (final (index, (rect, widget)) in chosen.indexed)
+        Positioned.fromRect(
+          rect: index < modes.length
+              ? rect.shift(shift + modeShift)
+              : rect.shift(shift),
+          child: widget,
+        ),
       Positioned.fromRect(
         rect: eye.shift(shiftOnScreen(eye)),
         child: eyedropper,

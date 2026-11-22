@@ -210,9 +210,14 @@ void main() {
 
     // Returns the left edge of the red shape on screen, in pixels, with
     // sub-pixel accuracy from antialiasing coverage.
-    Future<double> leftEdge(double cameraOffset) async {
+    Future<double> leftEdge(
+      double cameraOffset, {
+      double rotation = 0,
+      double width = 50,
+    }) async {
       final renderer = ShapeRenderer(
         ShapeElement(
+          rotation: rotation,
           firstPosition: const Point(world + 0.05, world),
           secondPosition: const Point(world + 0.1, world + 0.04),
           property: const ShapeProperty(
@@ -260,11 +265,11 @@ void main() {
         }
       }
       expect(first, isNotNull);
-      // The shape is 50 px wide; its left edge is the right edge minus that.
+      // The shape is [width] px wide on this row.
       final firstFull = first! + 1;
       final partial =
           1 - data.getUint8((row * size.width.toInt() + first) * 4 + 1) / 255;
-      expect(covered, closeTo(50, 1));
+      expect(covered, closeTo(width, 1));
       return firstFull - partial;
     }
 
@@ -273,6 +278,19 @@ void main() {
         final expected = (0.05 - offset) * 1000;
         expect(
           await leftEdge(offset),
+          closeTo(expected, 0.5),
+          reason: '$offset',
+        );
+      }
+    });
+
+    test('a rotated shape there lands within 0.5 px too', () async {
+      // 90° around its center: the 50 × 40 px rectangle becomes 40 px wide,
+      // its left edge 20 px left of the center at 0.075.
+      for (final offset in [0.0123, 0.0127, 0.0131, 0.0002]) {
+        final expected = (0.075 - 0.02 - offset) * 1000;
+        expect(
+          await leftEdge(offset, rotation: 90, width: 40),
           closeTo(expected, 0.5),
           reason: '$offset',
         );

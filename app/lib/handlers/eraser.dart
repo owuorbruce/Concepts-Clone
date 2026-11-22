@@ -322,7 +322,11 @@ class EraserHandler extends Handler<EraserTool> {
     );
     return paths
         ?.map(
-          (points) => element.copyWith(points: points, id: createUniqueId()),
+          (points) => element.copyWith(
+            points: points,
+            id: createUniqueId(),
+            extra: brushPieceExtra(element, points),
+          ),
         )
         .toList();
   }

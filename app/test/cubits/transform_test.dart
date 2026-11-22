@@ -177,6 +177,10 @@ void main() {
       expect(formatZoomPercent(12), '12');
       expect(formatZoomPercent(100), '100');
       expect(formatZoomPercent(250), '250');
+      expect(formatZoomPercent(33.3333), '33.3');
+      expect(formatZoomPercent(123.456), '123.5');
+      expect(formatZoomPercent(999.94), '999.9');
+      expect(formatZoomPercent(1234.5), '1,235');
       expect(formatZoomPercent(50000), '50,000');
       expect(formatZoomPercent(100000), '100,000');
     });
@@ -184,7 +188,26 @@ void main() {
     test('typed values keep enough decimals', () {
       expect(zoomFractionDigits(0.0001), greaterThanOrEqualTo(4));
       expect(zoomFractionDigits(0.05), greaterThanOrEqualTo(2));
-      expect(zoomFractionDigits(250), 0);
+      expect(zoomFractionDigits(250), 1);
+      expect(zoomFractionDigits(5000), 0);
+      expect(zoomInputFractionDigits(33.3), 1);
+      expect(zoomInputFractionDigits(5000), 1);
+    });
+
+    test('steps multiply and snap to round values', () {
+      expect(stepZoomPercent(100, 1.1, 1), closeTo(110, 1e-9));
+      expect(stepZoomPercent(110.00000001, 1.1, -1), 100);
+      expect(stepZoomPercent(100, 1.25, 1), 125);
+      expect(stepZoomPercent(125, 1.25, -1), 100);
+      expect(stepZoomPercent(40, 1.25, 1), 50);
+      expect(stepZoomPercent(160, 1.25, 1), 200);
+      // A snap never undoes the step.
+      expect(stepZoomPercent(199, 1.01, 1), 200);
+      expect(stepZoomPercent(200, 1.01, 1), closeTo(202, 1e-9));
+      expect(stepZoomPercent(200, 1.01, -1), closeTo(200 / 1.01, 1e-9));
+      expect(snapZoomPercent(99.5), 100);
+      expect(snapZoomPercent(49.8), 50);
+      expect(snapZoomPercent(97), 97);
     });
   });
 }

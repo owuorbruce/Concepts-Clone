@@ -13,6 +13,7 @@ import 'package:butterfly/theme.dart';
 import 'package:butterfly/views/amaze/icons.dart';
 import 'package:butterfly/views/amaze/library.dart';
 import 'package:butterfly/views/amaze/shell.dart';
+import 'package:butterfly/views/amaze/tool_preview.dart';
 import 'package:butterfly/views/amaze/tool_slots.dart';
 import 'package:butterfly/views/main.dart';
 import 'package:butterfly_api/butterfly_api.dart';
@@ -252,6 +253,78 @@ void main() {
     }
     expect(find.byType(BrushEnginePreview), findsAtLeastNWidgets(11));
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the header shows the slot in action on a wide strip', (
+    tester,
+  ) async {
+    await tester.runAsync(loadBrushRegistry);
+    setScreen(tester, tall);
+    await openEditor(tester);
+    final strip = find.byKey(const ValueKey('amaze-library-preview'));
+
+    await openLibrary(tester, slotOf<PenTool>());
+    final library = tester.getSize(
+      find.byKey(const ValueKey('amaze-brush-library')),
+    );
+    final size = tester.getSize(strip);
+    expect(size.height, 72);
+    expect(size.width, greaterThan(library.width - 40));
+    expect(
+      find.descendant(
+        of: strip,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is CustomPaint && widget.painter is CheckerboardPainter,
+        ),
+      ),
+      findsOneWidget,
+    );
+    final pen = slotTool(slotOf<PenTool>()) as PenTool;
+    final brush = tester.widget<BrushStripPreview>(
+      find.descendant(of: strip, matching: find.byType(BrushStripPreview)),
+    );
+    expect(brush.definition.id, 'amaze.pen');
+    expect(brush.strokeWidth, pen.property.strokeWidth);
+    expect(
+      find.descendant(of: strip, matching: find.byType(RawImage)),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('amaze-library-close')));
+    await tester.pumpAndSettle();
+
+    for (final (slot, kind) in [
+      (slotOf<EraserTool>(), ToolPreviewKind.eraser),
+      (slotOf<SelectTool>(), ToolPreviewKind.lasso),
+    ]) {
+      await openLibrary(tester, slot);
+      final preview = tester.widget<ToolStripPreview>(
+        find.descendant(of: strip, matching: find.byType(ToolStripPreview)),
+      );
+      expect(preview.kind, kind);
+      await tester.tap(find.byKey(const ValueKey('amaze-library-close')));
+      await tester.pumpAndSettle();
+    }
+    expect(tester.takeException(), isNull);
+  });
+
+  test('previews are cached per item and size', () {
+    var paints = 0;
+    void paint(Canvas canvas) => paints++;
+    const size = Size(200, 72);
+    final a = cachedPreviewImage(('test', 1), size, 1, paint);
+    final again = cachedPreviewImage(('test', 1), size, 1, paint);
+    final wider = cachedPreviewImage(
+      ('test', 1),
+      const Size(300, 72),
+      1,
+      paint,
+    );
+    final other = cachedPreviewImage(('test', 2), size, 1, paint);
+    expect(identical(a, again), isTrue);
+    expect(identical(a, wider), isFalse);
+    expect(identical(a, other), isFalse);
+    expect(paints, 3);
   });
 
   testWidgets('13: More tools shows one tile per family, in its groups', (

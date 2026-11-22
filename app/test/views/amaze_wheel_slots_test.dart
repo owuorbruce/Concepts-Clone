@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:butterfly/actions/shortcuts.dart';
@@ -14,6 +15,7 @@ import 'package:butterfly/theme.dart';
 import 'package:butterfly/views/amaze/library.dart';
 import 'package:butterfly/views/amaze/shell.dart';
 import 'package:butterfly/views/amaze/tool_slots.dart';
+import 'package:butterfly/views/amaze/tool_wheel.dart' show WheelSlotsSync;
 import 'package:butterfly/views/amaze/wheel_slots_store.dart';
 import 'package:butterfly/views/main.dart';
 import 'package:butterfly_api/butterfly_api.dart';
@@ -337,12 +339,13 @@ void main() {
         () => observer.lastDocumentBloc?.state is DocumentLoadSuccess,
         'document open',
       );
-      for (var i = 0; i < 5; i++) {
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 5)),
-        );
-        await tester.pump(const Duration(milliseconds: 50));
-      }
+      // Wait for the sync on open itself, not for a guess at how long it
+      // takes: on a slow machine the store was read before it was written.
+      var synced = false;
+      unawaited(
+        WheelSlotsSync.attach(bloc()).whenComplete(() => synced = true),
+      );
+      await pumpUntil(tester, () => synced, 'wheel sync on open');
       await tester.pumpAndSettle();
       return bloc().editorController;
     }

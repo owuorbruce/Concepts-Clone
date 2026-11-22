@@ -302,13 +302,13 @@ class _UtilitiesViewState extends State<_UtilitiesView>
                   Builder(
                     builder: (context) {
                       final reference = displayZoom(context, listen: true);
-                      return ExactSlider(
+                      final range = cameraZoomRange(context, listen: true);
+                      return LogZoomSlider(
+                        key: const ValueKey('document-zoom'),
                         header: Text(AppLocalizations.of(context).zoom),
                         value: transformState.size / reference * 100,
-                        defaultValue: 100,
-                        min: kMinZoom / reference * 100,
-                        max: kMaxZoom / reference * 100,
-                        sliderStep: reference == 1 ? 1 : null,
+                        min: range.min / reference * 100,
+                        max: range.max / reference * 100,
                         onChangeEnd: (value) {
                           final size = context
                               .read<EditorController>()
@@ -322,6 +322,8 @@ class _UtilitiesViewState extends State<_UtilitiesView>
                             editorController.transformCubit.toCameraScale(
                               value,
                               reference,
+                              min: range.min,
+                              max: range.max,
                             ),
                             cursor: Offset(size.width / 2, size.height / 2),
                             runtime: editorController,

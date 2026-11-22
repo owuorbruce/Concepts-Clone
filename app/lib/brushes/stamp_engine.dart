@@ -12,6 +12,65 @@ import 'outline_engine.dart';
 /// Most stamps drawn for one stroke; longer strokes get wider spacing.
 const kMaxStampsPerStroke = 20000;
 
+/// `extra` key of a brush stroke's random seed (an int). Strokes without it
+/// use their id's hash.
+const kBrushSeedKey = 'amaze.seed';
+
+/// `extra` keys of a piece cut from a brush stroke: where the piece starts
+/// along the original stroke's arc, the index of its first stamp in the
+/// original's random sequence, the arc distance from the piece's start to
+/// that stamp, and the original's spacing scale.
+const kBrushSeedOffsetKey = 'amaze.seedOffset';
+const kBrushSeedIndexKey = 'amaze.seedIndex';
+const kBrushSeedPhaseKey = 'amaze.seedPhase';
+const kBrushSeedSpacingKey = 'amaze.seedSpacing';
+
+/// Random values drawn per stamp.
+const _kRandomsPerStamp = 5;
+
+/// A fresh seed for a new brush stroke.
+int createBrushSeed([Random? random]) =>
+    (random ?? Random()).nextInt(0x7fffffff);
+
+/// The seed of a brush stroke: its stored seed, else the hash of [fallback]
+/// (its id), so strokes drawn before seeds look the same.
+int brushSeedOf(Map<String, dynamic> extra, String? fallback) {
+  final value = extra[kBrushSeedKey];
+  if (value is num) return value.toInt();
+  return stableHash(fallback ?? '');
+}
+
+/// Where a stroke's stamp walk starts. A whole stroke starts at its own
+/// beginning; a piece picks up the walk of the stroke it was cut from.
+class StampWalkStart {
+  const StampWalkStart({this.index = 0, this.phase = 0, this.spacingScale});
+
+  /// Reads the start stored in a stroke's [extra].
+  factory StampWalkStart.of(Map<String, dynamic> extra) {
+    final index = extra[kBrushSeedIndexKey];
+    final phase = extra[kBrushSeedPhaseKey];
+    final spacing = extra[kBrushSeedSpacingKey];
+    return StampWalkStart(
+      index: index is num ? max(0, index.toInt()) : 0,
+      phase: phase is num && phase.isFinite ? max(0.0, phase.toDouble()) : 0,
+      spacingScale: spacing is num && spacing.isFinite && spacing > 0
+          ? spacing.toDouble()
+          : null,
+    );
+  }
+
+  /// Index of the first stamp in the random sequence.
+  final int index;
+
+  /// Arc length from the start of the stroke to its first stamp.
+  final double phase;
+
+  /// Spacing scale of the original stroke, or null to compute it.
+  final double? spacingScale;
+
+  bool get isOrigin => index == 0 && phase == 0 && spacingScale == null;
+}
+
 /// The stamps of one stroke, relative to the origin they were built at.
 class StampStroke {
   StampStroke._(
@@ -22,9 +81,21 @@ class StampStroke {
     this.alpha,
     this.bounds,
     this.meanWidth,
+    this.arc,
+    this.index,
+    this.spacingScale,
   );
 
   final Float32List x, y, size, angle, alpha;
+
+  /// Arc length along the stroke where each stamp sits.
+  final Float64List arc;
+
+  /// Index of each stamp in the random sequence.
+  final Int32List index;
+
+  /// Factor the spacing was widened by to stay within the stamp budget.
+  final double spacingScale;
 
   /// Local bounds of every stamp.
   final Rect bounds;
@@ -34,15 +105,17 @@ class StampStroke {
 
   int get length => x.length;
 
-  /// Places the stamps of [points] for [def]. [seed] (the element id) makes
-  /// the randomness repeatable.
+  /// Places the stamps of [points] for [def]. [seed] (see [brushSeedOf])
+  /// makes the randomness repeatable; [start] continues the walk of the
+  /// stroke a piece was cut from.
   factory StampStroke.build(
     List<PathPoint> points,
     BrushDefinition def,
     double strokeWidth, {
     required double zoom,
     required Offset origin,
-    required String seed,
+    required int seed,
+    StampWalkStart start = const StampWalkStart(),
   }) {
     final g = StrokeGeometry.build(
       points,
@@ -51,7 +124,10 @@ class StampStroke {
       zoom: zoom,
       origin: origin,
     );
-    final random = Random(stableHash(seed));
+    final random = Random(seed);
+    for (var i = 0; i < start.index * _kRandomsPerStamp; i++) {
+      random.nextDouble();
+    }
     final spacing = max(def.spacing, 0.005);
     // Estimate the count first so long strokes stay within the budget.
     var estimate = g.isEmpty ? 0.0 : 1.0;
@@ -59,11 +135,13 @@ class StampStroke {
       final ds = g.arc[i] - g.arc[i - 1];
       estimate += ds / max(spacing * g.width[i], 1e-6);
     }
-    final spacingScale = estimate > kMaxStampsPerStroke
-        ? estimate / kMaxStampsPerStroke
-        : 1.0;
+    final spacingScale =
+        start.spacingScale ??
+        (estimate > kMaxStampsPerStroke ? estimate / kMaxStampsPerStroke : 1.0);
     final xs = <double>[], ys = <double>[], sizes = <double>[];
     final angles = <double>[], alphas = <double>[];
+    final arcs = <double>[], indices = <int>[];
+    var stampIndex = start.index;
     final total = g.arcLength;
     final dynamics = def.dynamics;
     final tiltShading = def.tiltShading;
@@ -73,6 +151,7 @@ class StampStroke {
     var widthSum = 0.0;
 
     void place(int i, double t) {
+      final current = stampIndex++;
       final j = min(i + 1, g.length - 1);
       double lerp(Float64List l) => l[i] + (l[j] - l[i]) * t;
       final px = lerp(g.x), py = lerp(g.y), w = lerp(g.width);
@@ -123,6 +202,8 @@ class StampStroke {
       sizes.add(size);
       angles.add(angle);
       alphas.add(alpha.clamp(0.0, 1.0));
+      arcs.add(lerp(g.arc));
+      indices.add(current);
       // A rotated square texture reaches √2 × half its size.
       final reach = size * 0.7072;
       left = min(left, sx - reach);
@@ -133,8 +214,11 @@ class StampStroke {
     }
 
     if (!g.isEmpty) {
-      place(0, 0);
-      var next = spacing * g.width[0] * spacingScale;
+      var next = start.phase;
+      if (start.phase == 0) {
+        place(0, 0);
+        next = spacing * g.width[0] * spacingScale;
+      }
       var travelled = 0.0;
       for (var i = 1; i < g.length; i++) {
         final ds = g.arc[i] - g.arc[i - 1];
@@ -156,6 +240,9 @@ class StampStroke {
       Float32List.fromList(alphas),
       count == 0 ? Rect.zero : Rect.fromLTRB(left, top, right, bottom),
       count == 0 ? 0 : widthSum / count,
+      Float64List.fromList(arcs),
+      Int32List.fromList(indices),
+      spacingScale,
     );
   }
 
@@ -366,4 +453,83 @@ Future<Uint8List?> renderStampPng(
   } finally {
     image.dispose();
   }
+}
+
+/// The `extra` of a piece of [original] made of the points [piece]: the same
+/// seed and, for stamp brushes, where the piece picks up the original's stamp
+/// walk, so its stamps stay where they were. Pieces of pieces keep counting
+/// from the first stroke.
+Map<String, dynamic> brushPieceExtra(
+  PenElement original,
+  List<PathPoint> piece,
+) {
+  final seed = brushSeedOf(original.extra, original.id);
+  final extra = <String, dynamic>{...original.extra, kBrushSeedKey: seed};
+  final property = original.property;
+  final def = property.brush.isEmpty
+      ? null
+      : brushById(property.brush, property.brushVersion);
+  final points = original.points;
+  if (def == null ||
+      def.engine != BrushEngine.stamp ||
+      piece.isEmpty ||
+      points.isEmpty) {
+    return extra;
+  }
+  final first = points.first;
+  final origin = Offset(first.x, first.y);
+  final zoom = original.zoom ?? 1;
+  final g = StrokeGeometry.build(
+    points,
+    def,
+    property.strokeWidth,
+    zoom: zoom,
+    origin: origin,
+  );
+  final stamps = StampStroke.build(
+    points,
+    def,
+    property.strokeWidth,
+    zoom: zoom,
+    origin: origin,
+    seed: seed,
+    start: StampWalkStart.of(original.extra),
+  );
+  // The arc length where the piece starts, on the original's centerline.
+  final px = piece.first.x - origin.dx, py = piece.first.y - origin.dy;
+  var best = double.infinity;
+  var startArc = 0.0;
+  for (var i = 1; i < g.length; i++) {
+    final ax = g.x[i - 1], ay = g.y[i - 1];
+    final dx = g.x[i] - ax, dy = g.y[i] - ay;
+    final length2 = dx * dx + dy * dy;
+    final t = length2 == 0
+        ? 0.0
+        : (((px - ax) * dx + (py - ay) * dy) / length2).clamp(0.0, 1.0);
+    final ex = ax + dx * t - px, ey = ay + dy * t - py;
+    final distance2 = ex * ex + ey * ey;
+    if (distance2 < best) {
+      best = distance2;
+      startArc = g.arc[i - 1] + (g.arc[i] - g.arc[i - 1]) * t;
+    }
+  }
+  final previous = original.extra[kBrushSeedOffsetKey];
+  extra[kBrushSeedOffsetKey] =
+      (previous is num ? previous.toDouble() : 0.0) + startArc;
+  var j = 0;
+  while (j < stamps.length && stamps.arc[j] < startArc - 1e-9) {
+    j++;
+  }
+  if (j < stamps.length) {
+    extra[kBrushSeedIndexKey] = stamps.index[j];
+    extra[kBrushSeedPhaseKey] = stamps.arc[j] - startArc;
+  } else {
+    // Past the last stamp: continue the sequence after it.
+    extra[kBrushSeedIndexKey] = stamps.length == 0
+        ? 0
+        : stamps.index[stamps.length - 1] + 1;
+    extra[kBrushSeedPhaseKey] = 0.0;
+  }
+  extra[kBrushSeedSpacingKey] = stamps.spacingScale;
+  return extra;
 }

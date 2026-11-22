@@ -16,6 +16,9 @@ const kToolWheelMinDiameter = 160.0;
 /// Largest supported diameter of the tool wheel.
 const kToolWheelMaxDiameter = 480.0;
 
+/// Smallest hit size of the wheel's undo and redo buttons.
+const kMinHistoryHitSize = 32.0;
+
 /// Diameter of the tool wheel when the user has not chosen one:
 /// 22% of the shorter side of [screen], within the supported range.
 double defaultToolWheelDiameter(Size screen) {
@@ -173,8 +176,10 @@ class ToolWheelGeometry {
   /// Radius of the color dot in the center.
   double get centerRadius => radius * 0.20;
 
-  /// Radius of the undo and redo buttons.
-  double get historyRadius => radius * 0.12;
+  /// Radius of the undo and redo buttons: 0.12 of the wheel, but never a
+  /// hit target under [kMinHistoryHitSize]. At the smallest wheel they still
+  /// fit the gap without touching each other or the wedges.
+  double get historyRadius => max(radius * 0.12, kMinHistoryHitSize / 2);
 
   /// Distance from the center to the undo and redo buttons.
   double get historyDistance => radius * 0.80;

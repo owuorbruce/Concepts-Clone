@@ -30,25 +30,38 @@ Future<DisplayCalibrationProfile> readDisplayCalibrationProfile(
   return DisplayCalibrationProfile(key, metrics, ratio);
 }
 
-double displayZoom(BuildContext context, {bool listen = false}) {
+/// The camera scale shown as 100 %, or null while calibrated zoom is off.
+double? _calibratedZoom(BuildContext context, bool listen) {
   final settings = listen
       ? context.watch<SettingsCubit>().state
       : context.read<SettingsCubit>().state;
   if (!settings.hasFlag('calibratedZoom') || !settings.useCalibratedZoom) {
-    return 1;
+    return null;
   }
   final profile = listen
       ? context.select<EditorViewCubit, DisplayCalibrationProfile?>(
           (cubit) => cubit.state.displayCalibration,
         )
       : context.read<EditorViewCubit>().state.displayCalibration;
-  if (profile == null) return 1;
+  if (profile == null) return null;
   final zoom =
       settings.getDisplayCalibration(profile.key) ?? profile.automaticZoom;
   return zoom != null && zoom.isFinite && zoom >= kMinZoom && zoom <= kMaxZoom
       ? zoom
-      : 1;
+      : null;
 }
+
+double displayZoom(BuildContext context, {bool listen = false}) =>
+    _calibratedZoom(context, listen) ?? 1;
+
+/// Camera scales the zoom controls may reach. Calibrated zoom keeps its own
+/// range so its percentages stay physical; otherwise the canvas is endless.
+({double min, double max}) cameraZoomRange(
+  BuildContext context, {
+  bool listen = false,
+}) => _calibratedZoom(context, listen) == null
+    ? (min: kMinZoom, max: kMaxZoom)
+    : (min: kMinCalibrationZoom, max: kMaxCalibrationZoom);
 
 Future<bool> calibrateDisplay(BuildContext context) async {
   final profile = await readDisplayCalibrationProfile(context);

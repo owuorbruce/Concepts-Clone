@@ -101,29 +101,30 @@ void _paintRenderer(
   }
   // Pens and shapes far from the canvas origin lose precision in the 32-bit
   // canvas matrix: at (1e6, 1e6) and 1000x they are off by tens of pixels.
-  // Move the origin to the element in double precision instead.
-  if (renderer.rotation == 0 && renderer.shear == 0) {
-    final Offset? origin = switch (renderer) {
-      PenRenderer() => renderer.localOrigin,
-      ShapeRenderer() => renderer.localOrigin,
-      _ => null,
-    };
-    if (origin != null) {
-      final position = transform.position;
-      canvas.save();
-      // Cancels the camera translation exactly, leaving rotation and scale.
-      canvas.translate(position.dx, position.dy);
-      canvas.translate(origin.dx - position.dx, origin.dy - position.dy);
-      switch (renderer) {
-        case PenRenderer():
-          renderer.buildLocal(canvas, combined: combined);
-        case ShapeRenderer():
-          renderer.buildLocal(canvas);
-        default:
-      }
-      canvas.restore();
-      return;
+  // Move the origin to the element in double precision instead, then apply
+  // the element's own rotation and shear around its center relative to it.
+  final Offset? origin = switch (renderer) {
+    PenRenderer() => renderer.localOrigin,
+    ShapeRenderer() => renderer.localOrigin,
+    _ => null,
+  };
+  if (origin != null) {
+    final position = transform.position;
+    canvas.save();
+    // Cancels the camera translation exactly, leaving rotation and scale.
+    canvas.translate(position.dx, position.dy);
+    canvas.translate(origin.dx - position.dx, origin.dy - position.dy);
+    final elementTransformed = renderer.transformCanvas(canvas, origin);
+    switch (renderer) {
+      case PenRenderer():
+        renderer.buildLocal(canvas, combined: combined);
+      case ShapeRenderer():
+        renderer.buildLocal(canvas);
+      default:
     }
+    if (elementTransformed) canvas.restore();
+    canvas.restore();
+    return;
   }
   final transformed = renderer.transformCanvas(canvas);
   if (combined && renderer is PenRenderer) {

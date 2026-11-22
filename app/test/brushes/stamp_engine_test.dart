@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -5,8 +6,10 @@ import 'dart:ui' as ui;
 
 import 'package:archive/archive.dart';
 import 'package:butterfly/brushes/brush_registry.dart';
+import 'package:butterfly/brushes/dynamics.dart' show stableHash;
 import 'package:butterfly/brushes/stamp_engine.dart';
 import 'package:butterfly/brushes/textures.dart';
+import 'package:butterfly/handlers/handler.dart' show cutPenPointsForEraser;
 import 'package:butterfly/renderers/renderer.dart';
 import 'package:butterfly_api/butterfly_api.dart';
 import 'package:flutter/painting.dart';
@@ -37,8 +40,14 @@ StampStroke stamps(
   double width = 10,
   String seed = 'a',
   Offset origin = Offset.zero,
-}) =>
-    StampStroke.build(points, def, width, zoom: 1, origin: origin, seed: seed);
+}) => StampStroke.build(
+  points,
+  def,
+  width,
+  zoom: 1,
+  origin: origin,
+  seed: stableHash(seed),
+);
 
 /// RGBA bytes of what [draw] paints on a [size]×[size] transparent canvas.
 Future<Uint8List> raster(void Function(Canvas canvas) draw, [int size = 300]) {
@@ -296,5 +305,112 @@ void main() {
     expect(points.inflate(6 * 3).contains(rect.bottomRight), isTrue);
     expect(image.getAttribute('href'), startsWith('data:image/png;base64,'));
     renderer.dispose();
+  });
+
+  group('Stable texture across edits', () {
+    final def = asset('amaze.softPencil');
+    setUpAll(() => registerBrush(def));
+
+    // A gentle S-curve with a pressure ramp, sampled like pen input.
+    List<PathPoint> curve() => [
+      for (var i = 0; i <= 120; i++)
+        PathPoint(
+          20 + i * 2.0,
+          100 + 30 * sin(i / 120 * 2 * pi),
+          0.2 + 0.8 * i / 120,
+        ),
+    ];
+
+    StampStroke build(PenElement element) {
+      final first = element.points.first;
+      return StampStroke.build(
+        element.points,
+        def,
+        element.property.strokeWidth,
+        zoom: element.zoom ?? 1,
+        origin: Offset(first.x, first.y),
+        seed: brushSeedOf(element.extra, element.id),
+        start: StampWalkStart.of(element.extra),
+      );
+    }
+
+    test('strokes without a seed use their id, as before', () {
+      expect(brushSeedOf(const {}, 'element-1'), stableHash('element-1'));
+      expect(brushSeedOf(const {kBrushSeedKey: 42}, 'element-1'), 42);
+      final points = polyline([const Offset(10, 10), const Offset(200, 40)]);
+      final before = stamps(points, def, seed: 'element-1');
+      final now = StampStroke.build(
+        points,
+        def,
+        10,
+        zoom: 1,
+        origin: Offset.zero,
+        seed: brushSeedOf(const {}, 'element-1'),
+      );
+      expect(now.x, before.x);
+      expect(now.angle, before.angle);
+    });
+
+    for (final seeded in [true, false]) {
+      test('erasing the middle keeps every surviving stamp '
+          '(${seeded ? 'seeded' : 'old stroke'})', () {
+        final original = PenElement(
+          id: 'stroke',
+          zoom: 1,
+          extra: seeded ? const {kBrushSeedKey: 123456} : const {},
+          property: const PenProperty(
+            brush: 'amaze.softPencil',
+            strokeWidth: 8,
+          ),
+          points: curve(),
+        );
+        final pieces = cutPenPointsForEraser(
+          original.points,
+          const Offset(140, 100),
+          6,
+        )!;
+        expect(pieces, hasLength(2));
+        final whole = build(original);
+        final origin = Offset(original.points.first.x, original.points.first.y);
+        final byIndex = {
+          for (var i = 0; i < whole.length; i++) whole.index[i]: i,
+        };
+        var matched = 0;
+        for (final points in pieces) {
+          final piece = PenElement(
+            id: 'new-${points.length}',
+            zoom: 1,
+            property: original.property,
+            points: points,
+            extra: brushPieceExtra(original, points),
+          );
+          expect(
+            piece.extra[kBrushSeedKey],
+            brushSeedOf(original.extra, 'stroke'),
+          );
+          expect(piece.extra[kBrushSeedOffsetKey], isA<double>());
+          final part = build(piece);
+          final partOrigin = Offset(points.first.x, points.first.y);
+          expect(part.length, greaterThan(10));
+          for (var i = 0; i < part.length; i++) {
+            final j = byIndex[part.index[i]];
+            expect(j, isNotNull, reason: 'stamp ${part.index[i]}');
+            expect(
+              part.x[i] + partOrigin.dx,
+              closeTo(whole.x[j!] + origin.dx, .01),
+            );
+            expect(
+              part.y[i] + partOrigin.dy,
+              closeTo(whole.y[j] + origin.dy, .01),
+            );
+            expect(part.size[i], closeTo(whole.size[j], .01));
+            expect(part.angle[i], closeTo(whole.angle[j], .01));
+            matched++;
+          }
+        }
+        // Everything outside the erased gap survives.
+        expect(matched, greaterThan(whole.length * .8));
+      });
+    }
   });
 }
