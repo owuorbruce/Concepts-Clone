@@ -2,6 +2,49 @@ part of 'handler.dart';
 
 enum _PolygonDragTarget { point, handleIn, handleOut, newHandle }
 
+/// The dashed preview of the next side of a polygon being drawn.
+class PolygonNextSideRenderer extends Renderer<({Offset from, Offset to})> {
+  PolygonNextSideRenderer(super.element, this.color);
+
+  final Color color;
+
+  @override
+  Rect get rect => Rect.fromPoints(element.from, element.to);
+
+  @override
+  void build(
+    Canvas canvas,
+    Size size,
+    NoteData document,
+    DocumentPage page,
+    DocumentInfo info,
+    CameraTransform transform, [
+    ColorScheme? colorScheme,
+    bool foreground = false,
+  ]) {
+    final zoom = transform.size > 0 ? transform.size : 1.0;
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5 / zoom;
+    final delta = element.to - element.from;
+    final length = delta.distance;
+    if (length == 0) return;
+    final dash = 6 / zoom, gap = 5 / zoom;
+    final direction = delta / length;
+    for (var t = 0.0; t < length; t += dash + gap) {
+      canvas.drawLine(
+        element.from + direction * t,
+        element.from + direction * min(t + dash, length),
+        paint,
+      );
+    }
+  }
+}
+
+/// Longest pause between the two taps that finish a polygon open.
+const kPolygonDoubleTapTimeout = Duration(milliseconds: 300);
+
 class PolygonSelectionRenderer extends Renderer<PolygonElement> {
   @override
   final Rect rect;
@@ -72,6 +115,15 @@ class PolygonHandler extends Handler<PolygonTool> with ColoredHandler {
   String? _elementId;
   int? _selectedPointIndex;
   _PolygonDragTarget _dragTarget = _PolygonDragTarget.newHandle;
+  final _haptics = SnapHaptics();
+
+  /// Where the next corner would go: snapped, in document space.
+  Offset? _nextCorner;
+  Offset? _pointerLocal;
+
+  DateTime? _lastTapTime;
+  Offset? _lastTapLocal;
+  bool _lastTapAddedPoint = false;
 
   PolygonHandler(super.data);
 
@@ -82,17 +134,123 @@ class PolygonHandler extends Handler<PolygonTool> with ColoredHandler {
     DocumentPage page,
     DocumentInfo info, [
     Area? currentArea,
-  ]) => [
-    if (_element != null) ...[
-      PolygonRenderer(_element!),
+  ]) {
+    final element = _element;
+    if (element == null) return [];
+    final settings = editorController.settingsCubit.state;
+    final scheme = getThemeData(settings.design, false).colorScheme;
+    final points = element.points;
+    final last = points.lastOrNull?.toPoint().toOffset();
+    final next = _nextCorner;
+    final transform = editorController.transformCubit.state;
+    final units = measureUnitsOf(page);
+    MeasureBubble? bubble;
+    if (last != null && next != null && _elementId == null) {
+      bubble = MeasureBubble((
+        position: _pointerLocal ?? transform.globalToLocal(next),
+        text: formatLengthAngle(next - last, units),
+      ), scheme);
+    } else if (points.length >= 2 && _elementId == null) {
+      final previous = points[points.length - 2].toPoint().toOffset();
+      bubble = MeasureBubble((
+        position: transform.globalToLocal(last!),
+        text: formatLengthAngle(last - previous, units),
+      ), scheme);
+    }
+    return [
+      PolygonRenderer(element),
+      if (last != null && next != null && _elementId == null)
+        PolygonNextSideRenderer((from: last, to: next), scheme.primary),
       if (_selectedPointIndex != null)
         PolygonSelectionRenderer(
-          _element!,
+          element,
           getSelectionRect(),
           _selectedPointIndex,
         ),
-    ],
-  ];
+      ?bubble,
+    ];
+  }
+
+  /// Corners a new corner snaps to: this polygon's and those of the other
+  /// polygons on screen.
+  Iterable<Offset> _snapCorners(EventContext context) sync* {
+    final element = _element;
+    if (element != null) {
+      for (final point in element.points) {
+        yield point.toPoint().toOffset();
+      }
+    }
+    final controller = context.getEditorController();
+    final transform = context.getCameraTransform();
+    final screen = Offset.zero & context.viewportSize;
+    final topLeft = transform.localToGlobal(screen.topLeft);
+    final bottomRight = transform.localToGlobal(screen.bottomRight);
+    final visible = Rect.fromPoints(topLeft, bottomRight);
+    for (final renderer in controller.rendererCubit.visibleRenderers(visible)) {
+      final other = renderer.element;
+      if (other is! PolygonElement || other.id == element?.id) continue;
+      for (final point in other.points) {
+        yield point.toPoint().toOffset();
+      }
+    }
+  }
+
+  /// [globalPos] snapped to an existing corner within 12 screen px, or its
+  /// side to a 15° step from the last corner.
+  @visibleForTesting
+  ({Offset point, bool snapped}) snapCorner(
+    EventContext context,
+    Offset globalPos,
+  ) {
+    final zoom = context.getCameraTransform().size;
+    final points = _element?.points ?? const <PolygonPoint>[];
+    final corner = snapToPoint(
+      globalPos,
+      _snapCorners(context).take(2000),
+      tolerance: kSnapPointTolerance / (zoom > 0 ? zoom : 1),
+    );
+    if (corner.snapped) return corner;
+    final last = points.lastOrNull?.toPoint().toOffset();
+    if (last == null) return (point: globalPos, snapped: false);
+    final side = snapSegment(last, globalPos);
+    return (point: side.point, snapped: side.snapped);
+  }
+
+  @override
+  void onPointerHover(PointerHoverEvent event, EventContext context) {
+    final element = _element;
+    if (element == null || element.points.isEmpty || _elementId != null) {
+      return;
+    }
+    final globalPos = context.getCameraTransform().localToGlobal(
+      event.localPosition,
+    );
+    final snapped = snapCorner(context, globalPos);
+    _haptics.enabled = context.getSettings().snapHaptics;
+    _haptics.update(snapped.snapped);
+    _nextCorner = snapped.point;
+    _pointerLocal = event.localPosition;
+    context.refreshForegrounds();
+  }
+
+  @override
+  bool onUndo(DocumentBloc bloc) {
+    final element = _element;
+    // Only while drawing a new polygon; edits of an existing one go
+    // through the document's history.
+    if (element == null || _elementId != null) return false;
+    final points = element.points;
+    if (points.length <= 1) {
+      _resetTool();
+    } else {
+      _element = element.copyWith(points: points.sublist(0, points.length - 1));
+      _selectedPointIndex = points.length - 2;
+    }
+    _nextCorner = null;
+    unawaited(bloc.refreshForegrounds());
+    bloc.refreshToolbar();
+    return true;
+  }
 
   Rect getSelectionRect() {
     return _element?.points.isEmpty ?? true
@@ -138,10 +296,20 @@ class PolygonHandler extends Handler<PolygonTool> with ColoredHandler {
     _elementId = null;
     _element = null;
     _selectedPointIndex = null;
+    _nextCorner = null;
+    _pointerLocal = null;
+    _haptics.reset();
   }
 
   void addPoint(EventContext context, Offset localPos) {
-    final globalPos = context.getCameraTransform().localToGlobal(localPos);
+    var globalPos = context.getCameraTransform().localToGlobal(localPos);
+    if (_elementId == null) {
+      final snapped = snapCorner(context, globalPos);
+      globalPos = snapped.point;
+      _haptics.enabled = context.getSettings().snapHaptics;
+      if (snapped.snapped) _haptics.tick();
+    }
+    _nextCorner = null;
     var element =
         _element ??
         PolygonElement(
@@ -163,10 +331,53 @@ class PolygonHandler extends Handler<PolygonTool> with ColoredHandler {
   void onTapUp(TapUpDetails details, EventContext context) async {
     changeStartedDrawing(context);
     final localPos = details.localPosition;
-    final globalPos = context.getCameraTransform().localToGlobal(localPos);
-
+    final transform = context.getCameraTransform();
+    final globalPos = transform.localToGlobal(localPos);
+    final bloc = context.getDocumentBloc();
+    final now = DateTime.now();
+    final lastTime = _lastTapTime, lastLocal = _lastTapLocal;
+    final doubleTap =
+        lastTime != null &&
+        lastLocal != null &&
+        now.difference(lastTime) <= kPolygonDoubleTapTimeout &&
+        (localPos - lastLocal).distance <= 40;
+    final element = _element;
+    if (element != null && _elementId == null) {
+      final points = element.points;
+      // A double-tap finishes the polygon open at the corner its first
+      // tap placed.
+      if (doubleTap) {
+        _lastTapTime = null;
+        _lastTapLocal = null;
+        if (!_lastTapAddedPoint) addPoint(context, localPos);
+        _lastTapAddedPoint = false;
+        await _finalizeElement(bloc);
+        return;
+      }
+      // A tap on the first corner closes the polygon.
+      if (points.length >= 3) {
+        final first = points.first.toPoint().toOffset();
+        if ((transform.globalToLocal(first) - localPos).distance <=
+            kSnapPointTolerance) {
+          _lastTapTime = null;
+          _lastTapAddedPoint = false;
+          await _finalizeElement(bloc, closeShape: true);
+          return;
+        }
+      }
+    }
+    _lastTapTime = now;
+    _lastTapLocal = localPos;
+    _lastTapAddedPoint = false;
+    if (_elementId == null && element != null && element.points.isNotEmpty) {
+      // While drawing, a tap places the next corner, even on an old one.
+      addPoint(context, localPos);
+      _lastTapAddedPoint = true;
+      return;
+    }
     if (!_editPoint(globalPos, context)) {
       addPoint(context, localPos);
+      _lastTapAddedPoint = true;
     }
   }
 

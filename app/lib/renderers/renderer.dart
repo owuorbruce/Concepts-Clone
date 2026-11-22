@@ -228,7 +228,22 @@ class TransformedHitCalculator extends HitCalculator {
     polygon.map(_inverse).toList(),
     hitElementMode: hitElementMode,
   );
+
+  @override
+  bool hitPolygonAt(
+    List<Offset> polygon, {
+    HitElementMode hitElementMode = .touchAnywhere,
+    double zoom = 1,
+  }) => delegate.hitPolygonAt(
+    polygon.map(_inverse).toList(),
+    hitElementMode: hitElementMode,
+    zoom: zoom,
+  );
 }
+
+/// Thinnest hit area of a stroke, in screen pixels, so a hairline is as
+/// easy to tap as a thick pen stroke.
+const kMinStrokeHitScreenPixels = 6.0;
 
 abstract class HitCalculator {
   bool hitPolygon(
@@ -236,14 +251,80 @@ abstract class HitCalculator {
     HitElementMode hitElementMode = .touchAnywhere,
   });
 
+  /// Like [hitPolygon] at the camera [zoom], for hit areas that keep a
+  /// minimum size on screen. Most elements ignore the zoom.
+  bool hitPolygonAt(
+    List<Offset> polygon, {
+    HitElementMode hitElementMode = .touchAnywhere,
+    double zoom = 1,
+  }) => hitPolygon(polygon, hitElementMode: hitElementMode);
+
+  /// Distance from [point] to the segment from [a] to [b].
+  double distanceToSegment(Offset point, Offset a, Offset b) {
+    final ab = b - a;
+    final lengthSquared = ab.distanceSquared;
+    if (lengthSquared == 0) return (point - a).distance;
+    final t =
+        (((point.dx - a.dx) * ab.dx + (point.dy - a.dy) * ab.dy) /
+                lengthSquared)
+            .clamp(0.0, 1.0);
+    return (point - (a + ab * t)).distance;
+  }
+
+  /// Shortest distance between the segments [a]–[b] and [c]–[d].
+  double segmentDistance(Offset a, Offset b, Offset c, Offset d) {
+    if (_segmentsIntersect(a, b, c, d)) return 0;
+    return min(
+      min(distanceToSegment(a, c, d), distanceToSegment(b, c, d)),
+      min(distanceToSegment(c, a, b), distanceToSegment(d, a, b)),
+    );
+  }
+
+  /// Whether the open [path] comes within [tolerance] of [polygon]'s edges.
+  bool isPathNearPolygon(
+    List<Offset> path,
+    List<Offset> polygon,
+    double tolerance,
+  ) {
+    if (path.isEmpty || polygon.isEmpty || tolerance <= 0) return false;
+    final pathBounds = _polygonBounds(path).inflate(tolerance);
+    final polygonBounds = _polygonBounds(polygon);
+    // Not Rect.overlaps, so a point or a flat polygon still counts.
+    if (pathBounds.right < polygonBounds.left ||
+        polygonBounds.right < pathBounds.left ||
+        pathBounds.bottom < polygonBounds.top ||
+        polygonBounds.bottom < pathBounds.top) {
+      return false;
+    }
+    final edges = polygon.length == 1
+        ? [(polygon.first, polygon.first)]
+        : _edgesOf(polygon).toList();
+    if (path.length == 1) {
+      final point = path.first;
+      return edges.any(
+        (edge) => distanceToSegment(point, edge.$1, edge.$2) <= tolerance,
+      );
+    }
+    for (var i = 1; i < path.length; i++) {
+      final a = path[i - 1], b = path[i];
+      for (final edge in edges) {
+        if (segmentDistance(a, b, edge.$1, edge.$2) <= tolerance) return true;
+      }
+    }
+    return false;
+  }
+
   bool hitShape(
     List<Offset> selection,
     List<Offset> outline,
     HitElementMode mode,
   ) => switch (mode) {
+    // Every point inside is not enough for a concave lasso: no edge of
+    // the outline may cross the lasso either.
     .full =>
       outline.isNotEmpty &&
-          outline.every((point) => isPointInPolygon(selection, point)),
+          outline.every((point) => isPointInPolygon(selection, point)) &&
+          !_edgesCross(selection, outline),
     .touchEdges => _edgesOf(
       outline,
     ).any((edge) => isPolygonInPolygon(selection, [edge.$1, edge.$2])),
@@ -316,6 +397,19 @@ abstract class HitCalculator {
     if (o2 == 0 && _isPointOnSegment(d, a, b)) return true;
     if (o3 == 0 && _isPointOnSegment(a, c, d)) return true;
     if (o4 == 0 && _isPointOnSegment(b, c, d)) return true;
+    return false;
+  }
+
+  /// Whether an edge of [a] crosses an edge of [b].
+  bool _edgesCross(List<Offset> a, List<Offset> b) {
+    final edgesB = _edgesOf(b).toList();
+    for (final edgeA in _edgesOf(a)) {
+      for (final edgeB in edgesB) {
+        if (_segmentsIntersect(edgeA.$1, edgeA.$2, edgeB.$1, edgeB.$2)) {
+          return true;
+        }
+      }
+    }
     return false;
   }
 

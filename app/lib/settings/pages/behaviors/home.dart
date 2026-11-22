@@ -17,6 +17,7 @@ final _behaviorsSettingsPage = SettingsLeapPage<ButterflySettings>(
       limitViewportPositive: defaults.limitViewportPositive,
       renderResolution: defaults.renderResolution,
       bringMovedElementsToFront: defaults.bringMovedElementsToFront,
+      snapHaptics: defaults.snapHaptics,
       spreadPages: defaults.spreadPages,
       imageScale: defaults.imageScale,
       rotationStep: defaults.rotationStep,
@@ -201,6 +202,16 @@ final _behaviorsSettingsPage = SettingsLeapPage<ButterflySettings>(
           write: (context, value) => context
               .read<SettingsCubit>()
               .changeBringMovedElementsToFront(value),
+        ),
+        SettingsLeapBoolSetting(
+          displayName: (context) =>
+              AppLocalizations.of(context).amazeSnapHaptics,
+          hintBuilder: (context) =>
+              AppLocalizations.of(context).amazeSnapHapticsDescription,
+          icon: PhosphorIconsLight.vibrate,
+          read: (state) => state.snapHaptics,
+          write: (context, value) =>
+              context.read<SettingsCubit>().changeSnapHaptics(value),
         ),
         SettingsLeapCustomSetting(
           displayName: (context) => AppLocalizations.of(context).rotationStep,

@@ -63,7 +63,9 @@ void main() {
             ToolRuntimeState(handler: handler, toggleableHandlers: {0: grid}),
           );
           when(() => context.viewportSize).thenReturn(const Size(800, 600));
-          when(() => context.isShiftPressed).thenReturn(false);
+          // Corner handles keep the aspect ratio unless the proportional
+          // modifier frees them; this checks free, grid-snapped resizing.
+          when(() => context.isShiftPressed).thenReturn(corner != null);
           when(() => context.isAltPressed).thenReturn(false);
           when(() => context.refreshForegrounds()).thenAnswer((_) async {});
           final shape = ShapeRenderer(
@@ -302,6 +304,7 @@ void main() {
       when(() => settings.state).thenReturn(const ButterflySettings());
       when(() => context.getDocumentBloc()).thenReturn(bloc);
       when(() => context.isCtrlPressed).thenReturn(false);
+      when(() => context.isShiftPressed).thenReturn(false);
       when(() => context.refresh()).thenAnswer((_) async {});
       when(() => context.refreshForegrounds()).thenAnswer((_) async {});
       List<Offset>? hitPolygon;

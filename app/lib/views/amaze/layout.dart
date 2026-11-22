@@ -1,3 +1,6 @@
+import 'package:butterfly/bloc/document_bloc.dart';
+import 'package:butterfly/handlers/handler.dart'
+    show pendingStampTool, completeStampPick;
 import 'package:butterfly/cubits/editor_controller.dart';
 import 'package:butterfly/cubits/transform.dart';
 import 'package:butterfly/views/edit.dart';
@@ -66,6 +69,19 @@ class _AmazeEditorLayoutState extends State<AmazeEditorLayout> {
     loadAmazePanels().then((panels) {
       if (mounted) setState(() => _panels = panels);
     });
+    pendingStampTool.addListener(_onStampPick);
+  }
+
+  @override
+  void dispose() {
+    pendingStampTool.removeListener(_onStampPick);
+    super.dispose();
+  }
+
+  /// A stamp without an object opens the Objects panel to pick one.
+  void _onStampPick() {
+    if (pendingStampTool.value == null || _showObjects || !mounted) return;
+    setState(() => _showObjects = true);
   }
 
   bool _showObjects = false;
@@ -80,6 +96,7 @@ class _AmazeEditorLayoutState extends State<AmazeEditorLayout> {
 
   void _closeObjects() {
     if (!_showObjects) return;
+    pendingStampTool.value = null;
     setState(() => _showObjects = false);
     // Give the keyboard back to the canvas shortcuts.
     context.read<EditorController>().focusNode.requestFocus();
@@ -87,6 +104,10 @@ class _AmazeEditorLayoutState extends State<AmazeEditorLayout> {
 
   void _placeObject(ObjectEntry entry) {
     if (!widget.editable) return;
+    // Picking for a stamp gives it the object instead of placing it.
+    if (completeStampPick(context.read<DocumentBloc>(), entry)) {
+      return _closeObjects();
+    }
     addObjectToCanvas(context, entry, visibleCanvasCenter(context));
   }
 

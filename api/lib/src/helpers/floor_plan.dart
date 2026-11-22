@@ -9,7 +9,10 @@ import '../models/property.dart';
 import 'svg_strokes.dart';
 
 /// `extra` key of a wall: `{'thicknessIn': t, 'corners': [i0, i1, i2, i3]}`,
-/// the indices of the rectangle's corners in the element's points.
+/// the indices of the rectangle's corners in the element's points, and
+/// `'flat': [start, end]` when an end is cut flat at its true position
+/// instead of reaching half a thickness past the centerline. Walls without
+/// `flat` have no flat ends.
 const kWallExtraKey = 'amaze.wall';
 
 /// `extra` key of every element of a placed door or window:
@@ -34,10 +37,20 @@ const kWallTolerance = 0.5;
 /// A wall's rectangle reaches half its thickness past each end of the
 /// centerline, so walls meeting at a corner overlap cleanly.
 class WallGeometry {
-  const WallGeometry(this.a, this.b, this.thicknessIn);
+  const WallGeometry(
+    this.a,
+    this.b,
+    this.thicknessIn, {
+    this.flatStart = false,
+    this.flatEnd = false,
+  });
 
   final Point<double> a, b;
   final double thicknessIn;
+
+  /// Whether the rectangle ends flat at [a] or [b] (a cut end), instead of
+  /// reaching half a thickness past it.
+  final bool flatStart, flatEnd;
 
   /// The thickness in canvas units.
   double get thickness => thicknessIn * kCanvasUnitsPerInch;
@@ -61,14 +74,18 @@ class WallGeometry {
     return Point(-d.y, d.x);
   }
 
-  /// The start of the wall's rectangle, half a thickness before [a].
-  Point<double> get outerStart => a - direction * (thickness / 2);
+  /// The start of the wall's rectangle, half a thickness before [a] unless
+  /// the start is flat.
+  Point<double> get outerStart =>
+      flatStart ? a : a - direction * (thickness / 2);
 
-  /// The end of the wall's rectangle, half a thickness past [b].
-  Point<double> get outerEnd => b + direction * (thickness / 2);
+  /// The end of the wall's rectangle, half a thickness past [b] unless the
+  /// end is flat.
+  Point<double> get outerEnd => flatEnd ? b : b + direction * (thickness / 2);
 
   /// The full length of the wall's rectangle in canvas units.
-  double get outerLength => length + thickness;
+  double get outerLength =>
+      length + (flatStart ? 0 : thickness / 2) + (flatEnd ? 0 : thickness / 2);
 }
 
 /// A wall around the centerline [a] → [b], [thicknessIn] inches thick: a
@@ -98,8 +115,9 @@ PenElement _wallRectangle(
   Point<double> start,
   Point<double> end,
   double thicknessIn,
-  SRGBColor color,
-) {
+  SRGBColor color, {
+  List<bool>? flat,
+}) {
   final half = thicknessIn * kCanvasUnitsPerInch / 2;
   final length = start.distanceTo(end);
   final direction = length == 0
@@ -132,7 +150,11 @@ PenElement _wallRectangle(
       fillPaint: ElementPaint.solid(color: color),
     ),
     extra: {
-      kWallExtraKey: {'thicknessIn': thicknessIn, 'corners': indices},
+      kWallExtraKey: {
+        'thicknessIn': thicknessIn,
+        'corners': indices,
+        'flat': ?flat,
+      },
     },
   );
 }
@@ -192,11 +214,19 @@ WallGeometry? readWall(PenElement element) {
   final thickness = corners[1].distanceTo(corners[2]);
   final length = start.distanceTo(end);
   final direction = (end - start) * (1 / length);
-  final inset = min(thickness / 2, length / 2);
+  // Cut ends are flat where they are; other ends reach half a thickness
+  // past the centerline.
+  final flat = (element.extra[kWallExtraKey] as Map)['flat'];
+  final flatStart = flat is List && flat.isNotEmpty && flat[0] == true;
+  final flatEnd = flat is List && flat.length > 1 && flat[1] == true;
+  final insets = (flatStart ? 0 : 1) + (flatEnd ? 0 : 1);
+  final inset = insets == 0 ? 0.0 : min(thickness / 2, length / insets);
   return WallGeometry(
-    start + direction * inset,
-    end - direction * inset,
+    flatStart ? start : start + direction * inset,
+    flatEnd ? end : end - direction * inset,
     thickness / kCanvasUnitsPerInch,
+    flatStart: flatStart,
+    flatEnd: flatEnd,
   );
 }
 
@@ -215,11 +245,16 @@ List<PenElement> cutWall(PenElement wall, double fromIn, double toIn) {
   final start = geometry.outerStart;
   final direction = geometry.direction;
   final color = wallColor(wall);
+  // The cut sides are flat; the wall's own ends stay as they were.
   PenElement piece(double begin, double end) => _wallRectangle(
     start + direction * begin,
     start + direction * end,
     geometry.thicknessIn,
     color,
+    flat: [
+      begin <= kWallTolerance ? geometry.flatStart : true,
+      total - end <= kWallTolerance ? geometry.flatEnd : true,
+    ],
   ).copyWith(collection: wall.collection, zoom: wall.zoom);
   return [
     if (from > kWallTolerance) piece(0, from),

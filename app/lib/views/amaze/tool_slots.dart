@@ -178,6 +178,7 @@ extension ToolAdjustments on Tool {
     if (tool is PenTool) return const ToolAdjustmentRange(0.1, 70);
     if (tool is EraserTool) return const ToolAdjustmentRange(1, 70);
     if (tool is CanvasActionTool) return const ToolAdjustmentRange(10, 200);
+    if (tool is LabelTool) return const ToolAdjustmentRange(0.25, 12);
     return const ToolAdjustmentRange(0.5, 70);
   }
 
@@ -201,6 +202,8 @@ double? _readSize(Tool tool) => switch (tool) {
   EraserTool(:final strokeWidth) => strokeWidth,
   LaserTool(:final strokeWidth) => strokeWidth,
   CanvasActionTool(kind: .nudge, :final radius) => radius,
+  // The size of text is its scale.
+  LabelTool(:final scale) => scale,
   _ => null,
 };
 
@@ -233,6 +236,7 @@ Tool _writeSize(Tool tool, double value) {
   if (tool is EraserTool) return tool.copyWith(strokeWidth: value);
   if (tool is LaserTool) return tool.copyWith(strokeWidth: value);
   if (tool is CanvasActionTool) return tool.copyWith(radius: value);
+  if (tool is LabelTool) return tool.copyWith(scale: value);
   return tool;
 }
 

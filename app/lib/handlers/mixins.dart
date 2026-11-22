@@ -18,7 +18,7 @@ mixin ColoredHandler<T extends Tool> on Handler<T> {
   }
 
   @override
-  PreferredSizeWidget? getToolbar(DocumentBloc bloc) {
+  FutureOr<PreferredSizeWidget?> getToolbar(DocumentBloc bloc) {
     final visiblity = bloc.state.settingsCubit.state.simpleToolbarVisibility;
     if (visiblity == .hide || (_startedDrawing && visiblity == .temporary)) {
       return null;
@@ -276,13 +276,29 @@ abstract class PastingHandler<T> extends Handler<T> {
   @mustCallSuper
   void onScaleEnd(ScaleEndDetails details, EventContext context) async {
     await _preparePaste(context);
-    _createElements(context.getDocumentBloc(), context);
+    final created = _createElements(context.getDocumentBloc(), context);
+    if (selectAfterCreate && created.isNotEmpty) {
+      unawaited(
+        selectCreatedElements(context, {
+          for (final element in created) ?element.id,
+        }),
+      );
+    }
   }
 
-  void _createElements(DocumentBloc bloc, EventContext context) {
+  /// Whether a dragged element is selected with transform handles after
+  /// it is made, so it can be adjusted at once.
+  bool get selectAfterCreate => false;
+
+  /// Adds the pasted elements in one undo step and returns them with their
+  /// ids.
+  List<PadElement> _createElements(DocumentBloc bloc, EventContext context) {
     final elements = getTransformed(bloc.editorController);
-    if (elements.isEmpty) return;
-    final current = List<PadElement>.from(elements);
+    if (elements.isEmpty) return const [];
+    final current = [
+      for (final element in elements)
+        element.id == null ? element.copyWith(id: createUniqueId()) : element,
+    ];
     bloc.add(
       ElementsCreated(
         current,
@@ -293,6 +309,14 @@ abstract class PastingHandler<T> extends Handler<T> {
     _firstPos = null;
     _secondPos = null;
     context.refresh();
+    return current;
+  }
+
+  /// Drops the shape being drawn without adding it.
+  void cancelPaste(EventContext context) {
+    _firstPos = null;
+    _secondPos = null;
+    context.refreshForegrounds();
   }
 
   @override
@@ -321,6 +345,37 @@ abstract class PastingHandler<T> extends Handler<T> {
   }
 
   bool get currentlyPasting => _firstPos != null && _secondPos != null;
+}
+
+/// Selects the elements with [ids] with a temporary select tool, so a new
+/// element can be moved, scaled or rotated right away. A touch outside the
+/// selection goes back to the tool that made it.
+Future<void> selectCreatedElements(
+  EventContext context,
+  Set<String> ids,
+) async {
+  if (ids.isEmpty) return;
+  final bloc = context.getDocumentBloc();
+  final controller = bloc.editorController;
+  final buildContext = context.buildContext;
+  if (!buildContext.mounted) return;
+  final handler = await controller.toolCubit.changeTemporaryHandler(
+    buildContext,
+    controller,
+    SelectTool(),
+    bloc: bloc,
+    temporaryState: TemporaryState.removeAfterClick,
+  );
+  if (handler is! SelectHandler) return;
+  // The new elements get their renderers once the bloc has added them.
+  for (var i = 0; i < 30; i++) {
+    final found = controller.rendererCubit.renderers
+        .where((renderer) => ids.contains(renderer.element.id))
+        .length;
+    if (found >= ids.length) break;
+    await Future<void>.delayed(const Duration(milliseconds: 16));
+  }
+  handler.selectAll(bloc, (renderer) => ids.contains(renderer.element.id));
 }
 
 mixin PointerManipulationHandler<T> on Handler<T> {

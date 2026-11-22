@@ -32,8 +32,8 @@ import '../helpers/mocks.dart';
 
 const _moreTools = ValueKey('amaze-library-more-tools');
 
-Finder _toolTile(int index) =>
-    find.byKey(ValueKey(('amaze-library-tool', index)));
+Finder _toolTile(ToolFamily family) =>
+    find.byKey(ValueKey(('amaze-library-tool', family.name)));
 
 class _Observer extends BlocObserver {
   DocumentBloc? bloc;
@@ -49,7 +49,7 @@ void main() {
   late MockSettingsCubit settingsCubit;
   late MockButterflyFileSystem fileSystem;
   late WindowCubit windowCubit;
-  late GoRouter router;
+  GoRouter? router;
   late _Observer observer;
   late BlocObserver previousObserver;
 
@@ -96,7 +96,8 @@ void main() {
 
   tearDown(() async {
     Bloc.observer = previousObserver;
-    router.dispose();
+    router?.dispose();
+    router = null;
     await windowCubit.close();
   });
 
@@ -173,7 +174,7 @@ void main() {
           BlocProvider<WindowCubit>.value(value: windowCubit),
         ],
         child: MaterialApp.router(
-          routerConfig: router,
+          routerConfig: router!,
           debugShowCheckedModeBanner: false,
           theme: getThemeData('', false),
           localizationsDelegates: const [
@@ -253,35 +254,86 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Tools ends with More tools: one tile per catalog tool', (
+  testWidgets('13: More tools shows one tile per family, in its groups', (
     tester,
   ) async {
     setScreen(tester, tall);
     await openEditor(tester);
     await openLibrary(tester, slotOf<PenTool>());
 
-    expect(find.text('MORE TOOLS'), findsOneWidget);
     expect(find.byKey(_moreTools), findsOneWidget);
-    final catalog = slotToolCatalog();
     final tiles = find.descendant(
       of: find.byKey(_moreTools),
       matching: find.byWidgetPredicate((widget) {
         final key = widget.key;
-        return key is ValueKey<(String, int)> &&
+        return key is ValueKey<(String, String)> &&
             key.value.$1 == 'amaze-library-tool';
       }),
     );
-    expect(tiles, findsNWidgets(catalog.length));
-    expect(_toolTile(catalog.length - 1), findsOneWidget);
-    // More tools comes after the Tools section's own tiles.
-    expect(
-      tester.getTopLeft(find.text('MORE TOOLS')).dy,
-      greaterThan(tester.getTopLeft(find.text('TOOLS')).dy),
-    );
+    expect(tiles, findsNWidgets(ToolFamily.values.length));
+    // Groups in order, each holding its own families.
+    double? lastTop;
+    for (final group in ToolGroup.values) {
+      final grid = find.byKey(ValueKey(('amaze-library-group', group.name)));
+      expect(grid, findsOneWidget, reason: group.name);
+      final top = tester.getTopLeft(grid).dy;
+      if (lastTop != null) expect(top, greaterThan(lastTop));
+      lastTop = top;
+      for (final family in ToolFamily.of(group)) {
+        expect(
+          find.descendant(of: grid, matching: _toolTile(family)),
+          findsOneWidget,
+          reason: family.name,
+        );
+      }
+    }
+    expect(find.text('Draw & edit'.toUpperCase()), findsOneWidget);
+    expect(find.text('Present & view'.toUpperCase()), findsOneWidget);
+    // Clear names.
+    for (final name in [
+      'Text',
+      'Straightedge',
+      'Insert space',
+      'Artboard',
+      'Pattern fill',
+      'Laser pointer',
+      'Collections',
+    ]) {
+      expect(
+        find.descendant(of: find.byKey(_moreTools), matching: find.text(name)),
+        findsOneWidget,
+        reason: name,
+      );
+    }
+    // Actions carry a badge.
+    for (final family in ToolFamily.values) {
+      expect(
+        find.byKey(ValueKey(('amaze-library-action', family.name))),
+        family.isAction ? findsOneWidget : findsNothing,
+        reason: family.name,
+      );
+    }
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('the rectangle tile puts a rectangle tool into the slot', (
+  test('13: every catalog preset stays reachable through a family', () {
+    for (final preset in slotToolCatalog()) {
+      final family = ToolFamily.ofTool(preset);
+      expect(family, isNotNull, reason: preset.runtimeType.toString());
+      expect(
+        family!.variants.any((variant) => sameToolVariant(variant, preset)),
+        isTrue,
+        reason: preset.runtimeType.toString(),
+      );
+    }
+    expect(ToolFamily.shapes.variants.length, 4);
+    expect(ToolFamily.barcode.variants.length, BarcodeType.values.length);
+    expect(ToolFamily.insertSpace.variants.length, 2);
+    expect(ToolFamily.eraser.variants.length, 2);
+    expect(ToolFamily.select.variants.length, 2);
+  });
+
+  testWidgets('13: the Shapes tile puts a shape in; its menu picks a type', (
     tester,
   ) async {
     setScreen(tester, tall);
@@ -291,25 +343,115 @@ void main() {
     final index = slotToolIndices(documentTools())[slot];
     await openLibrary(tester, slot);
 
-    final rectangle = slotToolCatalog().indexWhere(
-      (tool) => tool is ShapeTool && tool.property.shape is RectangleShape,
-    );
-    expect(rectangle, isNonNegative);
-    await tester.tap(_toolTile(rectangle));
-    await pumpUntil(tester, () => slotTool(slot) is ShapeTool, 'rectangle');
+    await tester.tap(_toolTile(ToolFamily.shapes));
+    await pumpUntil(tester, () => slotTool(slot) is ShapeTool, 'shape');
     await pumpUntil(
       tester,
       () => editor.toolCubit.state.index == index,
       'activated',
     );
-    final tool = slotTool(slot) as ShapeTool;
-    expect(tool.property.shape, isA<RectangleShape>());
-    expect(tool.id, id);
+    expect(slotTool(slot).id, id);
+    expect(find.byKey(const ValueKey('amaze-library-info')), findsOneWidget);
+    expect(find.textContaining('Shapes: drag'), findsOneWidget);
+
+    await tester.longPress(_toolTile(ToolFamily.shapes));
+    await tester.pumpAndSettle();
+    final rectangle = ToolFamily.shapes.variants.indexWhere(
+      (tool) => tool is ShapeTool && tool.property.shape is RectangleShape,
+    );
+    await tester.tap(
+      find.byKey(ValueKey(('amaze-library-variant', rectangle))),
+    );
+    await pumpUntil(
+      tester,
+      () => (slotTool(slot) as ShapeTool).property.shape is RectangleShape,
+      'rectangle',
+    );
+    expect(slotTool(slot).id, id);
     expect(editor.toolCubit.state.handler.data, isA<ShapeTool>());
     // The library stays open, as after picking any other entry.
     expect(find.byKey(const ValueKey('amaze-brush-library')), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pump(const Duration(minutes: 1));
+  });
+
+  testWidgets('13: every barcode type is reachable from its tile', (
+    tester,
+  ) async {
+    setScreen(tester, tall);
+    await openEditor(tester);
+    final slot = slotOf<PenTool>();
+    await openLibrary(tester, slot);
+    for (final (index, type) in BarcodeType.values.indexed) {
+      await tester.longPress(_toolTile(ToolFamily.barcode));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(ValueKey(('amaze-library-variant', index))));
+      await pumpUntil(
+        tester,
+        () => switch (slotTool(slot)) {
+          BarcodeTool(:final barcodeType) => barcodeType == type,
+          _ => false,
+        },
+        type.name,
+      );
+      await tester.pumpAndSettle();
+      // Close a content dialog if picking the tool opened one.
+      if (find.byType(Dialog).evaluate().isNotEmpty) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+      }
+    }
+    expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(minutes: 1));
+  });
+
+  testWidgets('13: search for "pattern" finds Pattern fill', (tester) async {
+    setScreen(tester, tall);
+    await openEditor(tester);
+    await openLibrary(tester, slotOf<PenTool>());
+    await tester.enterText(
+      find.byKey(const ValueKey('amaze-library-search')),
+      'pattern',
+    );
+    await tester.pumpAndSettle();
+    expect(_toolTile(ToolFamily.patternFill), findsOneWidget);
+    expect(_toolTile(ToolFamily.shapes), findsNothing);
+    // The brush named after patterns shows too.
+    expect(
+      find.byKey(const ValueKey(('amaze-library-item', 'tilingPatterns'))),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('amaze-library-search')),
+      'zzzz',
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('amaze-library-no-results')), findsOne);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('13: Full screen runs without changing the slot', (tester) async {
+    setScreen(tester, tall);
+    await openEditor(tester);
+    final slot = slotOf<PenTool>();
+    final before = slotTool(slot);
+    await openLibrary(tester, slot);
+    expect(windowCubit.state.fullScreen, isFalse);
+    await tester.tap(_toolTile(ToolFamily.fullScreen));
+    await pumpUntil(tester, () => windowCubit.state.fullScreen, 'full screen');
+    expect(slotTool(slot).id, before.id);
+    expect(slotTool(slot), isA<PenTool>());
+    expect(tester.takeException(), isNull);
+    await tester.pump(const Duration(minutes: 1));
+  });
+
+  test('14: the Pattern fill tile starts with a visible grid', () {
+    final tool = ToolFamily.patternFill.defaultTool as TextureTool;
+    final texture = tool.texture as PatternTexture;
+    expect(texture.boxWidth, 40);
+    expect(texture.boxHeight, 40);
+    expect(texture.boxColor.a, 0);
+    expect(texture.boxXStroke, greaterThan(0));
   });
 
   testWidgets('9: no library entry is unavailable or shows a lock', (

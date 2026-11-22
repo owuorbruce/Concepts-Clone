@@ -5,7 +5,29 @@ class AreaHandler extends Handler<AreaTool> {
     enableRotation: false,
   );
   Offset? _start, _end;
+  Offset? _pointerLocal;
   bool _centered = false;
+  final _haptics = SnapHaptics();
+
+  /// [position] snapped to a corner of another area within 12 screen px.
+  Offset _snapToAreas(EventContext context, Offset position) {
+    final page = context.getPage();
+    if (page == null) return position;
+    final zoom = context.getCameraTransform().size;
+    final corners = [
+      for (final area in page.areas)
+        if (area.name != _currentArea?.name) ...area.rect.toPolygon(),
+    ];
+    final result = snapToPoint(
+      position,
+      corners,
+      tolerance: kSnapPointTolerance / (zoom > 0 ? zoom : 1),
+    );
+    _haptics.enabled = context.getSettings().snapHaptics;
+    _haptics.update(result.snapped);
+    return result.point;
+  }
+
   Area? _currentArea;
 
   AreaHandler(super.data);
@@ -97,6 +119,17 @@ class AreaHandler extends Handler<AreaTool> {
           ),
         ),
       _selectionManager.renderer,
+      if (rect != null && _pointerLocal != null)
+        MeasureBubble(
+          (
+            position: _pointerLocal!,
+            text: formatSize(rect.width, rect.height, measureUnitsOf(page)),
+          ),
+          getThemeData(
+            editorController.settingsCubit.state.design,
+            false,
+          ).colorScheme,
+        ),
     ];
   }
 
@@ -151,13 +184,13 @@ class AreaHandler extends Handler<AreaTool> {
       );
       if (!startedTransform) {
         _setCurrentArea(null);
-        _startArea(globalPos, context.isAltPressed);
+        _startArea(_snapToAreas(context, globalPos), context.isAltPressed);
       }
       context.refreshForegrounds();
       return true;
     }
 
-    _startArea(globalPos, context.isAltPressed);
+    _startArea(_snapToAreas(context, globalPos), context.isAltPressed);
     return true;
   }
 
@@ -185,7 +218,14 @@ class AreaHandler extends Handler<AreaTool> {
     }
     final start = _start;
     if (start == null) return;
+    _pointerLocal = details.localFocalPoint;
     final hasConstrainedWidth = data.constrainedWidth != 0;
+    if (!hasConstrainedWidth &&
+        data.constrainedHeight == 0 &&
+        data.constrainedAspectRatio == 0 &&
+        !context.isShiftPressed) {
+      globalPos = _snapToAreas(context, globalPos);
+    }
     final hasConstrainedHeight = data.constrainedHeight != 0;
     final constrainedAspectRatio = context.isShiftPressed
         ? (data.constrainedAspectRatio == 0 ? 1.0 : 0.0)
@@ -241,6 +281,8 @@ class AreaHandler extends Handler<AreaTool> {
   @override
   Future<void> onScaleEnd(ScaleEndDetails details, EventContext context) async {
     final rect = currentRect;
+    _pointerLocal = null;
+    _haptics.reset();
     if (_selectionManager.isValid) {
       final transform = _selectionManager.getTransform();
       final moved =

@@ -2410,10 +2410,16 @@ class DocumentBloc extends ReplayBloc<DocumentEvent, DocumentState> {
     for (final point in points.skip(1)) {
       bounds = bounds.expandToInclude(Rect.fromPoints(point, point));
     }
-    final candidates =
-        renderers ?? cubit.rendererCubit.visibleRenderers(bounds.inflate(1e-7));
-    if (candidates.isEmpty) return {};
     transform ??= cubit.transformCubit.state;
+    // Thin strokes keep a minimum hit area on screen, so look that much
+    // around the query for them.
+    final zoom = transform.size > 0 ? transform.size : 1.0;
+    final candidates =
+        renderers ??
+        cubit.rendererCubit.visibleRenderers(
+          bounds.inflate(kMinStrokeHitScreenPixels / zoom + 1e-7),
+        );
+    if (candidates.isEmpty) return {};
     hitElementMode ??= HitElementMode.touchAnywhere;
 
     final params = _RayCastPolygonParams(
@@ -2428,7 +2434,7 @@ class DocumentBloc extends ReplayBloc<DocumentEvent, DocumentState> {
 
     // Use synchronous execution for small element counts to avoid isolate overhead
     final Set<int> result;
-    if (candidates.length < 100) {
+    if (candidates.length < 1000) {
       result = _executeRayCastPolygon(params);
     } else {
       result = await compute(_executeRayCastPolygon, params);
@@ -2443,6 +2449,11 @@ class DocumentBloc extends ReplayBloc<DocumentEvent, DocumentState> {
       networkingService?.state is ClientNetworkState || canRedo;
 
   void sendUndo() {
+    // A tool in the middle of an action undoes its own last step first,
+    // like the last corner of a polygon being drawn.
+    if (_editorController?.toolCubit.getHandler().onUndo(this) ?? false) {
+      return;
+    }
     final networking = networkingService;
     if (!canSendUndo) return;
     if (!(networking?.sendUndo() ?? false)) {
@@ -2497,9 +2508,10 @@ Set<int> _executeRayCastPolygon(_RayCastPolygonParams params) {
       .where((e) => !params.invisibleLayers.contains(e.value.layer))
       .where(
         (e) =>
-            e.value.hitCalc.hitPolygon(
+            e.value.hitCalc.hitPolygonAt(
               params.polygon,
               hitElementMode: params.hitElementMode,
+              zoom: params.size,
             ) &&
             (params.collection == null ||
                 e.value.element.collection == params.collection) &&

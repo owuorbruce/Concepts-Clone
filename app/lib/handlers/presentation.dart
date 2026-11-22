@@ -173,6 +173,66 @@ class PresentationHandler extends GeneralHandHandler<PresentationTool>
 
   PresentationHandler(super.data);
 
+  /// Without an animation there is nothing to present: offer to make one
+  /// from the current view instead of doing nothing.
+  @override
+  FutureOr<SelectState> onSelected(
+    BuildContext context, [
+    bool wasAdded = true,
+  ]) {
+    final bloc = context.read<DocumentBloc>();
+    final state = bloc.state;
+    if (state is DocumentLoadSuccess && state.page.animations.isEmpty) {
+      final loc = AppLocalizations.of(context);
+      final transform = context.read<TransformCubit>().state;
+      ScaffoldMessenger.maybeOf(context)
+        ?..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            key: const ValueKey('amaze-presentation-empty'),
+            content: Text(loc.amazeNoPresentation),
+            action: SnackBarAction(
+              label: loc.amazeCreatePresentation,
+              onPressed: () => createPresentation(bloc, transform, loc),
+            ),
+          ),
+        );
+    }
+    return super.onSelected(context, wasAdded);
+  }
+
+  /// Adds a one-slide animation of [transform], one undo step.
+  static void createPresentation(
+    DocumentBloc bloc,
+    CameraTransform transform,
+    AppLocalizations loc,
+  ) {
+    final state = bloc.state;
+    if (state is! DocumentLoadSuccess) return;
+    final names = {for (final track in state.page.animations) track.name};
+    var name = loc.presentation;
+    for (var suffix = 2; names.contains(name); suffix++) {
+      name = '${loc.presentation} $suffix';
+    }
+    bloc.add(
+      AnimationAdded(
+        AnimationTrack(
+          name: name,
+          keys: {
+            0: AnimationKey(
+              cameraPosition: transform.position.toPoint(),
+              cameraZoom: transform.size,
+              cameraRotation: transform.rotation,
+              breakpoint: true,
+            ),
+          },
+          duration: 0,
+        ),
+        pageName: state.pageName,
+      ),
+    );
+  }
+
   @override
   PreferredSizeWidget getToolbar(DocumentBloc bloc) {
     getAnimation(bloc);

@@ -2,12 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:ui';
+import 'dart:ui' as ui;
 
 import 'package:animations/animations.dart';
 import 'package:butterfly/api/file_system.dart';
 import 'package:butterfly/api/open.dart';
 import 'package:butterfly/bloc/document_bloc.dart';
 import 'package:butterfly/brushes/brush_paint.dart';
+import 'package:butterfly/brushes/brush_registry.dart';
 import 'package:butterfly/brushes/mask_tint.dart';
 import 'package:butterfly/cubits/settings.dart';
 import 'package:butterfly/cubits/transform.dart';
@@ -30,6 +32,7 @@ import 'package:butterfly/views/amaze/floor_plan/floor_plan.dart';
 import 'package:butterfly/views/amaze/objects/object_store.dart';
 import 'package:butterfly/visualizer/tool.dart';
 import 'package:butterfly/views/zoom.dart' show formatZoomPercent;
+import 'package:butterfly/view_painter.dart';
 import 'package:butterfly_api/butterfly_api.dart';
 import 'package:butterfly_api/butterfly_text.dart' as text;
 import 'package:collection/collection.dart';
@@ -39,7 +42,6 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
-import 'package:image/image.dart' as img;
 import 'package:lw_sysapi/lw_sysapi.dart';
 import 'package:material_leap/material_leap.dart';
 import 'package:barcode/barcode.dart' hide BarcodeType;
@@ -63,10 +65,12 @@ import '../services/asset.dart';
 import '../services/import.dart';
 import '../theme.dart';
 import 'stroke_stabilizer.dart';
+import 'tool_feedback/tool_feedback.dart';
 import '../views/amaze/objects/object_placement.dart';
 import '../views/toolbar/color.dart';
 import '../views/toolbar/components.dart';
 import '../views/toolbar/label.dart';
+import '../views/toolbar/select.dart';
 import '../views/toolbar/presentation/toolbar.dart';
 import '../widgets/context_menu.dart';
 
@@ -266,6 +270,11 @@ abstract class Handler<T> {
   ) {}
 
   FutureOr<void> onPointerDown(PointerDownEvent event, EventContext context) {}
+
+  /// Takes an undo while the tool is in the middle of an action, such as
+  /// the last corner of a polygon being drawn. Returns whether it did, so
+  /// the document's history is left alone.
+  bool onUndo(DocumentBloc bloc) => false;
 
   FutureOr<void> onPointerMove(PointerMoveEvent event, EventContext context) {}
 

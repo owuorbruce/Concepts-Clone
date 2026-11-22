@@ -1,7 +1,17 @@
 part of 'handler.dart';
 
-const _rulerRotationSnapAngle = 90.0;
-const _rulerRotationSnapThreshold = 5.0;
+/// Angles, in degrees, the ruler snaps to. Their mirrors (180° minus the
+/// angle) and the opposite directions snap too.
+const kRulerSnapAngles = [0.0, 15.0, 30.0, 45.0, 60.0, 90.0];
+const _rulerRotationSnapThreshold = 4.0;
+
+/// How far outside the ruler, in screen pixels, a stroke still runs along
+/// its edge.
+const kRulerEdgeReach = 24.0;
+
+final _rulerSnapTargets = <double>{
+  for (final angle in kRulerSnapAngles) ...[angle, (180 - angle) % 180],
+}.toList();
 
 Rect _getRulerRect(
   RulerTool ruler,
@@ -19,16 +29,22 @@ Rect _getRulerRect(
   );
 }
 
-double snapRulerRotation(double rotation) {
+double snapRulerRotation(double rotation) =>
+    snapRulerRotationResult(rotation).rotation;
+
+/// [rotation] in degrees snapped to [kRulerSnapAngles], their mirrors and
+/// opposites within 4°. Returns whether it snapped.
+({double rotation, bool snapped}) snapRulerRotationResult(double rotation) {
   final normalized = (rotation % 360 + 360) % 360;
-  final nearestSnap =
-      (normalized / _rulerRotationSnapAngle).round() * _rulerRotationSnapAngle;
-  final distance = (normalized - nearestSnap).abs();
-  if (distance <= _rulerRotationSnapThreshold ||
-      360 - distance <= _rulerRotationSnapThreshold) {
-    return nearestSnap % 360;
-  }
-  return normalized;
+  final result = snapAngleTo(normalized * pi / 180, [
+    for (final target in _rulerSnapTargets) target * pi / 180,
+  ], tolerance: _rulerRotationSnapThreshold * pi / 180);
+  if (!result.snapped) return (rotation: normalized, snapped: false);
+  var degrees = (result.angle * 180 / pi) % 360;
+  if (degrees < 0) degrees += 360;
+  // Avoid 359.999… from rounding.
+  degrees = (degrees * 1e6).round() / 1e6 % 360;
+  return (rotation: degrees, snapped: true);
 }
 
 Color resolveRulerForegroundColor(RulerTool ruler, Color background) {
@@ -47,6 +63,15 @@ class RulerHandler extends Handler<RulerTool> with PointerManipulationHandler {
   double _previousGestureRotation = 0;
   Offset _transformStartPosition = .zero;
   Offset _transformStartPointer = .zero;
+  final _haptics = SnapHaptics();
+
+  /// Whether the ruler is being twisted, so its angle shows.
+  bool _rotating = false;
+  Size _viewportSize = Size.zero;
+
+  /// Whether the angle shows next to the ruler.
+  @visibleForTesting
+  bool get showsAngle => _rotating;
 
   Offset get position => _position;
   double get rotation => _snapRotation
@@ -88,7 +113,17 @@ class RulerHandler extends Handler<RulerTool> with PointerManipulationHandler {
     DocumentPage page,
     DocumentInfo info, [
     Area? currentArea,
-  ]) => [RulerRenderer(data, position: _position, rulerRotation: rotation)];
+  ]) {
+    final settings = editorController.settingsCubit.state;
+    return [
+      RulerRenderer(data, position: _position, rulerRotation: rotation),
+      if (_rotating && !_viewportSize.isEmpty)
+        MeasureBubble((
+          position: getRect(_viewportSize).center,
+          text: formatAngle(-rotation * pi / 180),
+        ), getThemeData(settings.design, false).colorScheme),
+    ];
+  }
 
   @override
   SelectState onSelected(BuildContext context, [bool wasAdded = true]) {
@@ -102,6 +137,10 @@ class RulerHandler extends Handler<RulerTool> with PointerManipulationHandler {
     if (rotation != null) {
       _rotation += rotation;
       _snapRotation = true;
+      _rotating = true;
+      _viewportSize = context.viewportSize;
+      _haptics.enabled = context.getSettings().snapHaptics;
+      _haptics.update(snapRulerRotationResult(_rotation).snapped);
     }
     context.refresh();
   }
@@ -114,6 +153,8 @@ class RulerHandler extends Handler<RulerTool> with PointerManipulationHandler {
 
   void endTransform() {
     _previousGestureRotation = 0;
+    _rotating = false;
+    _haptics.reset();
   }
 
   Offset _getDragPosition(Offset pointer) =>
@@ -157,34 +198,29 @@ class RulerHandler extends Handler<RulerTool> with PointerManipulationHandler {
     return rect.contains(rotatedPosition);
   }
 
+  /// Moves [position] onto the nearer edge of the ruler when it is on the
+  /// ruler or within [kRulerEdgeReach] screen pixels outside an edge, so
+  /// pen and brush strokes run straight along it.
   @override
   Offset getPointerPosition(
     Offset position,
     Size viewportSize, [
     CameraTransform transform = const .new(),
   ]) {
-    if (!isPointerInside(position, viewportSize)) {
-      return position;
-    }
     final rulerRect = getRect(viewportSize);
     final pivot = rulerRect.center;
     final angle = rotation * pi / 180;
-
     final rotatedPosition = position.rotate(pivot, -angle);
-    final firstHalf =
-        rulerRect.topLeft & Size(rulerRect.width, rulerRect.height / 2);
-    final secondHalf = firstHalf.translate(0, rulerRect.height / 2);
-    final firstHalfHit = firstHalf.contains(rotatedPosition);
-    final secondHalfHit = secondHalf.contains(rotatedPosition);
-    // If the pointer is in the first half of the ruler, set the y to the top
-    // If the pointer is in the second half of the ruler, set the y to the bottom
-
-    if (firstHalfHit) {
-      return Offset(rotatedPosition.dx, rulerRect.top).rotate(pivot, angle);
-    } else if (secondHalfHit) {
-      return Offset(rotatedPosition.dx, rulerRect.bottom).rotate(pivot, angle);
+    if (rotatedPosition.dx < rulerRect.left ||
+        rotatedPosition.dx > rulerRect.right ||
+        rotatedPosition.dy < rulerRect.top - kRulerEdgeReach ||
+        rotatedPosition.dy > rulerRect.bottom + kRulerEdgeReach) {
+      return position;
     }
-    return position;
+    final toTop = (rotatedPosition.dy - rulerRect.top).abs();
+    final toBottom = (rotatedPosition.dy - rulerRect.bottom).abs();
+    final edge = toTop <= toBottom ? rulerRect.top : rulerRect.bottom;
+    return Offset(rotatedPosition.dx, edge).rotate(pivot, angle);
   }
 
   static RulerHandler? getFirstRuler(
@@ -255,13 +291,16 @@ class RulerRenderer extends Renderer<RulerTool> {
     final rulerForegroundPaint = Paint()..color = rulerForegroundColor;
 
     // Calculate steps based on zoom level. Ticks closer than 8 px are
-    // unreadable, and the tick count must not grow with the zoom: coarsen by
-    // five until both hold.
-    var steps = 50;
+    // unreadable, and the tick count must not grow with the zoom: coarsen
+    // until both hold. Floor plans tick in inches, then feet.
+    final imperial = measureUnitsOf(page) == MeasureUnits.feetInches;
+    var steps = imperial ? kCanvasUnitsPerInch.round() : 50;
+    var factor = imperial ? 12 : 5;
     final rulerExtent = size.width * transform.size * 2;
     while (steps < 1e15 &&
         (steps / transform.size < 8 || rulerExtent / steps > 400)) {
-      steps *= 5;
+      steps *= factor;
+      if (imperial) factor = 10;
     }
 
     // Paint ruler background

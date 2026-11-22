@@ -71,57 +71,6 @@ double _easeInOut(double t) {
   return x * x * (3 - 2 * x);
 }
 
-/// A small label with the view's angle or zoom next to the pointer. Drawn in
-/// screen space, so it keeps its size and stays upright at any view.
-class ViewValueBubble extends Renderer<({Offset position, String text})> {
-  ViewValueBubble(super.element, this.scheme);
-
-  final ColorScheme scheme;
-
-  @override
-  void build(
-    Canvas canvas,
-    Size size,
-    NoteData document,
-    DocumentPage page,
-    DocumentInfo info,
-    CameraTransform transform, [
-    ColorScheme? colorScheme,
-    bool foreground = false,
-  ]) {
-    final painter = TextPainter(
-      text: TextSpan(
-        text: element.text,
-        style: TextStyle(
-          color: scheme.onInverseSurface,
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    canvas.save();
-    // Undo the camera so the bubble is drawn in screen pixels.
-    canvas.translate(transform.position.dx, transform.position.dy);
-    canvas.scale(1 / transform.size);
-    canvas.rotate(-transform.rotation);
-    final anchor = element.position + const Offset(18, -44);
-    final rect = Rect.fromLTWH(
-      anchor.dx,
-      anchor.dy,
-      painter.width + 16,
-      painter.height + 8,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, const Radius.circular(10)),
-      Paint()..color = scheme.inverseSurface.withValues(alpha: 0.9),
-    );
-    painter.paint(canvas, rect.topLeft + const Offset(8, 4));
-    canvas.restore();
-    painter.dispose();
-  }
-}
-
 /// Shared gesture of the rotate and zoom tools: a one-pointer drag changes
 /// the view from where it was when the drag started, and a double-tap
 /// animates it back. Two-finger gestures are left to the viewport.
@@ -279,7 +228,7 @@ abstract class ViewActionHandler extends Handler<CanvasActionTool> {
     final scheme = getThemeData(settings.design, false).colorScheme;
     final reference = _referenceZoom;
     return [
-      ViewValueBubble((
+      MeasureBubble((
         position: local,
         text: formatValue(editorController.transformCubit.state, reference),
       ), scheme),

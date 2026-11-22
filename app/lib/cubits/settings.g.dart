@@ -383,6 +383,7 @@ _ButterflySettings _$ButterflySettingsFromJson(Map json) => _ButterflySettings(
   showNavigatorPreviews: json['showNavigatorPreviews'] as bool? ?? true,
   bringMovedElementsToFront:
       json['bringMovedElementsToFront'] as bool? ?? false,
+  snapHaptics: json['snapHaptics'] as bool? ?? true,
   favoriteTools:
       (json['favoriteTools'] as List<dynamic>?)
           ?.map((e) => PackAssetLocation.fromJson(e as Map))
@@ -476,6 +477,7 @@ Map<String, dynamic> _$ButterflySettingsToJson(
   'showThumbnails': instance.showThumbnails,
   'showNavigatorPreviews': instance.showNavigatorPreviews,
   'bringMovedElementsToFront': instance.bringMovedElementsToFront,
+  'snapHaptics': instance.snapHaptics,
   'favoriteTools': instance.favoriteTools.map((e) => e.toJson()).toList(),
 };
 

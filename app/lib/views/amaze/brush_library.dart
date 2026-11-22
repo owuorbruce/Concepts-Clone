@@ -1,6 +1,7 @@
 import 'package:butterfly/brushes/brush_preview.dart';
 import 'package:butterfly/brushes/brush_registry.dart';
 import 'package:butterfly/bloc/document_bloc.dart';
+import 'package:butterfly/handlers/handler.dart';
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
 import 'package:butterfly/visualizer/tool.dart';
 import 'package:butterfly_api/butterfly_api.dart';
@@ -52,6 +53,48 @@ class BrushLibrarySidebar extends StatefulWidget {
 class _BrushLibrarySidebarState extends State<BrushLibrarySidebar> {
   bool _marketOpen = false;
   LibraryEntry? _openPack;
+  String _query = '';
+
+  /// The "More tools" tile picked last, for the info line.
+  ToolFamily? _picked;
+
+  /// Puts [family]'s [tool] (its default unless given) into the slot, or
+  /// runs it when the family is an action.
+  void _selectFamily(ToolFamily family, [Tool? tool]) {
+    tool ??= family.defaultTool;
+    setState(() => _picked = family);
+    if (family.isAction) {
+      // Actions run at once and leave the slot as it is.
+      Handler.fromTool(tool).onSelected(context, false);
+      return;
+    }
+    widget.onSelectTool?.call(tool);
+  }
+
+  Future<void> _chooseVariant(ToolFamily family, Rect anchor) async {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final variants = family.variants;
+    final picked = await showMenu<int>(
+      context: context,
+      position: RelativeRect.fromRect(anchor, Offset.zero & overlay.size),
+      items: [
+        for (final (index, variant) in variants.indexed)
+          PopupMenuItem(
+            key: ValueKey(('amaze-library-variant', index)),
+            value: index,
+            child: Row(
+              spacing: 12,
+              children: [
+                PhosphorIcon(toolVariantIcon(variant), size: 20),
+                Text(toolVariantName(context, variant)),
+              ],
+            ),
+          ),
+      ],
+    );
+    if (picked == null || !mounted) return;
+    _selectFamily(family, variants[picked]);
+  }
 
   void _selectEntry(LibraryEntry entry) {
     if (entry.isPack) {
@@ -72,8 +115,6 @@ class _BrushLibrarySidebarState extends State<BrushLibrarySidebar> {
       widget.onSelect(pack);
     }
   }
-
-  late final List<Tool> _catalog = slotToolCatalog();
 
   @override
   Widget build(BuildContext context) {
@@ -133,6 +174,110 @@ class _BrushLibrarySidebarState extends State<BrushLibrarySidebar> {
       );
     }
 
+    final currentFamily = tool == null ? null : ToolFamily.ofTool(tool);
+    Widget families(List<ToolFamily> families, {Key? key}) {
+      return _ToolFamilyGrid(
+        key: key,
+        families: families,
+        current: currentFamily,
+        style: style,
+        onSelect: _selectFamily,
+        onChooseVariant: _chooseVariant,
+      );
+    }
+
+    Widget? packSheet(bool visible) {
+      final pack = _openPack;
+      if (pack == null || !visible) return null;
+      return _PackSheet(
+        key: ValueKey(('amaze-library-pack', pack.name)),
+        pack: pack,
+        currentBrush: current == pack ? currentBrush : null,
+        style: style,
+        onSelect: (id) => _selectPackBrush(pack, id),
+        onClose: () => setState(() => _openPack = null),
+      );
+    }
+
+    final query = _query.trim().toLowerCase();
+    final List<Widget> content;
+    if (query.isNotEmpty) {
+      final entries = [
+        for (final entry in LibraryEntry.values)
+          if (entry.getLocalizedName(loc).toLowerCase().contains(query) ||
+              (entry.brushDefinition?.name.toLowerCase().contains(query) ??
+                  false))
+            entry,
+      ];
+      final found = [
+        if (widget.onSelectTool != null)
+          for (final family in ToolFamily.values)
+            if (family.matches(loc, query)) family,
+      ];
+      content = [
+        if (entries.isNotEmpty) ...[
+          label(loc.myBrushes),
+          _LibraryGrid(
+            entries: entries,
+            current: current,
+            style: style,
+            onSelect: _selectEntry,
+          ),
+        ],
+        ?packSheet(entries.contains(_openPack)),
+        if (found.isNotEmpty) ...[
+          label(loc.amazeMoreTools),
+          families(found, key: const ValueKey('amaze-library-more-tools')),
+        ],
+        if (entries.isEmpty && found.isEmpty)
+          Padding(
+            key: const ValueKey('amaze-library-no-results'),
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              loc.amazeNoResults,
+              textAlign: TextAlign.center,
+              style: textTheme.bodyMedium?.copyWith(color: style.muted),
+            ),
+          ),
+      ];
+    } else {
+      content = [
+        heading(loc.myBrushes),
+        label(loc.basics),
+        grid(LibrarySection.basics),
+        label(loc.tools),
+        grid(LibrarySection.tools),
+        if (widget.onSelectTool != null) ...[
+          heading(
+            loc.amazeMoreTools,
+            key: const ValueKey('amaze-library-more-tools-heading'),
+          ),
+          Column(
+            key: const ValueKey('amaze-library-more-tools'),
+            crossAxisAlignment: .stretch,
+            children: [
+              for (final group in ToolGroup.values) ...[
+                label(_groupName(loc, group)),
+                families(
+                  ToolFamily.of(group),
+                  key: ValueKey(('amaze-library-group', group.name)),
+                ),
+              ],
+            ],
+          ),
+        ],
+        const SizedBox(height: 12),
+        _MarketHeader(
+          open: _marketOpen,
+          style: style,
+          onTap: () => setState(() => _marketOpen = !_marketOpen),
+        ),
+        if (_marketOpen) grid(LibrarySection.market),
+        ?packSheet(_marketOpen),
+      ];
+    }
+    final infoFamily = _picked ?? currentFamily;
+
     return AmazeSurface(
       key: const ValueKey('amaze-brush-library'),
       radius: 24,
@@ -141,48 +286,42 @@ class _BrushLibrarySidebarState extends State<BrushLibrarySidebar> {
           _LibraryHeader(
             tool: tool,
             entry: current,
+            family: currentFamily,
+            info: infoFamily?.getLocalizedInfo(loc),
             slot: widget.slot,
             style: style,
             onClose: widget.onClose,
             onSlotOptions: tool == null ? null : widget.onSlotOptions,
           ),
           Divider(height: 1, color: style.outline),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            child: TextField(
+              key: const ValueKey('amaze-library-search'),
+              onChanged: (value) => setState(() => _query = value),
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: loc.amazeSearchTools,
+                prefixIcon: PhosphorIcon(
+                  PhosphorIconsLight.magnifyingGlass,
+                  size: 18,
+                  color: style.muted,
+                ),
+                filled: true,
+                fillColor: style.surfaceVariant,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
           Expanded(
             child: ListView(
               key: const ValueKey('amaze-library-scroll'),
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-              children: [
-                heading(loc.myBrushes),
-                label(loc.basics),
-                grid(LibrarySection.basics),
-                label(loc.tools),
-                grid(LibrarySection.tools),
-                if (widget.onSelectTool case final onSelectTool?) ...[
-                  label(loc.amazeMoreTools),
-                  _ToolCatalogGrid(
-                    key: const ValueKey('amaze-library-more-tools'),
-                    tools: _catalog,
-                    style: style,
-                    onSelect: onSelectTool,
-                  ),
-                ],
-                const SizedBox(height: 12),
-                _MarketHeader(
-                  open: _marketOpen,
-                  style: style,
-                  onTap: () => setState(() => _marketOpen = !_marketOpen),
-                ),
-                if (_marketOpen) grid(LibrarySection.market),
-                if (_openPack case final pack? when _marketOpen)
-                  _PackSheet(
-                    key: ValueKey(('amaze-library-pack', pack.name)),
-                    pack: pack,
-                    currentBrush: current == pack ? currentBrush : null,
-                    style: style,
-                    onSelect: (id) => _selectPackBrush(pack, id),
-                    onClose: () => setState(() => _openPack = null),
-                  ),
-              ],
+              children: content,
             ),
           ),
         ],
@@ -191,10 +330,19 @@ class _BrushLibrarySidebarState extends State<BrushLibrarySidebar> {
   }
 }
 
+String _groupName(AppLocalizations loc, ToolGroup group) => switch (group) {
+  ToolGroup.drawEdit => loc.amazeGroupDrawEdit,
+  ToolGroup.objects => loc.amazeGroupObjects,
+  ToolGroup.precision => loc.amazeGroupPrecision,
+  ToolGroup.present => loc.amazeGroupPresent,
+};
+
 class _LibraryHeader extends StatelessWidget {
   const _LibraryHeader({
     required this.tool,
     required this.entry,
+    this.family,
+    this.info,
     required this.slot,
     required this.style,
     required this.onClose,
@@ -203,6 +351,12 @@ class _LibraryHeader extends StatelessWidget {
 
   final Tool? tool;
   final LibraryEntry? entry;
+
+  /// The "More tools" family of [tool], which names it.
+  final ToolFamily? family;
+
+  /// What the picked tile does, in one sentence.
+  final String? info;
   final int slot;
   final AmazeStyle style;
   final VoidCallback onClose;
@@ -213,7 +367,16 @@ class _LibraryHeader extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final textTheme = Theme.of(context).textTheme;
     final tool = this.tool;
-    final name = tool?.getDisplay(context) ?? loc.emptySlot;
+    final family = this.family;
+    final String name;
+    if (tool == null) {
+      name = loc.emptySlot;
+    } else if (tool.name.trim().isEmpty && family != null) {
+      name = family.getLocalizedName(loc);
+    } else {
+      name = tool.getDisplay(context);
+    }
+    final info = this.info;
     // The slot's own brush, so a pack shows the brush that was picked.
     final brush = tool is PenTool
         ? brushById(tool.property.brush, tool.property.brushVersion) ??
@@ -273,10 +436,22 @@ class _LibraryHeader extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                Text(
-                  loc.toolSlot(slot + 1),
-                  style: textTheme.labelSmall?.copyWith(color: style.muted),
-                ),
+                if (info != null)
+                  Text(
+                    info,
+                    key: const ValueKey('amaze-library-info'),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.labelSmall?.copyWith(
+                      color: style.muted,
+                      height: 1.2,
+                    ),
+                  )
+                else
+                  Text(
+                    loc.toolSlot(slot + 1),
+                    style: textTheme.labelSmall?.copyWith(color: style.muted),
+                  ),
               ],
             ),
           ),
@@ -387,22 +562,26 @@ class _LibraryGrid extends StatelessWidget {
   }
 }
 
-/// Every tool of [slotToolCatalog], as tiles in the library's style.
-class _ToolCatalogGrid extends StatelessWidget {
-  const _ToolCatalogGrid({
+/// "More tools" families as tiles in the library's style. A long press
+/// on a family with subtypes opens its subtype chooser.
+class _ToolFamilyGrid extends StatelessWidget {
+  const _ToolFamilyGrid({
     super.key,
-    required this.tools,
+    required this.families,
+    required this.current,
     required this.style,
     required this.onSelect,
+    required this.onChooseVariant,
   });
 
-  final List<Tool> tools;
+  final List<ToolFamily> families;
+  final ToolFamily? current;
   final AmazeStyle style;
-  final ValueChanged<Tool> onSelect;
+  final void Function(ToolFamily family) onSelect;
+  final void Function(ToolFamily family, Rect anchor) onChooseVariant;
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
     return GridView.count(
       crossAxisCount: 4,
       shrinkWrap: true,
@@ -412,48 +591,127 @@ class _ToolCatalogGrid extends StatelessWidget {
       crossAxisSpacing: 8,
       childAspectRatio: 0.8,
       children: [
-        for (final (index, tool) in tools.indexed)
-          Semantics(
-            button: true,
-            label: tool.getDisplay(context),
-            child: Material(
-              key: ValueKey(('amaze-library-tool', index)),
-              color: style.surfaceVariant,
-              borderRadius: BorderRadius.circular(16),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () => onSelect(tool),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Center(
-                          child: PhosphorIcon(
-                            tool.icon(),
-                            size: 30,
-                            color: style.onSurface,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        tool.getDisplay(context),
-                        maxLines: 2,
-                        textAlign: TextAlign.center,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.labelSmall?.copyWith(
-                          color: style.onSurface,
-                          height: 1.15,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+        for (final family in families)
+          _ToolFamilyTile(
+            family: family,
+            selected: family == current && !family.isAction,
+            style: style,
+            onSelect: onSelect,
+            onChooseVariant: onChooseVariant,
           ),
       ],
+    );
+  }
+}
+
+class _ToolFamilyTile extends StatelessWidget {
+  const _ToolFamilyTile({
+    required this.family,
+    required this.selected,
+    required this.style,
+    required this.onSelect,
+    required this.onChooseVariant,
+  });
+
+  final ToolFamily family;
+  final bool selected;
+  final AmazeStyle style;
+  final void Function(ToolFamily family) onSelect;
+  final void Function(ToolFamily family, Rect anchor) onChooseVariant;
+
+  void _chooseVariant(BuildContext context) {
+    final box = context.findRenderObject() as RenderBox;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final topLeft = box.localToGlobal(Offset.zero, ancestor: overlay);
+    onChooseVariant(family, topLeft & box.size);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final textTheme = Theme.of(context).textTheme;
+    final foreground = selected ? style.onAccent : style.onSurface;
+    final name = family.getLocalizedName(loc);
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: name,
+      child: Material(
+        key: ValueKey(('amaze-library-tool', family.name)),
+        color: selected ? style.accent : style.surfaceVariant,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => onSelect(family),
+          onLongPress: family.hasVariants
+              ? () => _chooseVariant(context)
+              : null,
+          child: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Center(
+                        child: AmazeIcon(
+                          family.icon,
+                          size: 30,
+                          color: foreground,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      name,
+                      maxLines: 2,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.labelSmall?.copyWith(
+                        color: foreground,
+                        height: 1.15,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (family.isAction)
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: Container(
+                    key: ValueKey(('amaze-library-action', family.name)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: style.outline,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      loc.amazeActionBadge,
+                      style: textTheme.labelSmall?.copyWith(
+                        color: style.muted,
+                        fontSize: 9,
+                      ),
+                    ),
+                  ),
+                ),
+              if (family.hasVariants)
+                Positioned(
+                  top: 6,
+                  right: 8,
+                  child: PhosphorIcon(
+                    PhosphorIconsLight.caretDown,
+                    size: 10,
+                    color: style.muted,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

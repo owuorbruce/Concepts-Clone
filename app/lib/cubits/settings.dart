@@ -751,6 +751,7 @@ sealed class ButterflySettings with _$ButterflySettings, LeapSettings {
     @Default(true) bool showThumbnails,
     @Default(true) bool showNavigatorPreviews,
     @Default(false) bool bringMovedElementsToFront,
+    @Default(true) bool snapHaptics,
     @Default([]) List<PackAssetLocation> favoriteTools,
   }) = _ButterflySettings;
 
@@ -1048,6 +1049,7 @@ sealed class ButterflySettings with _$ButterflySettings, LeapSettings {
       showNavigatorPreviews: prefs.getBool('show_navigator_previews') ?? true,
       bringMovedElementsToFront:
           prefs.getBool('bring_moved_elements_to_front') ?? false,
+      snapHaptics: prefs.getBool('snap_haptics') ?? true,
       favoriteTools:
           prefs
               .getStringList('favorite_tools')
@@ -1230,6 +1232,7 @@ sealed class ButterflySettings with _$ButterflySettings, LeapSettings {
       'bring_moved_elements_to_front',
       bringMovedElementsToFront,
     );
+    await prefs.setBool('snap_haptics', snapHaptics);
     await prefs.setBool('show_thumbnails', showThumbnails);
     await prefs.setBool('show_navigator_previews', showNavigatorPreviews);
     await prefs.setStringList(
@@ -2141,6 +2144,11 @@ class SettingsCubit(SharedPreferences prefs)
 
   Future<void> changeBringMovedElementsToFront(bool value) {
     emit(state.copyWith(bringMovedElementsToFront: value));
+    return save();
+  }
+
+  Future<void> changeSnapHaptics(bool value) {
+    emit(state.copyWith(snapHaptics: value));
     return save();
   }
 

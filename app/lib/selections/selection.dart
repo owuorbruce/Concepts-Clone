@@ -1,3 +1,5 @@
+import 'package:butterfly/views/toolbar/select.dart';
+
 import 'dart:math';
 
 import 'package:butterfly/bloc/document_bloc.dart';

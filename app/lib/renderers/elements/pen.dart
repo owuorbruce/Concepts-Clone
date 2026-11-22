@@ -617,7 +617,12 @@ class PenRenderer extends Renderer<PenElement> {
 
   @override
   PathHitCalculator createHitCalculator() {
-    _cachedHitCalculator ??= PathHitCalculator(rect, element.points, 0);
+    _cachedHitCalculator ??= PathHitCalculator(
+      rect,
+      element.points,
+      0,
+      strokeWidth: element.property.strokeWidth,
+    );
     return _cachedHitCalculator!;
   }
 }
@@ -626,12 +631,20 @@ class PathHitCalculator extends HitCalculator {
   final Rect elementRect;
   final List<PathPoint> points;
   final double rotation;
+
+  /// Width of the stroke. A point within half of it from the centerline
+  /// hits, so thick and stamp brush strokes are hit where they are drawn.
+  final double strokeWidth;
   final double _cos;
   final double _sin;
 
-  PathHitCalculator(this.elementRect, this.points, this.rotation)
-    : _cos = rotation == 0 ? 1 : cos(rotation),
-      _sin = rotation == 0 ? 0 : sin(rotation);
+  PathHitCalculator(
+    this.elementRect,
+    this.points,
+    this.rotation, {
+    this.strokeWidth = 0,
+  }) : _cos = rotation == 0 ? 1 : cos(rotation),
+       _sin = rotation == 0 ? 0 : sin(rotation);
 
   Offset _rotatePoint(PathPoint point) {
     if (rotation == 0) return point.toOffset();
@@ -648,20 +661,105 @@ class PathHitCalculator extends HitCalculator {
   bool hitPolygon(
     List<ui.Offset> polygon, {
     HitElementMode hitElementMode = .touchAnywhere,
+  }) => _hit(polygon, hitElementMode, strokeWidth / 2);
+
+  /// Hits within half the stroke width of the centerline, and never less
+  /// than [kMinStrokeHitScreenPixels] on screen at [zoom].
+  @override
+  bool hitPolygonAt(
+    List<ui.Offset> polygon, {
+    HitElementMode hitElementMode = .touchAnywhere,
+    double zoom = 1,
   }) {
+    final scale = zoom.isFinite && zoom > 0 ? zoom : 1.0;
+    return _hit(
+      polygon,
+      hitElementMode,
+      max(strokeWidth / 2, kMinStrokeHitScreenPixels / scale),
+    );
+  }
+
+  List<ui.Offset>? _path;
+  Rect? _pathBounds;
+
+  /// The stroke's points in document space, worked out once.
+  List<ui.Offset> get _documentPath =>
+      _path ??= points.map(_rotatePoint).toList(growable: false);
+
+  Rect get _documentBounds {
+    final cached = _pathBounds;
+    if (cached != null) return cached;
+    var left = double.infinity, top = double.infinity;
+    var right = double.negativeInfinity, bottom = double.negativeInfinity;
+    for (final point in _documentPath) {
+      left = min(left, point.dx);
+      top = min(top, point.dy);
+      right = max(right, point.dx);
+      bottom = max(bottom, point.dy);
+    }
+    return _pathBounds = Rect.fromLTRB(left, top, right, bottom);
+  }
+
+  bool _hit(
+    List<ui.Offset> polygon,
+    HitElementMode hitElementMode,
+    double tolerance,
+  ) {
     if (points.isEmpty || polygon.isEmpty || hitElementMode == .none) {
       return false;
     }
-    final path = points.map(_rotatePoint).toList();
+    final path = _documentPath;
+    final reach = hitElementMode == .full
+        ? max(strokeWidth / 2, 1e-9)
+        : tolerance;
+    // Only the selection's edges near the stroke can cross or touch it;
+    // in a big lasso that is a handful of its many edges.
+    final bounds = _documentBounds.inflate(reach);
+    final left = bounds.left, top = bounds.top;
+    final right = bounds.right, bottom = bounds.bottom;
+    final near = <(ui.Offset, ui.Offset)>[];
+    final count = polygon.length;
+    for (var i = 0; i < count; i++) {
+      final a = polygon[i];
+      final b = count > 2
+          ? polygon[(i + 1) % count]
+          : polygon[min(i + 1, count - 1)];
+      if (max(a.dx, b.dx) < left ||
+          min(a.dx, b.dx) > right ||
+          max(a.dy, b.dy) < top ||
+          min(a.dy, b.dy) > bottom) {
+        continue;
+      }
+      near.add((a, b));
+    }
+    bool touchesEdge() {
+      if (path.length == 1) {
+        return near.any(
+          (edge) => distanceToSegment(path.first, edge.$1, edge.$2) <= reach,
+        );
+      }
+      for (var i = 1; i < path.length; i++) {
+        for (final edge in near) {
+          if (segmentDistance(path[i - 1], path[i], edge.$1, edge.$2) <=
+              reach) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    final firstInside = isPointInPolygon(polygon, path.first);
     if (hitElementMode == .full) {
+      // Enclosed: inside, and the visible stroke, half its width around
+      // every segment, nowhere on or over the selection's edge.
+      if (!firstInside || touchesEdge()) return false;
       return path.every((point) => isPointInPolygon(polygon, point));
     }
-    if (path.length == 1) return isPointInPolygon(polygon, path.first);
-    // A pen path is open: test each segment without closing the last point
-    // back to the first, and include crossings between sparse samples.
-    for (var i = 1; i < path.length; i++) {
-      if (isPolygonInPolygon(polygon, [path[i - 1], path[i]])) return true;
-    }
-    return false;
+    // Touching: a point inside, or the visible stroke meets an edge. With
+    // no edge near, the stroke is wholly inside or wholly outside.
+    if (firstInside) return true;
+    if (near.isEmpty) return false;
+    return touchesEdge();
   }
 }

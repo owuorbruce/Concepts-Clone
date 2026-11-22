@@ -509,4 +509,35 @@ void main() {
       );
     });
   });
+
+  test('11: a cut piece reads its cut end at the true cut position', () {
+    // A 120" wall along x from its centerline start at 0.
+    final wall = makeWall(
+      const Point(0.0, 0.0),
+      const Point(120 * kCanvasUnitsPerInch, 0.0),
+      6,
+      kDefaultWallColor,
+    );
+    final geometry = readWall(wall)!;
+    // Cut 30" to 60" along the outline, which starts 3" before the start.
+    final pieces = cutWall(wall, 30, 60);
+    expect(pieces, hasLength(2));
+    final first = readWall(pieces.first)!;
+    final second = readWall(pieces.last)!;
+    final outerStart = geometry.outerStart.x;
+    // The first piece keeps its round start and ends flat at the cut.
+    expect(first.a.x, closeTo(geometry.a.x, 0.01));
+    expect(first.b.x, closeTo(outerStart + 30 * kCanvasUnitsPerInch, 0.01));
+    expect(first.flatEnd, isTrue);
+    expect(first.flatStart, isFalse);
+    // The second starts flat at the cut and keeps the wall's end.
+    expect(second.a.x, closeTo(outerStart + 60 * kCanvasUnitsPerInch, 0.01));
+    expect(second.b.x, closeTo(geometry.b.x, 0.01));
+    expect(second.flatStart, isTrue);
+    // A new wall drawn from the cut end meets it exactly.
+    expect(second.outerStart.x, closeTo(second.a.x, 0.01));
+    // Walls saved before have no flat key and read as before.
+    expect(wall.extra[kWallExtraKey], isNot(contains('flat')));
+    expect(geometry.flatStart || geometry.flatEnd, isFalse);
+  });
 }

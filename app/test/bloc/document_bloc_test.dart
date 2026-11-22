@@ -518,6 +518,7 @@ void main() {
       );
       await foregroundsRefreshed.future;
       final state = bloc.state as DocumentLoadSuccess;
+      // The preview moves the text with one translation.
       final preview = handler
           .createForegrounds(
             editorController,
@@ -525,11 +526,18 @@ void main() {
             state.page,
             state.info,
           )
+          .whereType<SelectionPreviewRenderer>()
+          .single;
+      final previewText = preview.element
           .map((renderer) => renderer.element)
           .whereType<TextElement>()
           .single;
+      final previewPosition = MatrixUtils.transformPoint(
+        preview.matrix,
+        Offset(previewText.position.x, previewText.position.y),
+      );
       expect(
-        Offset(preview.position.x, preview.position.y),
+        previewPosition,
         offsetMoreOrLessEquals(
           originalPosition + camera.localToGlobalDelta(const Offset(40, 0)),
         ),

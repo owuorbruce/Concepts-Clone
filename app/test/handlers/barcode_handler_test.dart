@@ -42,4 +42,29 @@ void main() {
     expect(tapped.width, 200);
     expect(tapped.height, 100);
   });
+
+  test('a new barcode scans: at least 200 px on screen at any zoom', () {
+    for (final zoom in [0.1, 0.25, 1.0, 4.0]) {
+      for (final type in BarcodeType.values) {
+        final barcode = BarcodeHandler.buildBarcode(
+          BarcodeTool(barcodeType: type),
+          'aMaze',
+          zoom: zoom,
+        );
+        expect(
+          min(barcode.width, barcode.height) * zoom,
+          greaterThanOrEqualTo(BarcodeHandler.minScreenSize - 1e-9),
+          reason: '$type at $zoom',
+        );
+        // Its proportions stay those of its type.
+        expect(
+          barcode.width / barcode.height,
+          closeTo(type.width / type.height, 1e-9),
+        );
+      }
+    }
+    // Zoomed in, it keeps its own size.
+    final big = BarcodeHandler.buildBarcode(BarcodeTool(), 'x', zoom: 4);
+    expect(big.width, BarcodeType.qrCode.width);
+  });
 }

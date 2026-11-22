@@ -1,6 +1,66 @@
 part of 'handler.dart';
 
+/// Draws [renderer] at [opacity], so a fading trail keeps its outline
+/// instead of being rebuilt every frame.
+class _FadingRenderer extends Renderer<PenElement> {
+  _FadingRenderer(this.renderer, this.opacity) : super(renderer.element);
+
+  final PenRenderer renderer;
+  final double opacity;
+
+  @override
+  Rect? get rect => renderer.rect;
+
+  @override
+  void build(
+    Canvas canvas,
+    Size size,
+    NoteData document,
+    DocumentPage page,
+    DocumentInfo info,
+    CameraTransform transform, [
+    ColorScheme? colorScheme,
+    bool foreground = false,
+  ]) {
+    if (opacity <= 0) return;
+    if (opacity >= 1) {
+      renderer.build(
+        canvas,
+        size,
+        document,
+        page,
+        info,
+        transform,
+        colorScheme,
+        foreground,
+      );
+      return;
+    }
+    canvas.saveLayer(null, Paint()..color = Color.fromRGBO(0, 0, 0, opacity));
+    renderer.build(
+      canvas,
+      size,
+      document,
+      page,
+      info,
+      transform,
+      colorScheme,
+      foreground,
+    );
+    canvas.restore();
+  }
+}
+
+/// How bright a laser trail is [t] (0–1) of the way through its fade:
+/// quick at first, then easing out.
+double laserFadeOpacity(double t) {
+  final x = 1 - t.clamp(0.0, 1.0);
+  return x * x;
+}
+
 class LaserHandler extends Handler<LaserTool> with ColoredHandler {
+  /// One renderer per finished trail, kept while it fades.
+  final Map<PenElement, PenRenderer> _fadeRenderers = Map.identity();
   bool _hideCursorWhileDrawing = false;
   final Map<int, PenElement> _elements = {};
   final List<PenElement> _submittedElements = [];
@@ -17,7 +77,8 @@ class LaserHandler extends Handler<LaserTool> with ColoredHandler {
   void _startTimer(DocumentBloc bloc) {
     _lastChanged = DateTime.now();
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+    // Every frame, so the fade is smooth.
+    _timer = Timer.periodic(const Duration(milliseconds: 16), (timer) {
       final DateTime now = .now();
       // Test if the last change was more than [duration] seconds ago
       final difference = now.difference(_lastChanged!);
@@ -69,6 +130,7 @@ class LaserHandler extends Handler<LaserTool> with ColoredHandler {
   void _stopTimer() {
     _lastChanged = null;
     _submittedElements.clear();
+    _fadeRenderers.clear();
     _elements.clear();
     _timer?.cancel();
     _timer = null;
@@ -86,8 +148,28 @@ class LaserHandler extends Handler<LaserTool> with ColoredHandler {
       if (e.points.length > 1) return PenRenderer(e);
       return null;
     }).nonNulls,
-    ..._getSubmitted().map((e) => PenRenderer(e)),
+    ...data.animation == .path
+        ? _getSubmitted().map((e) => PenRenderer(e))
+        : _fadingSubmitted(),
   ];
+
+  Iterable<Renderer> _fadingSubmitted() {
+    final last = _lastChanged;
+    final difference = last == null
+        ? Duration.zero
+        : DateTime.now().difference(last);
+    final hide = _getHideDuration().inMilliseconds;
+    final t = hide <= 0
+        ? (difference > _getDuration() ? 1.0 : 0.0)
+        : (difference - _getDuration()).inMilliseconds / hide;
+    final opacity = laserFadeOpacity(t);
+    return _submittedElements.map(
+      (element) => _FadingRenderer(
+        _fadeRenderers[element] ??= PenRenderer(element),
+        opacity,
+      ),
+    );
+  }
 
   @override
   void resetInput(DocumentBloc bloc) {
@@ -156,7 +238,11 @@ class LaserHandler extends Handler<LaserTool> with ColoredHandler {
             strokeWidth: data.strokeWidth / transform.size,
             thinning: data.thinning,
             paint: ElementPaint.solid(color: data.color),
+            // The outline engine's curves: smooth, without corners.
+            brush: brushById(_laserBrush) == null ? '' : _laserBrush,
+            brushVersion: brushById(_laserBrush)?.version ?? 1,
           ),
+          zoom: transform.size,
         );
 
     _elements[pointer] = element.copyWith(
@@ -225,3 +311,5 @@ class LaserHandler extends Handler<LaserTool> with ColoredHandler {
       ? SystemMouseCursors.none
       : SystemMouseCursors.precise;
 }
+
+const _laserBrush = 'amaze.fixed';
