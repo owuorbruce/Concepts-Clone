@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:butterfly/cubits/transform.dart';
+import 'package:butterfly/handlers/tool_feedback/snap.dart';
 import 'package:butterfly/renderers/renderer.dart';
 import 'package:butterfly_api/butterfly_api.dart';
 import 'package:material_ui/material_ui.dart';
@@ -12,9 +13,19 @@ const visibleSize = cornerSize / 2.5;
 const _targetTransformSpacing = cornerSize * 2;
 const _rotationButtonDistance = cornerSize * 1.5;
 
+/// The lasso being drawn: a faint fill and a dashed outline that is
+/// already closed, and a highlight on what it will select.
 class LassoSelectionForegroundRenderer extends Renderer<List<Offset>> {
   final ColorScheme scheme;
-  LassoSelectionForegroundRenderer(super.element, this.scheme);
+
+  /// Elements the lasso selects if it ends now.
+  final List<Renderer<PadElement>> highlighted;
+
+  LassoSelectionForegroundRenderer(
+    super.element,
+    this.scheme, {
+    this.highlighted = const [],
+  });
 
   @override
   void build(
@@ -27,19 +38,87 @@ class LassoSelectionForegroundRenderer extends Renderer<List<Offset>> {
     ColorScheme? colorScheme,
     bool foreground = false,
   ]) {
-    final paint = Paint()
-      ..color = scheme.primaryContainer
+    final zoom = transform.size > 0 ? transform.size : 1.0;
+    final highlight = Paint()
+      ..color = scheme.primary.withValues(alpha: 0.6)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 4 / transform.size
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..isAntiAlias = true;
+      ..strokeWidth = 2 / zoom;
+    for (final renderer in highlighted) {
+      final rect = renderer.expandedRect ?? renderer.rect;
+      if (rect == null) continue;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          rect.inflate(3 / zoom),
+          Radius.circular(3 / zoom),
+        ),
+        highlight,
+      );
+    }
     final fillPaint = Paint()
       ..color = scheme.primaryContainer.withValues(alpha: 0.2)
       ..style = PaintingStyle.fill;
-    final path = Path();
-    path.addPolygon(element, true);
+    final path = Path()..addPolygon(element, true);
     canvas.drawPath(path, fillPaint);
+    final paint = Paint()
+      ..color = scheme.primary
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2 / zoom
+      ..strokeCap = StrokeCap.round
+      ..isAntiAlias = true;
+    if (element.length < 2) return;
+    // Dashes run around the outline, the closing side included, as one
+    // continuous pattern.
+    final dash = 8 / zoom, period = 14 / zoom;
+    var along = 0.0;
+    for (var i = 0; i < element.length; i++) {
+      final a = element[i], b = element[(i + 1) % element.length];
+      final delta = b - a;
+      final length = delta.distance;
+      if (length == 0) continue;
+      final direction = delta / length;
+      var s = 0.0;
+      while (s < length) {
+        final phase = (along + s) % period;
+        if (phase < dash) {
+          final end = min(length, s + dash - phase);
+          canvas.drawLine(a + direction * s, a + direction * end, paint);
+          s = end;
+        } else {
+          s = min(length, s + period - phase);
+        }
+      }
+      along += length;
+    }
+  }
+}
+
+class SliceForegroundRenderer extends Renderer<List<Offset>> {
+  final ColorScheme scheme;
+  SliceForegroundRenderer(super.element, this.scheme);
+
+  @override
+  void build(
+    Canvas canvas,
+    Size size,
+    NoteData document,
+    DocumentPage page,
+    DocumentInfo info,
+    CameraTransform transform, [
+    ColorScheme? colorScheme,
+    bool foreground = false,
+  ]) {
+    if (element.length < 2) return;
+    final path = Path()..moveTo(element.first.dx, element.first.dy);
+    for (final point in element.skip(1)) {
+      path.lineTo(point.dx, point.dy);
+    }
+    final paint = Paint()
+      ..color = scheme.primaryContainer
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2 / transform.size
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..isAntiAlias = true;
     canvas.drawPath(path, paint);
   }
 }
@@ -65,12 +144,61 @@ extension TransformResultGeometry on TransformResult {
   );
 }
 
+/// Draws [element] (the selected renderers) moved by [matrix] in one
+/// canvas transform, so a move or rotation of many elements does not
+/// rebuild them every frame.
+class SelectionPreviewRenderer extends Renderer<List<Renderer<PadElement>>> {
+  SelectionPreviewRenderer(super.element, this.matrix);
+
+  final Matrix4 matrix;
+
+  @override
+  void build(
+    Canvas canvas,
+    Size size,
+    NoteData document,
+    DocumentPage page,
+    DocumentInfo info,
+    CameraTransform transform, [
+    ColorScheme? colorScheme,
+    bool foreground = false,
+  ]) {
+    canvas.save();
+    canvas.transform(matrix.storage);
+    for (final renderer in element) {
+      renderer.build(
+        canvas,
+        size,
+        document,
+        page,
+        info,
+        transform,
+        colorScheme,
+        true,
+      );
+    }
+    canvas.restore();
+  }
+}
+
 class RectSelectionForegroundManager {
   final bool enableRotation;
+
+  /// Whether corner handles keep the aspect ratio by default (side handles
+  /// stay free). The proportional modifier turns it off for the drag.
+  bool proportionalCorners = false;
+
+  /// Step, in degrees, the rotation handle snaps to within 4°, or 0.
+  double rotationSnapStep = 0;
+  bool _rotationSnapped = false;
+
+  /// Whether the last [getTransform] snapped its rotation.
+  bool get rotationSnapped => _rotationSnapped;
   Rect _selection = .zero;
   SelectionScaleMode _scaleMode = .scale;
   bool _proportionalModifier = false;
   bool _centeredModifier = false;
+  bool _forceProportional = false;
   double _viewportRotation = 0;
   double rotation = 0;
 
@@ -88,8 +216,26 @@ class RectSelectionForegroundManager {
   bool get isInsideSelection =>
       selection.contains(_currentPosition ?? Offset.zero);
 
-  void updateCurrentPosition(Offset position) {
-    _currentPosition = _toLocal(position);
+  void updateCurrentPosition(
+    Offset position, {
+    Offset Function(Offset)? snapPosition,
+  }) {
+    var current = _toLocal(position);
+    final start = _startPosition;
+    if (start != null && snapPosition != null && _corner != .center) {
+      // Snap the geometry rather than the pointer, which may be anywhere
+      // inside the selection or offset from a resize handle.
+      final anchor = _corner == null
+          ? _selection.topLeft
+          : _corner.getFromRect(_selection);
+      final target = (anchor + current - start).rotate(Offset.zero, rotation);
+      current = start + _toLocal(snapPosition(target)) - anchor;
+    }
+    _currentPosition = current;
+  }
+
+  void setForceProportional(bool value) {
+    _forceProportional = value;
   }
 
   void updateCursor(double scale, double sensitivity, [double rotation = 0]) {
@@ -175,10 +321,22 @@ class RectSelectionForegroundManager {
     _centeredModifier = centered;
   }
 
-  SelectionScaleMode get _effectiveScaleMode =>
-      (_scaleMode == .scaleProp) != _proportionalModifier
-      ? SelectionScaleMode.scaleProp
-      : SelectionScaleMode.scale;
+  bool get _isCornerHandle => switch (_corner) {
+    .topLeft || .topRight || .bottomLeft || .bottomRight => true,
+    _ => false,
+  };
+
+  SelectionScaleMode get _effectiveScaleMode {
+    if (_forceProportional) return SelectionScaleMode.scaleProp;
+    if (proportionalCorners && _isCornerHandle) {
+      return _proportionalModifier
+          ? SelectionScaleMode.scale
+          : SelectionScaleMode.scaleProp;
+    }
+    return (_scaleMode == .scaleProp) != _proportionalModifier
+        ? SelectionScaleMode.scaleProp
+        : SelectionScaleMode.scale;
+  }
 
   bool shouldTransform(Offset position, double scale, double sensitivity) {
     if (!isValid) return false;
@@ -241,6 +399,7 @@ class RectSelectionForegroundManager {
   TransformResult? getTransform() {
     final position = _currentPosition;
     final previous = _startPosition;
+    _rotationSnapped = false;
     if (previous == position || position == null || previous == null) {
       return null;
     }
@@ -281,13 +440,29 @@ class RectSelectionForegroundManager {
             ((position - pivot).direction - (previous - pivot).direction) *
             180 /
             pi;
+        if (rotationSnapStep > 0) {
+          // Snap the angle the selection ends up at, not the change.
+          final base = this.rotation * 180 / pi;
+          final snapped = snapAngle(
+            (base + rotation) * pi / 180,
+            step: rotationSnapStep * pi / 180,
+          );
+          if (snapped.snapped) {
+            rotation = snapped.angle * 180 / pi - base;
+            _rotationSnapped = true;
+          }
+        }
       default:
         moved = delta;
     }
-    if (_effectiveScaleMode == .scaleProp) {
+    final isResizing = _corner != null && _corner != .center;
+
+    if (_effectiveScaleMode == .scaleProp && isResizing) {
       final scale = (scaleX - 1).abs() > (scaleY - 1).abs() ? scaleX : scaleY;
+
       scaleX = scale;
       scaleY = scale;
+
       moved = switch (_corner) {
         .topLeft => Offset(
           _selection.width * (1 - scale),
@@ -297,6 +472,14 @@ class RectSelectionForegroundManager {
         .centerLeft || .bottomLeft => Offset(_selection.width * (1 - scale), 0),
         _ => Offset.zero,
       };
+    }
+
+    // The tool's proportional resizing option must not constrain movement.
+    if (_corner == null &&
+        (_scaleMode == .scaleProp) != _proportionalModifier) {
+      final direction = (moved.direction / (pi / 4)).round() * pi / 4;
+      final axis = Offset(cos(direction), sin(direction));
+      moved = axis * (moved.dx * axis.dx + moved.dy * axis.dy);
     }
     if (_centeredModifier && _corner != null && _corner != .center) {
       scaleX = 1 + 2 * (scaleX - 1);
@@ -330,7 +513,7 @@ class RectSelectionForegroundManager {
     return RectSelectionForegroundRenderer(
       rect.shift(rect.center.rotate(Offset.zero, rotation) - rect.center),
       rotation: rotation * 180 / pi,
-      transformMode: _effectiveScaleMode,
+      transformMode: _forceProportional ? _scaleMode : _effectiveScaleMode,
       transformCorner: _corner,
       enableRotation: enableRotation,
       isTransforming: isTransforming,

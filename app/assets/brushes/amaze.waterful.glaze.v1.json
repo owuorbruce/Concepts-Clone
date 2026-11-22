@@ -1,0 +1,1 @@
+{"id":"amaze.waterful.glaze","version":1,"name":"Glaze","engine":"stamp","texture":"wash","spacing":0.1,"sizeJitter":0.1,"angleMode":"random","flow":0.12,"buildUp":false,"wetEdges":0.2,"blend":"multiply","grain":{"texture":"paper","strength":0.2},"defaultOpacity":0.4,"defaultSize":36}

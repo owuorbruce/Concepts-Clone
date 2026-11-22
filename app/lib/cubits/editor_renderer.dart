@@ -23,19 +23,19 @@ class _RendererSpatialIndex(List<Renderer<PadElement>> renderers) {
     for (var index = 0; index < renderers.length; index++) {
       final bounds = renderers[index].expandedRect;
       _bounds[index] = bounds;
-      if (bounds == null) {
+      if (bounds == null || !bounds.isFinite) {
         _unbounded.add(index);
+        continue;
+      }
+      final cellCount = _cellCount(bounds);
+      if (cellCount > _maxCellsPerRenderer) {
+        _large.add(index);
         continue;
       }
       final left = (bounds.left / _cellSize).floor();
       final top = (bounds.top / _cellSize).floor();
       final right = (bounds.right / _cellSize).floor();
       final bottom = (bounds.bottom / _cellSize).floor();
-      final cellCount = (right - left + 1) * (bottom - top + 1);
-      if (cellCount > _maxCellsPerRenderer) {
-        _large.add(index);
-        continue;
-      }
       for (var x = left; x <= right; x++) {
         for (var y = top; y <= bottom; y++) {
           (_cells[(x, y)] ??= <int>[]).add(index);
@@ -53,22 +53,31 @@ class _RendererSpatialIndex(List<Renderer<PadElement>> renderers) {
   bool _isVisible(int index, Rect rect) =>
       _bounds[index]?.overlaps(rect) ?? true;
 
+  // Counted in doubles: zoomed far out a query spans ~10^12 cells per side,
+  // and an int product would overflow and walk every cell.
+  static double _cellCount(Rect rect) =>
+      ((rect.right / _cellSize).floorToDouble() -
+          (rect.left / _cellSize).floorToDouble() +
+          1) *
+      ((rect.bottom / _cellSize).floorToDouble() -
+          (rect.top / _cellSize).floorToDouble() +
+          1);
+
   List<Renderer<PadElement>> query(
     List<Renderer<PadElement>> renderers,
     Rect rect,
   ) {
     final indices = <int>{..._large, ..._unbounded};
-    final left = (rect.left / _cellSize).floor();
-    final top = (rect.top / _cellSize).floor();
-    final right = (rect.right / _cellSize).floor();
-    final bottom = (rect.bottom / _cellSize).floor();
-    final queryCellCount = (right - left + 1) * (bottom - top + 1);
-    if (queryCellCount > _maxQueryCells) {
+    if (!rect.isFinite || _cellCount(rect) > _maxQueryCells) {
       return [
         for (var index = 0; index < renderers.length; index++)
           if (_isVisible(index, rect)) renderers[index],
       ];
     }
+    final left = (rect.left / _cellSize).floor();
+    final top = (rect.top / _cellSize).floor();
+    final right = (rect.right / _cellSize).floor();
+    final bottom = (rect.bottom / _cellSize).floor();
     for (var x = left; x <= right; x++) {
       for (var y = top; y <= bottom; y++) {
         final cell = _cells[(x, y)];
@@ -281,11 +290,18 @@ class RendererCubit(
     Rect rect = transform.localToGlobalRect(Offset.zero & size);
     if (friction != null) {
       final beginPosition = transform.position - friction.beginOffset;
-      rect = rect.expandToInclude(
+      final expanded = rect.expandToInclude(
         transform
             .withPosition(beginPosition)
             .localToGlobalRect(Offset.zero & size),
       );
+      // The bake image is the rect's screen size. Covering the whole fling
+      // path must not make it larger than a normal bake, at any zoom.
+      final limit = (Offset.zero & size).size * resolution.multiplier;
+      if (expanded.width * transform.size <= limit.width &&
+          expanded.height * transform.size <= limit.height) {
+        rect = expanded;
+      }
     }
     return _snapViewportRect(rect, size, transform, resolution);
   }
@@ -553,6 +569,12 @@ class RendererCubit(
         rendererCubit.rectContains(cachedRect, rect) &&
         rendererCubit.rectContains(rect, cachedRect);
     if (!reset && !cacheMatchesBakeTarget) {
+      reset = true;
+      resetAllLayers = true;
+    }
+    if (!reset && bakeNeedsReset(cameraViewport.unbakedElements)) {
+      // A mask drawn onto the cached image would erase baked pixels of
+      // other layers; rebake so it only reaches its own layer.
       reset = true;
       resetAllLayers = true;
     }
@@ -905,6 +927,8 @@ class RendererCubit(
         invisibleLayers: invisibleLayers,
         cameraViewport: viewport,
         transform: transform,
+        // Exports contain every element, however small.
+        reduceDetail: false,
       ).paint(canvas, exportSize);
       final picture = recorder.endRecording();
       try {
@@ -1021,11 +1045,51 @@ class RendererCubit(
     }
   }
 
+  /// Renders stamp brush strokes (pencils, marker, watercolor…) to images
+  /// at the export's scale, so [renderSVG] can embed them.
+  ///
+  /// A layer with a mask can't be expressed as vector shapes: with
+  /// [document], [page] and [info], it is rendered to one image of the layer
+  /// at the export's scale instead.
+  Future<void> prepareSvgExport(
+    SvgExportOptions options, {
+    CameraViewport? cameraViewport,
+    NoteData? document,
+    DocumentPage? page,
+    DocumentInfo? info,
+  }) async {
+    final pixelsPerUnit = options.scale.abs().clamp(0.25, 8.0).toDouble();
+    final list = cameraViewport?.unbakedElements ?? renderers;
+    await Future.wait([
+      for (final renderer in list)
+        if (renderer is PenRenderer)
+          renderer.prepareExport(pixelsPerUnit: pixelsPerUnit),
+    ]);
+    final images = <String?, MaskedLayerImage>{};
+    if (document != null && page != null && info != null) {
+      for (final layer in maskedLayersOf(list)) {
+        final image = await renderMaskedLayer(
+          [
+            for (final renderer in list)
+              if (renderer.layer == layer) renderer,
+          ],
+          document,
+          page,
+          info,
+          pixelsPerUnit: pixelsPerUnit,
+        );
+        if (image != null) images[layer] = image;
+      }
+    }
+    _maskedLayerImages[this] = images;
+  }
+
   XmlDocument renderSVG(
     NoteData document,
     DocumentPage page,
     SvgExportOptions options, {
     Set<String>? invisibleLayers,
+    CameraViewport? cameraViewport,
   }) {
     final rendererCubit = this;
     final xml = XmlDocument();
@@ -1045,12 +1109,22 @@ class RendererCubit(
     final transform = _exportTransform(options, pixelRatio: 1);
     final rect = transform.localToGlobalRect(Offset.zero & exportSize);
     if (options.renderBackground) {
-      for (final e in rendererCubit.state.cameraViewport.backgrounds) {
+      for (final e
+          in (cameraViewport ?? rendererCubit.state.cameraViewport)
+              .backgrounds) {
         e.buildSvg(xml, document, page, rect);
       }
     }
-    for (var e in rendererCubit.renderers) {
+    final maskedImages = _maskedLayerImages[this] ?? const {};
+    final writtenLayers = <String?>{};
+    for (var e in cameraViewport?.unbakedElements ?? rendererCubit.renderers) {
       if ((invisibleLayers?.contains(e.layer) ?? false) || !e.isVisible(rect)) {
+        continue;
+      }
+      final layerImage = maskedImages[e.layer];
+      if (layerImage != null) {
+        // The whole layer, masks applied, as one image in its place.
+        if (writtenLayers.add(e.layer)) layerImage.writeSvg(svg);
         continue;
       }
       final firstChild = svg.children.length;
@@ -1280,85 +1354,6 @@ class RendererCubit(
     await rendererCubit.updateOnVisible(controller, newViewport, blocState);
   }
 
-  Future<Uint8List?> renderPDF(
-    EditorController controller,
-    DocumentLoaded docState, {
-    required List<AreaPreset> areas,
-    bool renderBackground = true,
-    void Function(double progress)? onProgress,
-    Set<String>? invisibleLayers,
-  }) async {
-    final transformCubit = controller.transformCubit;
-    var name = docState.metadata.name;
-    if (name.isEmpty) {
-      name = 'document';
-    }
-    final pdf = await PdfDocument.createNew(sourceName: '$name.pdf');
-    final document = docState.data;
-    final info = docState.info;
-    final pages = <PdfPage>[];
-    final documents = <PdfDocument>[];
-    for (var i = 0; i < areas.length; i++) {
-      onProgress?.call(i / areas.length);
-      final preset = areas[i];
-      final areaName = preset.name;
-      final quality = preset.quality * kPdfPointsPerCanvasUnit;
-      final currentOpened = docState.pageName == preset.page;
-      final page = currentOpened
-          ? docState.page
-          : document.getPage(preset.page);
-      final area = preset.area ?? page?.getAreaByName(areaName);
-      if (area == null || page == null) {
-        continue;
-      }
-      final image = await renderImage(
-        controller,
-        document,
-        page,
-        info,
-        ImageExportOptions(
-          width: area.width,
-          height: area.height,
-          x: area.position.x,
-          y: area.position.y,
-          quality: quality,
-          renderBackground: renderBackground,
-        ),
-        cameraViewport: await CameraViewport.build(
-          transformCubit,
-          document,
-          docState.assetService,
-          page,
-        ),
-        docState: docState,
-        invisibleLayers: invisibleLayers ?? docState.invisibleLayers,
-      );
-      if (image == null) continue;
-      final imgImage = await convertFlutterUiToImage(image);
-      final pdfImage = await compute(
-        (image) => img.JpegEncoder().encode(image),
-        imgImage,
-      );
-      final imageDoc = await PdfDocument.createFromJpegData(
-        pdfImage,
-        width: canvasUnitsToPdfPoints(area.width),
-        height: canvasUnitsToPdfPoints(area.height),
-        sourceName: '$name-$areaName.jpg',
-      );
-      pages.addAll(imageDoc.pages);
-      image.dispose();
-      documents.add(imageDoc);
-    }
-    onProgress?.call(1.0);
-    pdf.pages = pages;
-    final bytes = await pdf.encodePdf();
-    pdf.dispose();
-    for (final doc in documents) {
-      doc.dispose();
-    }
-    return bytes;
-  }
-
   Future<void> disposeRuntime() async {
     await _transformSubscription?.cancel();
     _transformSubscription = null;
@@ -1384,5 +1379,88 @@ class RendererCubit(
     _controller = null;
     _repaint.dispose();
     return super.close();
+  }
+}
+
+/// Whether an incremental bake of [unbaked] is unsafe: masks remove alpha,
+/// so drawing one on top of the cached image would reach other layers.
+@visibleForTesting
+bool bakeNeedsReset(Iterable<Renderer<PadElement>> unbaked) =>
+    unbaked.any((renderer) => isMaskElement(renderer.element));
+
+final _maskedLayerImages = Expando<Map<String?, MaskedLayerImage>>();
+
+/// A layer with masks, rendered for SVG export.
+class MaskedLayerImage {
+  const MaskedLayerImage(this.png, this.bounds);
+
+  final Uint8List png;
+
+  /// Canvas area the image covers.
+  final Rect bounds;
+
+  void writeSvg(XmlElement svg) {
+    svg.createElement('image')
+      ..setAttribute('x', '${bounds.left}')
+      ..setAttribute('y', '${bounds.top}')
+      ..setAttribute('width', '${bounds.width}')
+      ..setAttribute('height', '${bounds.height}')
+      ..setAttribute('preserveAspectRatio', 'none')
+      ..setAttribute('href', 'data:image/png;base64,${base64Encode(png)}');
+  }
+}
+
+/// Renders [renderers] (one layer) to a PNG at [pixelsPerUnit], masks
+/// applied inside the layer only, at most [maxSide] pixels on a side.
+@visibleForTesting
+Future<MaskedLayerImage?> renderMaskedLayer(
+  List<Renderer> renderers,
+  NoteData document,
+  DocumentPage page,
+  DocumentInfo info, {
+  double pixelsPerUnit = 1,
+  int maxSide = 8192,
+}) async {
+  Rect? bounds;
+  for (final renderer in renderers) {
+    final rect = renderer.expandedRect ?? renderer.rect;
+    if (rect == null || !rect.isFinite) continue;
+    bounds = bounds?.expandToInclude(rect) ?? rect;
+  }
+  if (bounds == null || bounds.isEmpty) return null;
+  var scale = pixelsPerUnit;
+  final longest = max(bounds.width, bounds.height) * scale;
+  if (longest > maxSide) scale *= maxSide / longest;
+  final width = max(1, (bounds.width * scale).ceil());
+  final height = max(1, (bounds.height * scale).ceil());
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  canvas.scale(width / bounds.width, height / bounds.height);
+  canvas.translate(-bounds.left, -bounds.top);
+  canvas.saveLayer(bounds, Paint());
+  final transform = CameraTransform(1, Offset.zero, scale);
+  for (final renderer in renderers) {
+    renderer.build(
+      canvas,
+      Size(width.toDouble(), height.toDouble()),
+      document,
+      page,
+      info,
+      transform,
+    );
+  }
+  canvas.restore();
+  final picture = recorder.endRecording();
+  final image = await picture.toImage(width, height);
+  picture.dispose();
+  try {
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    if (data == null) return null;
+    return MaskedLayerImage(
+      data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+      bounds,
+    );
+  } finally {
+    image.dispose();
   }
 }

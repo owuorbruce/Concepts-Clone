@@ -1,0 +1,1 @@
+{"id":"amaze.pattern.scales","version":1,"name":"Scales","engine":"outline","width":{"pressureGamma":0.35,"minRatio":0.5},"taper":{"start":0.3,"end":0.3},"pattern":{"texture":"scales","scale":0.3},"defaultSize":40}

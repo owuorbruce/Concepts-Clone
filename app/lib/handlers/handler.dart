@@ -2,17 +2,23 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:ui';
+import 'dart:ui' as ui;
 
 import 'package:animations/animations.dart';
 import 'package:butterfly/api/file_system.dart';
 import 'package:butterfly/api/open.dart';
 import 'package:butterfly/bloc/document_bloc.dart';
+import 'package:butterfly/brushes/brush_paint.dart';
+import 'package:butterfly/brushes/brush_registry.dart';
+import 'package:butterfly/brushes/mask_tint.dart';
+import 'package:butterfly/brushes/stamp_engine.dart'
+    show brushPieceExtra, createBrushSeed, kBrushSeedKey;
 import 'package:butterfly/cubits/settings.dart';
 import 'package:butterfly/cubits/transform.dart';
 import 'package:butterfly/dialogs/area/context.dart';
 import 'package:butterfly/dialogs/collections.dart';
 import 'package:butterfly/dialogs/elements.dart';
-import 'package:butterfly/dialogs/export/general.dart';
+import 'package:butterfly/dialogs/export/batch.dart';
 import 'package:butterfly/helpers/element.dart';
 import 'package:butterfly/helpers/page.dart';
 import 'package:butterfly/helpers/point.dart';
@@ -20,9 +26,15 @@ import 'package:butterfly/helpers/rect.dart';
 import 'package:butterfly/models/cursor.dart';
 import 'package:butterfly/renderers/foregrounds/area.dart';
 import 'package:butterfly/renderers/foregrounds/select.dart';
+import 'package:butterfly/services/display_calibration.dart';
 import 'package:butterfly/services/export.dart';
 import 'package:butterfly/views/toolbar/polygon.dart';
+import 'package:butterfly/views/toolbar/wall.dart';
+import 'package:butterfly/views/amaze/floor_plan/floor_plan.dart';
+import 'package:butterfly/views/amaze/objects/object_store.dart';
 import 'package:butterfly/visualizer/tool.dart';
+import 'package:butterfly/views/zoom.dart' show formatZoomPercent;
+import 'package:butterfly/view_painter.dart';
 import 'package:butterfly_api/butterfly_api.dart';
 import 'package:butterfly_api/butterfly_text.dart' as text;
 import 'package:collection/collection.dart';
@@ -32,7 +44,6 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:butterfly/src/generated/i18n/app_localizations.dart';
-import 'package:image/image.dart' as img;
 import 'package:lw_sysapi/lw_sysapi.dart';
 import 'package:material_leap/material_leap.dart';
 import 'package:barcode/barcode.dart' hide BarcodeType;
@@ -55,9 +66,13 @@ import '../selections/selection.dart';
 import '../services/asset.dart';
 import '../services/import.dart';
 import '../theme.dart';
+import 'stroke_stabilizer.dart';
+import 'tool_feedback/tool_feedback.dart';
+import '../views/amaze/objects/object_placement.dart';
 import '../views/toolbar/color.dart';
 import '../views/toolbar/components.dart';
 import '../views/toolbar/label.dart';
+import '../views/toolbar/select.dart';
 import '../views/toolbar/presentation/toolbar.dart';
 import '../widgets/context_menu.dart';
 
@@ -75,6 +90,7 @@ part 'hand.dart';
 part 'import.dart';
 part 'label.dart';
 part 'laser.dart';
+part 'nudge.dart';
 part 'collection.dart';
 part 'pen.dart';
 part 'eye_dropper.dart';
@@ -83,13 +99,20 @@ part 'redo.dart';
 part 'ruler.dart';
 part 'grid.dart';
 part 'polygon.dart';
+part 'wall.dart';
 part 'select.dart';
 part 'shape.dart';
+part 'slice.dart';
 part 'table.dart';
 part 'spacer.dart';
 part 'stamp.dart';
 part 'texture.dart';
 part 'undo.dart';
+part 'canvas_actions/common.dart';
+part 'canvas_actions/nudge.dart';
+part 'canvas_actions/rotate.dart';
+part 'canvas_actions/slice.dart';
+part 'canvas_actions/zoom.dart';
 
 @immutable
 class EventContext {
@@ -250,6 +273,11 @@ abstract class Handler<T> {
 
   FutureOr<void> onPointerDown(PointerDownEvent event, EventContext context) {}
 
+  /// Takes an undo while the tool is in the middle of an action, such as
+  /// the last corner of a polygon being drawn. Returns whether it did, so
+  /// the document's history is left alone.
+  bool onUndo(DocumentBloc bloc) => false;
+
   FutureOr<void> onPointerMove(PointerMoveEvent event, EventContext context) {}
 
   FutureOr<void> onPointerUp(PointerUpEvent event, EventContext context) {}
@@ -307,6 +335,7 @@ abstract class Handler<T> {
 
   static Handler<T> fromTool<T extends Tool>(T tool) {
     return switch (tool) {
+      HandTool() when isNudgeTool(tool) => NudgeHandler(tool),
       HandTool() => HandHandler(tool),
       SelectTool() => SelectHandler(tool),
       ImportTool() => ImportHandler(tool),
@@ -314,6 +343,9 @@ abstract class Handler<T> {
       RedoTool() => RedoHandler(tool),
       LabelTool() => LabelHandler(tool),
       PenTool() => PenHandler(tool),
+      EraserTool() when tool.displayIcon == kSliceDisplayIcon => SliceHandler(
+        tool,
+      ),
       EraserTool() => EraserHandler(tool),
       CollectionTool() => CollectionHandler(tool),
       AreaTool() => AreaHandler(tool),
@@ -332,6 +364,13 @@ abstract class Handler<T> {
       RulerTool() => RulerHandler(tool),
       BarcodeTool() => BarcodeHandler(tool),
       PolygonTool() => PolygonHandler(tool),
+      WallTool() => WallHandler(tool),
+      CanvasActionTool(:final kind) => switch (kind) {
+        .rotate => RotateViewHandler(tool),
+        .zoom => ZoomViewHandler(tool),
+        .nudge => CanvasNudgeHandler(tool),
+        .slice => CanvasSliceHandler(tool),
+      },
     } as Handler<T>;
   }
 

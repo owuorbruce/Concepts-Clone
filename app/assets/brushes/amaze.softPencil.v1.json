@@ -1,0 +1,1 @@
+{"id":"amaze.softPencil","version":1,"name":"Soft pencil","engine":"stamp","texture":"graphite","spacing":0.15,"scatter":0.05,"angleMode":"random","flow":0.35,"opacity":{"pressureGamma":1.2,"min":0.15},"width":{"pressureGamma":0.4},"grain":{"texture":"paper","strength":1.0},"tiltShading":true}

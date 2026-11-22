@@ -20,7 +20,6 @@ import 'package:butterfly/models/defaults.dart';
 import 'package:butterfly/renderers/renderer.dart';
 import 'package:butterfly_api/butterfly_api.dart';
 import 'package:collection/collection.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -34,9 +33,8 @@ import 'package:path/path.dart' as p;
 
 import '../api/save.dart';
 import '../cubits/settings.dart';
-import '../dialogs/export/general.dart';
+import '../dialogs/export/batch.dart';
 import '../dialogs/import/pages.dart';
-import '../dialogs/export/pdf.dart';
 import '../helpers/element.dart';
 import '../helpers/rect.dart';
 import 'onenote.dart';
@@ -162,7 +160,7 @@ class ImportResult {
 
   Future<NoteFile> exportFile() async => file ?? (await export()).toFile();
 
-  void submit({bool? choosePosition}) {
+  void submit({bool? choosePosition, String? pageName, String? layer}) {
     choosePosition ??= this.choosePosition;
     final state = service._getState();
     final context = service.context;
@@ -185,7 +183,12 @@ class ImportResult {
         ?..add(
           AreasCreated(
             areas
-                .map((e) => AreaPreset(page: state?.pageName ?? '', area: e))
+                .map(
+                  (e) => AreaPreset(
+                    page: pageName ?? state?.pageName ?? '',
+                    area: e,
+                  ),
+                )
                 .toList(),
           ),
         )
@@ -193,8 +196,8 @@ class ImportResult {
           ElementsCreated(
             elements,
             assets: _importAssets,
-            pageName: state?.pageName,
-            layer: state?.currentLayer,
+            pageName: pageName ?? state?.pageName,
+            layer: layer ?? state?.currentLayer,
           ),
         );
     }
@@ -369,33 +372,57 @@ class ImportService(
   }
 
   @useResult
+  Future<ImportResult?> importContents(
+    Iterable<NamedClipboardContent> contents, {
+    required NoteData document,
+    Offset? position,
+    bool advanced = true,
+    void Function(Object)? onError,
+  }) async {
+    final files = <(AssetFileType, Uint8List, String?)>[];
+    for (final item in contents) {
+      final type = item.content.type == ClipboardMimeTypes.html
+          ? null
+          : AssetFileTypeHelper.fromFileExtension(
+                  p.extension(item.name ?? ''),
+                ) ??
+                (item.name != null &&
+                        item.content.type == 'application/octet-stream'
+                    ? null
+                    : AssetFileTypeHelper.fromMime(item.content.type));
+      if (type == null) {
+        onError?.call(
+          FormatException('Unsupported import type: ${item.content.type}'),
+        );
+      } else {
+        files.add((
+          type,
+          item.content.data,
+          item.name == null ? null : p.basenameWithoutExtension(item.name!),
+        ));
+      }
+    }
+    return importBatch(
+      files,
+      document: document,
+      position: position,
+      advanced: advanced,
+    );
+  }
+
+  @useResult
   Future<ImportResult?> importClipboard(
     NoteData document, {
     Offset? position,
     bool advanced = true,
   }) async {
-    Uint8List? data;
-    AssetFileType? type;
     final clipboard = context.read<ClipboardManager>();
     final content = await clipboard.getContent(
       types: AssetFileType.values.expand((e) => e.getMimeTypes()).toList(),
     );
-    data = content?.data;
-    try {
-      type = AssetFileType.values.firstWhereOrNull(
-        (element) => element.isMimeType(content?.type ?? ''),
-      );
-    } catch (e) {
-      await showDialog(
-        context: context,
-        builder: (context) =>
-            UnknownImportConfirmationDialog(message: e.toString()),
-      );
-    }
-    if (data == null || type == null) return null;
-    return import(
-      type,
-      data,
+    if (content == null) return null;
+    return importContents(
+      [(name: null, content: content)],
       document: document,
       position: position,
       advanced: advanced,
@@ -531,10 +558,10 @@ class ImportService(
         .map((e) => e.copyWith(position: e.position + firstPos.toPoint()))
         .toList();
 
-    final renderers = page.content
-        .map((e) => e.copyWith(id: createUniqueId()))
-        .map((e) => Renderer.fromInstance(e))
-        .toList();
+    final renderers = regenerateElementIds(
+      page.content,
+      createUniqueId,
+    ).map((e) => Renderer.fromInstance(e)).toList();
     final transformCubit = TransformCubit(1, position);
     final assetService = AssetService();
     await Future.wait(
@@ -901,10 +928,9 @@ class ImportService(
               message = null;
               continue;
             case _OneNoteManualXpsAction.selectPdf:
-              final converted = await FilePicker.pickFile(
+              final converted = await SystemFileDialogs.pickFile(
                 dialogTitle: 'Select the PDF converted from $fileName',
-                type: .custom,
-                allowedExtensions: const ['pdf'],
+                extensions: const ['pdf'],
               );
               if (converted == null) {
                 message = 'No PDF was selected.';
@@ -1300,46 +1326,35 @@ class ImportService(
         exportData(context, await state.saveData());
         break;
       case .image:
-        return showDialog<void>(
-          context: context,
-          builder: (context) => BlocProvider.value(
-            value: bloc,
-            child: GeneralExportDialog(
-              options: ImageExportOptions(
-                height: viewport.height?.toDouble() ?? 1000.0,
-                width: viewport.width?.toDouble() ?? 1000.0,
-                scale: viewport.scale,
-                x: viewport.x,
-                y: viewport.y,
-              ),
-            ),
+        return showExportDialog(
+          context,
+          bloc: bloc,
+          options: ImageExportOptions(
+            height: viewport.height?.toDouble() ?? 1000.0,
+            width: viewport.width?.toDouble() ?? 1000.0,
+            scale: viewport.scale,
+            x: viewport.x,
+            y: viewport.y,
           ),
         );
       case .pdf:
-        return showDialog<void>(
-          context: context,
-          builder: (context) => BlocProvider.value(
-            value: bloc,
-            child: PdfExportDialog(
-              areas: state.page.areas
-                  .map((e) => AreaPreset(name: e.name, area: e))
-                  .toList(),
-            ),
-          ),
+        return showExportDialog(
+          context,
+          bloc: bloc,
+          format: .pdf,
+          areas: state.page.areas
+              .map((e) => AreaPreset(name: e.name, area: e))
+              .toList(),
         );
       case .svg:
-        return showDialog<void>(
-          context: context,
-          builder: (context) => BlocProvider.value(
-            value: bloc,
-            child: GeneralExportDialog(
-              options: SvgExportOptions(
-                width: (viewport.width ?? 1000) / viewport.scale,
-                height: (viewport.height ?? 1000) / viewport.scale,
-                x: viewport.x,
-                y: viewport.y,
-              ),
-            ),
+        return showExportDialog(
+          context,
+          bloc: bloc,
+          options: SvgExportOptions(
+            width: (viewport.width ?? 1000) / viewport.scale,
+            height: (viewport.height ?? 1000) / viewport.scale,
+            x: viewport.x,
+            y: viewport.y,
           ),
         );
       default:
@@ -1362,7 +1377,7 @@ class ImportService(
           document,
         );
         await fileSystem.createFile(
-          p.join(path ?? '', document.name ?? ''),
+          p.join(path ?? '', sanitizeExportFileName(document.name)),
           document.toFile(),
         );
       }
@@ -1377,9 +1392,24 @@ class ImportService(
   }) async {
     try {
       fileSystem ??= getDocumentSystem();
-      for (final file in archive) {
-        const fileExtension = '.bfly';
-        if (!file.name.toLowerCase().endsWith(fileExtension)) continue;
+      final files = archive
+          .where(
+            (file) => file.isFile && file.name.toLowerCase().endsWith('.bfly'),
+          )
+          .toList();
+      // Validate the complete batch before importing any documents. ZIP paths
+      // must remain relative on every platform, including Windows.
+      for (final file in files) {
+        final name = file.name.replaceAll('\\', '/');
+        if (file.isSymbolicLink ||
+            name.contains('\u0000') ||
+            p.posix.isAbsolute(name) ||
+            name.contains(':') ||
+            name.split('/').contains('..')) {
+          throw FormatException('Unsafe archive entry', file.name);
+        }
+      }
+      for (final file in files) {
         final bytes = file.readBytes();
         if (bytes == null) continue;
         final noteFile = await (await importBfly(
@@ -1388,7 +1418,10 @@ class ImportService(
           preserveEncrypted: true,
         ))?.exportFile();
         if (noteFile != null) {
-          await fileSystem.createFile(p.join(path ?? '', file.name), noteFile);
+          await fileSystem.createFile(
+            p.join(path ?? '', file.name.replaceAll('\\', '/')),
+            noteFile,
+          );
         }
       }
       return true;

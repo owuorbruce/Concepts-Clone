@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:butterfly/brushes/brush_registry.dart';
 import 'package:args/args.dart';
 import 'package:butterfly/api/close.dart';
 import 'package:butterfly/api/file_system.dart';
@@ -52,6 +53,8 @@ Future<void> main([List<String> args = const []]) async {
     settingsCubit.state.connections,
   );
   await setup(nativeTitleBar: settingsCubit.state.nativeTitleBar);
+  // Brushes render synchronously, so their definitions load first.
+  await loadBrushRegistry();
   var initialLocation = '/';
   final argParser = ArgParser();
   argParser.addOption('path', abbr: 'p');
@@ -458,9 +461,9 @@ class _WindowCloseGuardState extends State<_WindowCloseGuard> {
 const flavor = appFlavor ?? String.fromEnvironment('flavor');
 const isNightly =
     flavor == 'nightly' || flavor == 'dev' || flavor == 'development';
-const shortApplicationName = isNightly ? 'Butterfly Nightly' : 'Butterfly';
-const applicationName = 'Linwood $shortApplicationName';
-const logoAsset = isNightly ? 'images/nightly.png' : 'images/logo.png';
+const shortApplicationName = isNightly ? 'aMaze Nightly' : 'aMaze';
+const applicationName = shortApplicationName;
+const logoAsset = 'images/amaze.png';
 
 const applicationVersionName = 'Dreamy Duskywing';
 const applicationMinorVersion = '2.6';

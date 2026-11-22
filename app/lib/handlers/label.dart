@@ -1,7 +1,7 @@
 part of 'handler.dart';
 
 class LabelHandler extends Handler<LabelTool>
-    with HandlerWithCursor, TextInputClient {
+    with HandlerWithCursor, TextInputClient, ColoredHandler<LabelTool> {
   LabelContext? _context;
   DocumentBloc? _bloc;
   String? _editingElementId;
@@ -20,6 +20,70 @@ class LabelHandler extends Handler<LabelTool>
   };
 
   LabelHandler(super.data);
+
+  /// The wheel's color and size change the tool; they apply to the text
+  /// being written too, which is saved in the same undo step as the text.
+  @override
+  set data(LabelTool tool) {
+    final old = super.data;
+    super.data = tool;
+    if (old.foreground == tool.foreground && old.scale == tool.scale) return;
+    final context = _context;
+    final factor = old.scale == 0 ? 1.0 : tool.scale / old.scale;
+    final LabelContext? next = switch (context) {
+      TextContext c when c.element != null => c.copyWith(
+        tool: tool,
+        element: c.element!.copyWith(
+          foreground: tool.foreground,
+          scale: c.element!.scale * factor,
+        ),
+      ),
+      MarkdownContext c when c.element != null => c.copyWith(
+        tool: tool,
+        element: c.element!.copyWith(
+          foreground: tool.foreground,
+          scale: c.element!.scale * factor,
+        ),
+      ),
+      _ => null,
+    };
+    if (next == null) return;
+    _context = next;
+    final bloc = _bloc;
+    if (bloc != null) {
+      unawaited(_layoutText(bloc).then((_) => bloc.refresh()));
+    }
+  }
+
+  @override
+  SRGBColor getColor() => data.foreground;
+
+  @override
+  LabelTool setColor(SRGBColor color) => data.copyWith(foreground: color);
+
+  /// Moves the camera so the text box is above the on-screen keyboard.
+  void _keepAboveKeyboard(EventContext context) {
+    Future<void> check() async {
+      final buildContext = context.buildContext;
+      if (!buildContext.mounted) return;
+      final rect = _context?.getRect();
+      if (rect == null) return;
+      final inset = MediaQuery.viewInsetsOf(buildContext).bottom;
+      if (inset <= 0) return;
+      final transform = context.getCameraTransform();
+      final bottom = transform.globalToLocal(rect.bottomLeft).dy;
+      final visible = context.viewportSize.height - inset - 24;
+      if (bottom <= visible) return;
+      final cubit = context.getTransformCubit();
+      cubit.move(transform.localToGlobalDelta(Offset(0, bottom - visible)));
+      await context.refresh();
+    }
+
+    // The keyboard slides in after the connection shows it.
+    for (final delay in const [300, 700]) {
+      Future<void>.delayed(Duration(milliseconds: delay), check);
+    }
+  }
 
   Future<LabelContext> _createContext(
     NoteData document,
@@ -204,7 +268,20 @@ class LabelHandler extends Handler<LabelTool>
     final theme = Theme.of(context.buildContext);
     final style = theme.textTheme.bodyLarge!;
     if (!hit || forceCreate || _context?.element == null) {
-      if (_context?.element != null && !hit) _submit(context.getDocumentBloc());
+      if (_context?.element != null && !hit) {
+        // A tap away finishes the text and selects it, so it can be moved
+        // straight away. The next tap away starts a new text.
+        final finished = _submit(context.getDocumentBloc());
+        if (finished != null && !forceCreate) {
+          _context = null;
+          _textAnchor = null;
+          _connection?.close();
+          _connection = null;
+          await context.refresh();
+          unawaited(selectCreatedElements(context, {finished}));
+          return;
+        }
+      }
       final locks = context.getViewState().locks;
       final hits = forceCreate
           ? <Renderer<PadElement>>{}
@@ -285,7 +362,25 @@ class LabelHandler extends Handler<LabelTool>
     _connection!.show();
     _refreshToolbar(_bloc!);
     await _layoutText(context.getDocumentBloc());
+    _placeCursorAt(globalPos);
     context.refresh();
+    _keepAboveKeyboard(context);
+  }
+
+  /// Puts the cursor at [globalPos] when it is on the text being edited.
+  void _placeCursorAt(Offset globalPos) {
+    final current = _context;
+    final rect = current?.getRect();
+    if (current == null || rect == null) return;
+    final local = current.toLocalPosition(globalPos);
+    if (!rect.contains(local)) return;
+    final position = current.textPainter.getPositionForOffset(
+      local - rect.topLeft,
+    );
+    _context = current.copyWith(
+      selection: TextSelection.collapsed(offset: position.offset),
+    );
+    _updateEditingState();
   }
 
   Future<TextElement?> openDialog(
@@ -363,14 +458,17 @@ class LabelHandler extends Handler<LabelTool>
     _composing = TextRange.empty;
   }
 
-  void _submit(DocumentBloc bloc) {
+  /// Saves the text being edited. Returns the id of the text when one was
+  /// created or changed.
+  String? _submit(DocumentBloc bloc) {
     final state = bloc.state;
-    if (state is! DocumentLoaded) return;
+    if (state is! DocumentLoaded) return null;
     final context = _context;
-    if (context == null) return;
+    if (context == null) return null;
     final element = context.element;
-    if (element == null) return;
+    if (element == null) return null;
     final id = element.id;
+    String? result;
     final isEmpty = context.isEmpty;
     final editingElementId = _editingElementId;
     if (editingElementId != null && isEmpty) {
@@ -384,6 +482,7 @@ class LabelHandler extends Handler<LabelTool>
           editingElementId: [element],
         }, pageName: bloc.state.pageName),
       );
+      result = editingElementId;
     } else if (!isEmpty) {
       bloc.add(
         ElementsCreated(
@@ -392,11 +491,13 @@ class LabelHandler extends Handler<LabelTool>
           layer: bloc.state.currentLayer,
         ),
       );
+      result = id;
     } else if (!context.isCreating && isEmpty && id != null) {
       bloc.add(ElementsRemoved([id], pageName: bloc.state.pageName));
       bloc.delayedBake();
     }
     _editingElementId = null;
+    return result;
   }
 
   @override
@@ -413,7 +514,18 @@ class LabelHandler extends Handler<LabelTool>
   void onLongPressEnd(LongPressEndDetails details, EventContext context) {
     if (!_startLongPress) return;
     if (_context == null) {
-      create(context, details.localPosition, true);
+      // A hold on existing text edits it with the cursor there.
+      create(context, details.localPosition);
+    } else if (_context?.getRect()?.contains(
+          _context!.toLocalPosition(
+            context.getCameraTransform().localToGlobal(details.localPosition),
+          ),
+        ) ??
+        false) {
+      _placeCursorAt(
+        context.getCameraTransform().localToGlobal(details.localPosition),
+      );
+      context.refresh();
     } else {
       _onContextMenu(details.localPosition, context);
     }

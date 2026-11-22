@@ -1,0 +1,1 @@
+{"id":"amaze.watercolor","version":1,"name":"Watercolor","engine":"stamp","texture":"wash","spacing":0.1,"sizeJitter":0.15,"angleMode":"random","flow":0.25,"buildUp":false,"wetEdges":0.6,"blend":"multiply","grain":{"texture":"paper","strength":0.4},"defaultOpacity":0.5,"defaultSize":30}

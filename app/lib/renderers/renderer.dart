@@ -1,11 +1,18 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:butterfly/api/image.dart';
 import 'package:butterfly/bloc/document_bloc.dart';
+import 'package:butterfly/brushes/brush_paint.dart';
+import 'package:butterfly/brushes/brush_registry.dart';
+import 'package:butterfly/brushes/outline_engine.dart';
+import 'package:butterfly/brushes/stamp_engine.dart';
 import 'package:butterfly/cubits/editor_controller.dart';
 import 'package:butterfly/handlers/handler.dart';
+import 'package:butterfly/helpers/async.dart';
 import 'package:butterfly/helpers/element.dart';
 import 'package:butterfly/helpers/markdown/latex.dart';
 import 'package:butterfly/helpers/rect.dart';
@@ -56,7 +63,10 @@ part 'elements/table.dart';
 part 'elements/svg.dart';
 
 class ElementPaintRenderer {
-  ui.Image? _image;
+  final _imageResource = AsyncResource<ui.Image>(
+    disposeValue: (image) => image.dispose(),
+  );
+  ui.Image? get _image => _imageResource.value;
   String? _source;
 
   Future<void> setup(
@@ -70,19 +80,17 @@ class ElementPaintRenderer {
       _ => null,
     };
     if (_source == source && _image != null) return;
-    _image?.dispose();
-    _image = null;
+    _imageResource.clear();
     _source = source;
     if (source != null) {
-      _image = await assets.getImage(source, document);
+      await _imageResource.load((_) => assets.getImage(source, document));
     }
   }
 
   bool uses(String path) => _source == path;
 
   void dispose() {
-    _image?.dispose();
-    _image = null;
+    _imageResource.dispose();
   }
 
   Paint build(ElementPaint paint, Rect bounds, {PaintingStyle? style}) {
@@ -220,7 +228,22 @@ class TransformedHitCalculator extends HitCalculator {
     polygon.map(_inverse).toList(),
     hitElementMode: hitElementMode,
   );
+
+  @override
+  bool hitPolygonAt(
+    List<Offset> polygon, {
+    HitElementMode hitElementMode = .touchAnywhere,
+    double zoom = 1,
+  }) => delegate.hitPolygonAt(
+    polygon.map(_inverse).toList(),
+    hitElementMode: hitElementMode,
+    zoom: zoom,
+  );
 }
+
+/// Thinnest hit area of a stroke, in screen pixels, so a hairline is as
+/// easy to tap as a thick pen stroke.
+const kMinStrokeHitScreenPixels = 6.0;
 
 abstract class HitCalculator {
   bool hitPolygon(
@@ -228,14 +251,80 @@ abstract class HitCalculator {
     HitElementMode hitElementMode = .touchAnywhere,
   });
 
+  /// Like [hitPolygon] at the camera [zoom], for hit areas that keep a
+  /// minimum size on screen. Most elements ignore the zoom.
+  bool hitPolygonAt(
+    List<Offset> polygon, {
+    HitElementMode hitElementMode = .touchAnywhere,
+    double zoom = 1,
+  }) => hitPolygon(polygon, hitElementMode: hitElementMode);
+
+  /// Distance from [point] to the segment from [a] to [b].
+  double distanceToSegment(Offset point, Offset a, Offset b) {
+    final ab = b - a;
+    final lengthSquared = ab.distanceSquared;
+    if (lengthSquared == 0) return (point - a).distance;
+    final t =
+        (((point.dx - a.dx) * ab.dx + (point.dy - a.dy) * ab.dy) /
+                lengthSquared)
+            .clamp(0.0, 1.0);
+    return (point - (a + ab * t)).distance;
+  }
+
+  /// Shortest distance between the segments [a]–[b] and [c]–[d].
+  double segmentDistance(Offset a, Offset b, Offset c, Offset d) {
+    if (_segmentsIntersect(a, b, c, d)) return 0;
+    return min(
+      min(distanceToSegment(a, c, d), distanceToSegment(b, c, d)),
+      min(distanceToSegment(c, a, b), distanceToSegment(d, a, b)),
+    );
+  }
+
+  /// Whether the open [path] comes within [tolerance] of [polygon]'s edges.
+  bool isPathNearPolygon(
+    List<Offset> path,
+    List<Offset> polygon,
+    double tolerance,
+  ) {
+    if (path.isEmpty || polygon.isEmpty || tolerance <= 0) return false;
+    final pathBounds = _polygonBounds(path).inflate(tolerance);
+    final polygonBounds = _polygonBounds(polygon);
+    // Not Rect.overlaps, so a point or a flat polygon still counts.
+    if (pathBounds.right < polygonBounds.left ||
+        polygonBounds.right < pathBounds.left ||
+        pathBounds.bottom < polygonBounds.top ||
+        polygonBounds.bottom < pathBounds.top) {
+      return false;
+    }
+    final edges = polygon.length == 1
+        ? [(polygon.first, polygon.first)]
+        : _edgesOf(polygon).toList();
+    if (path.length == 1) {
+      final point = path.first;
+      return edges.any(
+        (edge) => distanceToSegment(point, edge.$1, edge.$2) <= tolerance,
+      );
+    }
+    for (var i = 1; i < path.length; i++) {
+      final a = path[i - 1], b = path[i];
+      for (final edge in edges) {
+        if (segmentDistance(a, b, edge.$1, edge.$2) <= tolerance) return true;
+      }
+    }
+    return false;
+  }
+
   bool hitShape(
     List<Offset> selection,
     List<Offset> outline,
     HitElementMode mode,
   ) => switch (mode) {
+    // Every point inside is not enough for a concave lasso: no edge of
+    // the outline may cross the lasso either.
     .full =>
       outline.isNotEmpty &&
-          outline.every((point) => isPointInPolygon(selection, point)),
+          outline.every((point) => isPointInPolygon(selection, point)) &&
+          !_edgesCross(selection, outline),
     .touchEdges => _edgesOf(
       outline,
     ).any((edge) => isPolygonInPolygon(selection, [edge.$1, edge.$2])),
@@ -308,6 +397,19 @@ abstract class HitCalculator {
     if (o2 == 0 && _isPointOnSegment(d, a, b)) return true;
     if (o3 == 0 && _isPointOnSegment(a, c, d)) return true;
     if (o4 == 0 && _isPointOnSegment(b, c, d)) return true;
+    return false;
+  }
+
+  /// Whether an edge of [a] crosses an edge of [b].
+  bool _edgesCross(List<Offset> a, List<Offset> b) {
+    final edgesB = _edgesOf(b).toList();
+    for (final edgeA in _edgesOf(a)) {
+      for (final edgeB in edgesB) {
+        if (_segmentsIntersect(edgeA.$1, edgeA.$2, edgeB.$1, edgeB.$2)) {
+          return true;
+        }
+      }
+    }
     return false;
   }
 
@@ -557,12 +659,15 @@ abstract class Renderer<T> {
     );
   }
 
-  bool transformCanvas(Canvas canvas) {
+  /// Applies the element's rotation and shear around its center. With
+  /// [origin], the canvas origin has already been moved there, so the center
+  /// is taken relative to it.
+  bool transformCanvas(Canvas canvas, [Offset origin = Offset.zero]) {
     final radians = rotation * pi / 180;
     if (radians == 0 && shear == 0) {
       return false;
     }
-    final center = rect?.center;
+    final center = rect?.center.translate(-origin.dx, -origin.dy);
     canvas.save();
     if (center != null) canvas.translate(center.dx, center.dy);
     canvas.rotate(radians);
@@ -613,6 +718,7 @@ abstract class Renderer<T> {
     bool relative = true,
     bool rotatePosition = false,
     bool positionIsBounds = false,
+    bool scaleStrokeWidth = false,
   }) {
     final rect = this.rect ?? Rect.zero;
     rotation ??= relative ? 0 : this.rotation;
@@ -702,12 +808,17 @@ abstract class Renderer<T> {
           center -
           Offset(rect.width * geometryScaleX, rect.height * geometryScaleY) / 2;
     }
+    final strokeWidthFactor = scaleStrokeWidth
+        ? sqrt(geometryScaleX.abs() * geometryScaleY.abs())
+        : 1.0;
+
     return _transform(
       position: nextPosition,
       rotation: nextRotation,
       shear: nextShear,
       scaleX: geometryScaleX,
       scaleY: geometryScaleY,
+      strokeWidthFactor: strokeWidthFactor,
     );
   }
 
@@ -737,6 +848,8 @@ abstract class Renderer<T> {
     double scaleX = 1,
     // ignore: unused_element_parameter
     double scaleY = 1,
+    // ignore: unused_element_parameter
+    double strokeWidthFactor = 1,
   }) => null;
 
   Map<RendererOperation, RendererOperationCallback> getOperations() => {};

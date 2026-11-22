@@ -28,6 +28,7 @@ class TextureBackgroundRenderer extends Renderer<TextureBackground> {
       viewport.size,
       viewport.topLeft,
       true,
+      transform.size,
     );
   }
 

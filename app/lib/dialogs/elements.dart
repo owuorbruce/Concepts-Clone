@@ -106,6 +106,32 @@ ContextMenuBuilder buildElementsContextMenu(
           },
           label: AppLocalizations.of(context).duplicate,
         ),
+        if (_connectableShapes(renderers) case (final from, final to))
+          ContextMenuItem(
+            onPressed: () {
+              Navigator.of(context).pop(true);
+              final current = bloc.state;
+              if (current is! DocumentLoadSuccess) return;
+              // Refuses unsupported, missing or ambiguous endpoints.
+              final connector = createConnector(
+                from,
+                to,
+                collection: from.collection,
+                content: current.page.content,
+              );
+              if (connector == null) return;
+              bloc.add(
+                ElementsCreated(
+                  [connector],
+                  pageName: bloc.state.pageName,
+                  layer: bloc.state.currentLayer,
+                ),
+              );
+              bloc.delayedBake();
+            },
+            icon: const PhosphorIcon(PhosphorIconsLight.lineSegment),
+            label: AppLocalizations.of(context).connectShapes,
+          ),
         ContextMenuItem(
           onPressed: () {
             Navigator.of(context).pop(true);
@@ -206,6 +232,19 @@ ContextMenuBuilder buildElementsContextMenu(
       ],
     ];
   };
+}
+
+/// Returns the two shapes to connect if exactly two connectable shapes are
+/// selected.
+(ShapeElement, ShapeElement)? _connectableShapes(
+  List<Renderer<PadElement>> renderers,
+) {
+  if (renderers.length != 2) return null;
+  final [first, second] = renderers.map((e) => e.element).toList();
+  if (first is! ShapeElement || second is! ShapeElement) return null;
+  if (!first.isConnectable || !second.isConnectable) return null;
+  if (first.id == second.id) return null;
+  return (first, second);
 }
 
 void _flipElements(

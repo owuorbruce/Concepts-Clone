@@ -1,0 +1,1 @@
+{"id":"amaze.ink.splatter","version":1,"name":"Splatter","engine":"stamp","texture":"splatter","spacing":0.6,"scatter":0.6,"sizeJitter":0.5,"angleMode":"random","width":{"pressureGamma":0.5,"minRatio":0.4},"defaultSize":30}

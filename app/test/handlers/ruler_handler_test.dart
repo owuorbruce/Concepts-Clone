@@ -77,4 +77,53 @@ void main() {
       const Color(0xFF123456),
     );
   });
+
+  test('6: a 13° twist snaps to 15°, and 60° and mirrors snap too', () {
+    expect(snapRulerRotation(13), closeTo(15, 1e-6));
+    expect(snapRulerRotationResult(13).snapped, isTrue);
+    expect(snapRulerRotation(58), closeTo(60, 1e-6));
+    expect(snapRulerRotation(122), closeTo(120, 1e-6));
+    expect(snapRulerRotation(197), closeTo(195, 1e-6));
+    // 75° is not a snap angle.
+    expect(snapRulerRotation(74), 74);
+    expect(snapRulerRotationResult(74).snapped, isFalse);
+  });
+
+  test('6: strokes near the edge are projected onto it', () {
+    final handler = RulerHandler(RulerTool());
+    const viewport = Size(800, 600);
+    final rect = handler.getRect(viewport);
+    // A stroke starting 15 px above the top edge and wobbling runs flat
+    // along the edge, like a brush stroke drawn freehand.
+    final stroke = [
+      for (var i = 0; i < 10; i++)
+        Offset(200 + i * 30.0, rect.top - 15 + sin(i.toDouble()) * 6),
+    ];
+    for (final point in stroke) {
+      final projected = handler.getPointerPosition(point, viewport);
+      expect(projected.dy, closeTo(rect.top, 1e-9));
+      expect(projected.dx, closeTo(point.dx, 1e-9));
+    }
+    // Farther than 24 px it is left alone.
+    final far = Offset(300, rect.top - 30);
+    expect(handler.getPointerPosition(far, viewport), far);
+  });
+
+  test('6: projection follows a rotated ruler', () {
+    final handler = RulerHandler(RulerTool())..setRotation(30);
+    const viewport = Size(800, 600);
+    final rect = handler.getRect(viewport);
+    final pivot = rect.center;
+    final angle = 30 * pi / 180;
+    Offset turn(Offset p, double a) {
+      final d = p - pivot;
+      return pivot +
+          Offset(d.dx * cos(a) - d.dy * sin(a), d.dx * sin(a) + d.dy * cos(a));
+    }
+
+    final point = turn(Offset(pivot.dx + 50, rect.bottom + 10), angle);
+    final projected = handler.getPointerPosition(point, viewport);
+    final local = turn(projected, -angle);
+    expect(local.dy, closeTo(rect.bottom, 1e-6));
+  });
 }

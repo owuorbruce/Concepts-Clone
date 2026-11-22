@@ -518,6 +518,7 @@ void main() {
       );
       await foregroundsRefreshed.future;
       final state = bloc.state as DocumentLoadSuccess;
+      // The preview moves the text with one translation.
       final preview = handler
           .createForegrounds(
             editorController,
@@ -525,11 +526,18 @@ void main() {
             state.page,
             state.info,
           )
+          .whereType<SelectionPreviewRenderer>()
+          .single;
+      final previewText = preview.element
           .map((renderer) => renderer.element)
           .whereType<TextElement>()
           .single;
+      final previewPosition = MatrixUtils.transformPoint(
+        preview.matrix,
+        Offset(previewText.position.x, previewText.position.y),
+      );
       expect(
-        Offset(preview.position.x, preview.position.y),
+        previewPosition,
         offsetMoreOrLessEquals(
           originalPosition + camera.localToGlobalDelta(const Offset(40, 0)),
         ),
@@ -571,6 +579,7 @@ void main() {
       final context = _ToolEventContext();
       final handler = SelectHandler(SelectTool());
       when(() => context.getCameraTransform()).thenReturn(camera);
+      when(() => context.viewportSize).thenReturn(const Size(800, 600));
       when(() => context.getDocumentBloc()).thenReturn(bloc);
       when(() => context.getToolState())
           .thenReturn(ToolRuntimeState(handler: handler));
@@ -2048,6 +2057,91 @@ void main() {
       255,
     ]);
   });
+
+  test(
+    'rerouting a connector in another layer rebuilds that layer cache',
+    () async {
+      await bloc.close();
+      await editorController.close();
+
+      final from = ShapeElement(
+        id: 'from',
+        firstPosition: const Point(10, 10),
+        secondPosition: const Point(30, 30),
+      );
+      final to = ShapeElement(
+        id: 'to',
+        firstPosition: const Point(70, 10),
+        secondPosition: const Point(90, 30),
+      );
+      final connector = createConnector(from, to, id: 'connector')!;
+      final renderers = <Renderer<PadElement>>[
+        _SolidRectRenderer(connector, Colors.red, 'connector-layer'),
+        _SolidRectRenderer(from, Colors.blue, 'shape-layer'),
+        _SolidRectRenderer(to, Colors.blue, 'shape-layer'),
+      ];
+      // The shapes live in the current (last) layer, the connector below it.
+      final page = DocumentPage(
+        layers: [
+          DocumentLayer(id: 'connector-layer', content: [connector]),
+          DocumentLayer(id: 'shape-layer', content: [from, to]),
+        ],
+      );
+      var data = NoteData(Archive());
+      final (nextData, pageName) = data.setPage(page, 'Page 1');
+      data = nextData;
+      editorController = EditorController(
+        settingsCubit,
+        TransformCubit(1),
+        CameraViewport.unbaked(
+          unbakedElements: renderers,
+          visibleElements: renderers,
+          visibleUnbakedElements: renderers,
+          width: 100,
+          height: 100,
+        ),
+      );
+      bloc = DocumentBloc(
+        fileSystem,
+        editorController,
+        windowCubit,
+        data,
+        const AssetLocation(path: 'test-note.bfly'),
+        null,
+        page,
+        pageName,
+      );
+
+      await editorController.rendererCubit.bake(
+        editorController,
+        bloc.state as DocumentLoadSuccess,
+        viewportSize: const Size(100, 100),
+        pixelRatio: 1,
+        reset: true,
+      );
+      final cubit = editorController.rendererCubit;
+      final oldImage = cubit.state.cameraViewport.belowLayerImage;
+      // Without a full-layer rebake the connector stays at its old position.
+      final cacheRebuilt = cubit.stream.firstWhere(
+        (state) => !identical(state.cameraViewport.belowLayerImage, oldImage),
+      );
+
+      final moved = to.copyWith(
+        firstPosition: const Point(70, 60),
+        secondPosition: const Point(90, 80),
+      );
+      final changes = {
+        'to': <PadElement>[moved],
+      };
+      bloc.add(ElementsChanged(changes));
+      await cacheRebuilt;
+
+      final loaded = bloc.state as DocumentLoadSuccess;
+      final layer = loaded.page.getLayer('connector-layer');
+      final rerouted = layer.content.single as ShapeElement;
+      expect(rerouted.secondPosition, connectorEndpoints(from, moved)!.$2);
+    },
+  );
 
   test('incremental bake does not rebuild already baked renderers', () async {
     await bloc.close();

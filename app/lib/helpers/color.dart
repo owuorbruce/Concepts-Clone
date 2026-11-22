@@ -63,6 +63,9 @@ Tool updateToolDefaultColor(Tool tool, SRGBColor color, {bool force = false}) {
         ),
       ),
     ),
+    WallTool e => e.copyWith(
+      color: _updateColor(e.color, defaultColor, force: force),
+    ),
     LabelTool e => e.copyWith(
       foreground: _updateColor(e.foreground, defaultColor, force: force),
     ),

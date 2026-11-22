@@ -313,14 +313,20 @@ class EraserHandler extends Handler<EraserTool> {
     Offset globalPos,
     double limitSquared,
   ) {
+    // Cut where the eraser touches the drawn stroke, not only its
+    // centerline, so wide brush and stamp strokes cut like thin ones.
     final paths = cutPenPointsForEraser(
       element.points,
       globalPos,
-      sqrt(limitSquared),
+      sqrt(limitSquared) + max(0.0, element.property.strokeWidth) / 2,
     );
     return paths
         ?.map(
-          (points) => element.copyWith(points: points, id: createUniqueId()),
+          (points) => element.copyWith(
+            points: points,
+            id: createUniqueId(),
+            extra: brushPieceExtra(element, points),
+          ),
         )
         .toList();
   }

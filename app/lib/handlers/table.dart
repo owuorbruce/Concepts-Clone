@@ -337,12 +337,16 @@ class TableHandler extends PastingHandler<TableTool> with ColoredHandler {
     final position = context.getCameraTransform().localToGlobal(
       details.localPosition,
     );
+    // Cells are 120 × 60 screen pixels at the current zoom, so a new table
+    // is readable however far the view is zoomed.
+    final zoom = context.getCameraTransform().size;
+    final scale = zoom.isFinite && zoom > 0 ? 1 / zoom : 1.0;
     final width = data.constrainedWidth > 0
         ? data.constrainedWidth
-        : data.columns * 120.0;
+        : data.columns * 120.0 * scale;
     final height = data.constrainedHeight > 0
         ? data.constrainedHeight
-        : data.rows * 60.0;
+        : data.rows * 60.0 * scale;
     final state = context.getState();
     final collection = state?.currentCollection ?? '';
     final elements = transformElements(

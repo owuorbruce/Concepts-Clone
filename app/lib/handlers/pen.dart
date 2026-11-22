@@ -9,6 +9,11 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
   final List<PenElement> _submittedElements = [];
   // Map to store the last positions of each element.
   final Map<int, Offset> lastPosition = {};
+  // Steadies each stroke in screen space, per pointer.
+  final Map<int, StrokeStabilizer> _stabilizers = {};
+  // Time stamp of the first event of each stroke, per pointer.
+  final Map<int, Duration> _strokeStart = {};
+  static bool _tiltLogged = false;
   // List for shapeDetection
   final points = <Offset>[];
   // For control if the pointer has not moved
@@ -29,14 +34,24 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
     DocumentPage page,
     DocumentInfo info, [
     Area? currentArea,
-  ]) => [...elements.values, ..._submittedElements]
-      .map(
-        (e) => e.points.length > 1
-            ? PenRenderer(e.copyWith(id: createUniqueId()))
-            : null,
-      )
-      .whereType<Renderer>()
-      .toList();
+  ]) {
+    final drawing = [...elements.values, ..._submittedElements];
+    return [
+      ...drawing
+          .map(
+            (e) => e.points.length > 1
+                ? (PenRenderer(e.copyWith(id: createUniqueId()))
+                    ..brushSeed = e.id)
+                : null,
+          )
+          .whereType<Renderer>(),
+      // While the mask tool is active, every mask shows as a faint gray.
+      if (isMaskBrush(data.property.brush, data.property.brushVersion)) ...[
+        ...pageMaskTints(page),
+        ...maskTints(drawing.where((e) => e.points.length > 1)),
+      ],
+    ];
+  }
 
   // Reset the input for the handler.
   @override
@@ -47,6 +62,7 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
     elements.clear();
     _elementPoints.clear();
     lastPosition.clear();
+    _stabilizers.clear();
     points.clear();
     lastPosit = null;
   }
@@ -66,6 +82,13 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
       getPressureOfEvent(event),
       event.kind,
       refresh: false,
+      event: event,
+    );
+    _finishStroke(
+      context.buildContext,
+      event.pointer,
+      event.localPosition,
+      context.viewportSize,
     );
     lastPosition.remove(event.pointer);
     submitElements(context.getDocumentBloc(), [event.pointer]);
@@ -155,18 +178,19 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
     PointerDeviceKind kind, {
     bool refresh = true,
     bool shouldCreate = false,
+    PointerEvent? event,
   }) {
     final bloc = context.read<DocumentBloc>();
     final editorController = context.read<EditorController>();
     final transform = context.read<TransformCubit>().state;
+    // The raw position on screen; duplicates are checked on it.
     localPos = PointerManipulationHandler.calculatePointerPosition(
       editorController.toolCubit.state,
       localPos,
       viewportSize,
       transform,
     );
-    final globalPos = transform.localToGlobal(localPos);
-    if (!bloc.isInBounds(globalPos)) return;
+    if (!bloc.isInBounds(transform.localToGlobal(localPos))) return;
     final state = bloc.state as DocumentLoadSuccess;
     final settings = context.read<SettingsCubit>().state;
     final penOnlyInput = editorController.inputCubit.effectivePenOnlyInput;
@@ -181,8 +205,34 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
     double zoom = data.zoomDependent ? transform.size : 1;
     final createNew = !elements.containsKey(pointer);
     if (createNew && !shouldCreate) return;
+    if (createNew) {
+      _stabilizers[pointer] = StrokeStabilizer(data.property.smoothing);
+      if (event != null) _strokeStart[pointer] = event.timeStamp;
+    }
+    // Smoothing steadies the path in screen space; pressure stays raw.
+    final stabilized = _stabilizers[pointer]?.add(localPos) ?? localPos;
+    final globalPos = transform.localToGlobal(stabilized);
     final element = elements[pointer];
-    final point = PathPoint.fromPoint(globalPos.toPoint(), pressure);
+    // Brushes read tilt (stylus only) and time; classic pens ignore them.
+    final stylus = kind == .stylus || kind == .invertedStylus;
+    final tilt = stylus ? event?.tilt : null;
+    final azimuth = stylus ? event?.orientation : null;
+    final start = _strokeStart[pointer];
+    final time = event == null || start == null
+        ? null
+        : (event.timeStamp - start).inMilliseconds;
+    if (kDebugMode && stylus && !_tiltLogged && (tilt ?? 0) != 0) {
+      _tiltLogged = true;
+      debugPrint('Stylus tilt: $tilt, azimuth: $azimuth');
+    }
+    final point = PathPoint(
+      globalPos.dx,
+      globalPos.dy,
+      pressure,
+      tilt,
+      azimuth,
+      time,
+    );
     if (element != null) {
       final points = _elementPoints[pointer] ?? element.points.toList();
       points.add(point);
@@ -196,6 +246,10 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
       _elementPoints[pointer] = points;
       elements[pointer] = PenElement(
         id: createUniqueId(),
+        // A brush stroke keeps its texture when it is cut or moved.
+        extra: data.property.brush.isEmpty
+            ? const {}
+            : {kBrushSeedKey: createBrushSeed()},
         zoom: transform.size,
         combineId: data.combinePaths ? data.id : null,
         collection: state.currentCollection,
@@ -206,6 +260,46 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
       );
     }
     if (refresh) unawaited(bloc.delayedRefreshForegrounds());
+  }
+
+  /// Ends the stroke of [pointer] at the pen tip: adds the stabilizer's
+  /// catch-up points to [localPos] with the last pressure.
+  void _finishStroke(
+    BuildContext context,
+    int pointer,
+    Offset localPos,
+    Size viewportSize,
+  ) {
+    final stabilizer = _stabilizers.remove(pointer);
+    final element = elements[pointer];
+    if (stabilizer == null || element == null) return;
+    final transform = context.read<TransformCubit>().state;
+    final raw = PointerManipulationHandler.calculatePointerPosition(
+      context.read<EditorController>().toolCubit.state,
+      localPos,
+      viewportSize,
+      transform,
+    );
+    final catchUp = stabilizer.finish(raw);
+    if (catchUp.isEmpty) return;
+    final points = _elementPoints[pointer] ?? element.points.toList();
+    final last = points.lastOrNull;
+    final pressure = last?.pressure ?? 1.0;
+    for (final position in catchUp) {
+      final global = transform.localToGlobal(position);
+      points.add(
+        PathPoint(
+          global.dx,
+          global.dy,
+          pressure,
+          last?.tilt,
+          last?.azimuth,
+          last?.time,
+        ),
+      );
+    }
+    _elementPoints[pointer] = points;
+    elements[pointer] = element.copyWith(points: points);
   }
 
   // This function is called when the pointer is pressed down.
@@ -223,6 +317,8 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
     }
     elements.remove(event.pointer);
     _elementPoints.remove(event.pointer);
+    _stabilizers.remove(event.pointer);
+    _strokeStart.remove(event.pointer);
     addPoint(
       context.buildContext,
       event.pointer,
@@ -231,6 +327,7 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
       getPressureOfEvent(event),
       event.kind,
       shouldCreate: true,
+      event: event,
     );
   }
 
@@ -258,6 +355,7 @@ class PenHandler extends Handler<PenTool> with ColoredHandler {
       context.viewportSize,
       getPressureOfEvent(event),
       event.kind,
+      event: event,
     );
     points.add(event.localPosition);
   }

@@ -299,27 +299,38 @@ class _UtilitiesViewState extends State<_UtilitiesView>
                     onChanged: (value) =>
                         context.read<TransformCubit>().teleport(value),
                   ),
-                  ExactSlider(
-                    header: Text(AppLocalizations.of(context).zoom),
-                    value: transformState.size * 100,
-                    defaultValue: 100,
-                    min: kMinZoom * 100,
-                    max: kMaxZoom * 100,
-                    sliderStep: 1,
-                    onChangeEnd: (value) {
-                      final size = context
-                          .read<EditorController>()
-                          .rendererCubit
-                          .state
-                          .cameraViewport
-                          .toSize();
-                      final editorController = context.read<EditorController>();
-                      editorController.transformCubit.sizeConstrained(
-                        value / 100,
-                        cursor: Offset(size.width / 2, size.height / 2),
-                        runtime: editorController,
+                  Builder(
+                    builder: (context) {
+                      final reference = displayZoom(context, listen: true);
+                      final range = cameraZoomRange(context, listen: true);
+                      return LogZoomSlider(
+                        key: const ValueKey('document-zoom'),
+                        header: Text(AppLocalizations.of(context).zoom),
+                        value: transformState.size / reference * 100,
+                        min: range.min / reference * 100,
+                        max: range.max / reference * 100,
+                        onChangeEnd: (value) {
+                          final size = context
+                              .read<EditorController>()
+                              .rendererCubit
+                              .state
+                              .cameraViewport
+                              .toSize();
+                          final editorController = context
+                              .read<EditorController>();
+                          editorController.transformCubit.sizeConstrained(
+                            editorController.transformCubit.toCameraScale(
+                              value,
+                              reference,
+                              min: range.min,
+                              max: range.max,
+                            ),
+                            cursor: Offset(size.width / 2, size.height / 2),
+                            runtime: editorController,
+                          );
+                          context.read<DocumentBloc>().bake();
+                        },
                       );
-                      context.read<DocumentBloc>().bake();
                     },
                   ),
                   ExactSlider(
@@ -344,6 +355,10 @@ class _UtilitiesViewState extends State<_UtilitiesView>
                         runtime: editorController,
                       );
                     },
+                  ),
+                  const DisplayCalibrationSetting(
+                    showToggle: true,
+                    showCalibration: false,
                   ),
                 ],
               ),

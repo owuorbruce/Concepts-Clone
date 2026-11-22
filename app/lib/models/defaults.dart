@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:archive/archive.dart';
 import 'package:butterfly/helpers/color.dart';
+import 'package:butterfly/views/amaze/library.dart' show LibraryEntry;
 import 'package:butterfly/visualizer/preset.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:butterfly_api/butterfly_api.dart';
@@ -36,10 +37,17 @@ class DocumentDefaults {
     }
   }
 
+  /// The pen of new documents: the library's Pen, drawing with the newest
+  /// `amaze.pen` from the brush registry. Existing documents keep their pens.
+  static Tool createDefaultPen() =>
+      (LibraryEntry.pen.createTool() ?? Tool.pen()).copyWith(
+        id: createUniqueId(),
+      );
+
   static List<Tool> createTools([SRGBColor? background]) =>
       [
             SelectTool(mode: SelectMode.lasso, id: createUniqueId()),
-            PenTool(id: createUniqueId()),
+            createDefaultPen(),
             EraserTool(id: createUniqueId(), mode: EraserMode.path),
             UndoTool(id: createUniqueId()),
             RedoTool(id: createUniqueId()),
@@ -79,6 +87,8 @@ class DocumentDefaults {
     Tool.grid(),
     ...BarcodeType.values.map((e) => Tool.barcode(barcodeType: e)),
     Tool.table(),
+    // New presets go last, so the core pack keeps its preset numbers.
+    Tool.wall(),
   ];
 
   static NoteData _addCoreToolPresets(NoteData pack) {

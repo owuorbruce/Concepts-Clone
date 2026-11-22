@@ -155,6 +155,18 @@ sealed class Property with _$Property {
     ElementPaint fillPaint,
     @Default(0.5) double smoothing,
     @Default(0.3) double streamline,
+
+    /// Brush definition id (see [BrushDefinition]); empty = classic pen.
+    @JsonKey(includeIfNull: false)
+    @EmptyStringAsNullConverter()
+    @Default('')
+    String brush,
+
+    /// Version of the brush definition the stroke was drawn with.
+    @JsonKey(includeIfNull: false)
+    @DefaultOneAsNullConverter()
+    @Default(1)
+    int brushVersion,
   }) = PenProperty;
 
   const factory Property.shape({
@@ -233,4 +245,26 @@ extension PropertySources on Property {
       ...shape.sources,
     ],
   };
+}
+
+/// Writes `''` as an absent key so classic pens keep their old JSON.
+class EmptyStringAsNullConverter implements JsonConverter<String, String?> {
+  const EmptyStringAsNullConverter();
+
+  @override
+  String fromJson(String? json) => json ?? '';
+
+  @override
+  String? toJson(String object) => object.isEmpty ? null : object;
+}
+
+/// Writes `1` as an absent key so classic pens keep their old JSON.
+class DefaultOneAsNullConverter implements JsonConverter<int, int?> {
+  const DefaultOneAsNullConverter();
+
+  @override
+  int fromJson(int? json) => json ?? 1;
+
+  @override
+  int? toJson(int object) => object == 1 ? null : object;
 }

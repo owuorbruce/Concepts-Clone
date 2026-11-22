@@ -17,8 +17,25 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'transform.freezed.dart';
 
-const kMinZoom = 0.1;
-const kMaxZoom = 10.0;
+/// Smallest camera scale. Endless canvas: a 40 ft house is a speck long
+/// before this, but double precision still resolves the view.
+const kMinZoom = 1e-6;
+
+/// Largest camera scale.
+const kMaxZoom = 1000.0;
+
+/// Display calibration keeps its original range; it maps physical size to
+/// 100 %, so a calibration outside this range is a measuring mistake.
+const kMinCalibrationZoom = 0.1;
+const kMaxCalibrationZoom = 10.0;
+
+/// Clamps [size] to the supported zoom range. A NaN or infinite request keeps
+/// [current], so a broken gesture or calculation never corrupts the camera.
+double clampZoom(double size, double current) {
+  if (!size.isFinite) return current;
+  return size.clamp(kMinZoom, kMaxZoom).toDouble();
+}
+
 const kRoundPrecision = 3;
 const kDrag = 0.001;
 const kBoundsSnapBackDuration = 0.18;
@@ -47,7 +64,7 @@ class const CameraTransform([
 
   CameraTransform withSize(double size, [Offset cursor = .zero]) {
     // Set size and focus on cursor if provided
-    final double newSize = size.clamp(kMinZoom, kMaxZoom);
+    final double newSize = clampZoom(size, this.size);
     return CameraTransform(
       pixelRatio,
       localToGlobal(cursor) - cursor.rotate(Offset.zero, -rotation) / newSize,
@@ -135,7 +152,9 @@ class const CameraTransform([
     final finalPosition = positionBounds == null
         ? position - finalPos
         : _clampPosition(position - finalPos, positionBounds);
-    final finalScale = (size + finalSize).clamp(kMinZoom, kMaxZoom);
+    // The gesture's scale velocity is relative (1/s), so apply it as a
+    // factor. Adding it to the size would jump from 0.001 % to 100 %.
+    final finalScale = clampZoom(size * exp(finalSize), size);
     var duration = max(durationPosition, durationSize);
     if (!duration.isFinite) {
       duration = 0;
@@ -181,6 +200,20 @@ class TransformCubit(double pixelRatio, [Offset? position])
     extends Cubit<CameraTransform> {
   this : super(CameraTransform(pixelRatio, position ?? .zero));
 
+  double toCameraScale(
+    double percent,
+    double reference, {
+    double min = kMinZoom,
+    double max = kMaxZoom,
+  }) {
+    if (!percent.isFinite || !reference.isFinite || reference <= 0) {
+      return state.size;
+    }
+    if (percent <= min / reference * 100) return min;
+    if (percent >= max / reference * 100) return max;
+    return percent / 100 * reference;
+  }
+
   void move(Offset delta) => emit(state.withPosition(state.position + delta));
 
   void teleport(Offset position, [double? scale, double? rotation]) => emit(
@@ -219,7 +252,7 @@ class TransformCubit(double pixelRatio, [Offset? position])
     final effectiveScreen = screen / resolution.multiplier;
     final width = effectiveScreen.width / area.width;
     final height = effectiveScreen.height / area.height;
-    final size = min(width, height).clamp(kMinZoom, kMaxZoom);
+    final size = clampZoom(min(width, height), state.size);
     final position =
         area.rect.center - effectiveScreen.center(Offset.zero) / size;
     teleport(position, size);
@@ -268,14 +301,16 @@ class TransformCubit(double pixelRatio, [Offset? position])
     return Rect.fromLTRB(minX, minY, maxX, maxY);
   }
 
-  bool _isNavigationRailVisible(EditorRuntimeContext runtime) {
+  bool _isNavigationRailVisible(
+    EditorRuntimeContext runtime,
+    Size viewportSize,
+  ) {
     final settings = runtime.settingsCubit.state;
-    final viewport = runtime.rendererCubit.state.cameraViewport;
     return settings.navigationRail &&
         settings.navigatorPosition == .left &&
         runtime.inputCubit.state.hideUi == .visible &&
-        (viewport.width ?? 0) >= LeapBreakpoints.expanded &&
-        (viewport.height ?? 0) >= 400;
+        viewportSize.width >= LeapBreakpoints.expanded &&
+        viewportSize.height >= 400;
   }
 
   Rect? calculateViewportBounds({
@@ -291,15 +326,22 @@ class TransformCubit(double pixelRatio, [Offset? position])
 
     final viewport = runtime.rendererCubit.state.cameraViewport;
     final transform = customTransform ?? state;
-    final navigationRailOffset = _isNavigationRailVisible(runtime)
-        ? kNavigationRailWidth / transform.size
+    final viewportSize = viewport.viewportSize ?? viewport.toRealSize();
+    final navigationRailOffset = _isNavigationRailVisible(runtime, viewportSize)
+        ? kNavigationRailWidth
         : 0.0;
-    final size =
-        Size(
-          ((viewport.width ?? 0) / transform.size) - navigationRailOffset,
-          (viewport.height ?? 0) / transform.size,
-        ) /
-        settings.renderResolution.multiplier;
+    // The camera position is the document point at the screen origin, not
+    // the top-left of the visible document bounds when the view is rotated.
+    // Use the measured screen size; the render cache can be larger than it.
+    final relativeTransform = transform.withPosition(Offset.zero);
+    final screenRect = Rect.fromLTRB(
+      navigationRailOffset,
+      0,
+      viewportSize.width,
+      viewportSize.height,
+    );
+    final viewportRect = relativeTransform.localToGlobalRect(screenRect);
+    final size = viewportRect.size;
 
     final contentRect = getContentRect(runtime.rendererCubit, currentArea);
 
@@ -313,10 +355,10 @@ class TransformCubit(double pixelRatio, [Offset? position])
       final padX = size.width * multiplier;
       final padY = size.height * multiplier;
 
-      minX = contentRect.left - padX;
-      minY = contentRect.top - padY;
-      maxX = contentRect.right - size.width + padX;
-      maxY = contentRect.bottom - size.height + padY;
+      minX = contentRect.left - padX - viewportRect.left;
+      minY = contentRect.top - padY - viewportRect.top;
+      maxX = contentRect.right + padX - viewportRect.right;
+      maxY = contentRect.bottom + padY - viewportRect.bottom;
 
       if (minX > maxX) {
         final mid = (minX + maxX) / 2;
@@ -331,10 +373,27 @@ class TransformCubit(double pixelRatio, [Offset? position])
     }
 
     if (positive && currentArea == null) {
-      minX = max(-navigationRailOffset, minX);
-      minY = max(0.0, minY);
-      maxX = max(-navigationRailOffset, maxX);
-      maxY = max(0.0, maxY);
+      // A rotated viewport's bounding-box corners lie outside the screen.
+      // Fit an inner document-aligned rectangle so its positive-coordinate
+      // boundary, including the canvas origin, remains visible when panning.
+      final projectedSize = relativeTransform
+          .globalToLocalRect(Offset.zero & size)
+          .size;
+      final fit = min(
+        projectedSize.width > 0 ? screenRect.width / projectedSize.width : 1.0,
+        projectedSize.height > 0
+            ? screenRect.height / projectedSize.height
+            : 1.0,
+      ).clamp(0.0, 1.0);
+      final positiveRect = Rect.fromCenter(
+        center: viewportRect.center,
+        width: size.width * fit,
+        height: size.height * fit,
+      );
+      minX = max(-positiveRect.left, minX);
+      minY = max(-positiveRect.top, minY);
+      maxX = max(-positiveRect.left, maxX);
+      maxY = max(-positiveRect.top, maxY);
     }
 
     return Rect.fromLTRB(minX, minY, maxX, maxY);
@@ -630,16 +689,17 @@ class TransformCubit(double pixelRatio, [Offset? position])
         var vX = positionVelocity.dx;
         var vY = positionVelocity.dy;
 
-        if (pos.dx >= bounds.right && vX > 0) {
+        // Friction subtracts the pointer velocity from the camera position.
+        if (pos.dx >= bounds.right && vX < 0) {
           vX = 0;
         }
-        if (pos.dx <= bounds.left && vX < 0) {
+        if (pos.dx <= bounds.left && vX > 0) {
           vX = 0;
         }
-        if (pos.dy >= bounds.bottom && vY > 0) {
+        if (pos.dy >= bounds.bottom && vY < 0) {
           vY = 0;
         }
-        if (pos.dy <= bounds.top && vY < 0) {
+        if (pos.dy <= bounds.top && vY > 0) {
           vY = 0;
         }
 

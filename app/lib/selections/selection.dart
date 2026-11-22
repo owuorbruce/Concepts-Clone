@@ -1,3 +1,5 @@
+import 'package:butterfly/views/toolbar/select.dart';
+
 import 'dart:math';
 
 import 'package:butterfly/bloc/document_bloc.dart';
@@ -10,9 +12,13 @@ import 'package:butterfly/dialogs/password.dart';
 import 'package:butterfly/dialogs/texture.dart';
 import 'package:butterfly/dialogs/export/thumbnail.dart';
 import 'package:butterfly/helpers/point.dart';
+import 'package:butterfly/settings/display_calibration.dart';
+import 'package:butterfly/services/display_calibration.dart';
+import 'package:butterfly/views/zoom.dart' show LogZoomSlider;
 import 'package:butterfly_api/butterfly_api.dart';
 import 'package:butterfly/renderers/renderer.dart';
 import 'package:butterfly/visualizer/tool.dart';
+import 'package:butterfly/views/amaze/floor_plan/floor_plan.dart';
 import 'package:butterfly/visualizer/preset.dart';
 import 'package:butterfly/visualizer/property.dart';
 import 'package:butterfly/widgets/area_size_picker.dart';

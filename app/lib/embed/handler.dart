@@ -345,22 +345,29 @@ class EmbedHandler {
           padding = _mapPadding(map);
           renderBackground = _mapBool(map, 'renderBackground', true);
         }
+        final options = SvgExportOptions(
+          width: width,
+          height: height,
+          x: x,
+          y: y,
+          scale: scale,
+          rotation: rotation,
+          padding: padding,
+          renderBackground: renderBackground,
+        );
+        await controller.rendererCubit.prepareSvgExport(
+          options,
+          document: state.data,
+          page: state.page,
+          info: state.info,
+        );
         sendEmbedMessage(
           'renderSVG',
           controller.rendererCubit
               .renderSVG(
                 state.data,
                 state.page,
-                SvgExportOptions(
-                  width: width,
-                  height: height,
-                  x: x,
-                  y: y,
-                  scale: scale,
-                  rotation: rotation,
-                  padding: padding,
-                  renderBackground: renderBackground,
-                ),
+                options,
                 invisibleLayers: state.invisibleLayers,
               )
               .toXmlString(),

@@ -1,9 +1,47 @@
 part of 'handler.dart';
 
+/// The stamp tool waiting for an object from the Objects panel. The panel
+/// opens while it is set, and picking an object there sets the stamp's
+/// component instead of placing it.
+final pendingStampTool = ValueNotifier<StampTool?>(null);
+
+/// Gives [tool] the object [entry] as its component, in place of placing
+/// it, and stops waiting. Returns whether a stamp was waiting.
+bool completeStampPick(DocumentBloc bloc, ObjectEntry entry) {
+  final tool = pendingStampTool.value;
+  if (tool == null) return false;
+  pendingStampTool.value = null;
+  bloc.add(
+    ToolsChanged([
+      tool.copyWith(
+        component: NamedItem(name: entry.name, item: entry.component),
+      ),
+    ]),
+  );
+  return true;
+}
+
 class StampHandler extends PastingHandler<StampTool> {
   Rect rect = .zero;
   List<Renderer<PadElement>>? _elements;
   StampHandler(super.data);
+
+  @override
+  FutureOr<SelectState> onSelected(
+    BuildContext context, [
+    bool wasAdded = true,
+  ]) {
+    // Without an object, there is nothing to stamp: open the Objects panel
+    // to pick one.
+    if (getComponent() == null) pendingStampTool.value = data;
+    return super.onSelected(context, wasAdded);
+  }
+
+  @override
+  void dispose(DocumentBloc bloc) {
+    if (pendingStampTool.value?.id == data.id) pendingStampTool.value = null;
+    super.dispose(bloc);
+  }
 
   @override
   Future<void> preparePaste(EventContext context) async {
@@ -18,6 +56,39 @@ class StampHandler extends PastingHandler<StampTool> {
   }
 
   ButterflyComponent? getComponent() => data.component?.item;
+
+  /// A tap places the object the way the Objects panel does: real size,
+  /// centered on the tap, SVG objects as strokes, in one undo step.
+  @override
+  // ignore: must_call_super
+  Future<void> onTapUp(TapUpDetails details, EventContext context) async {
+    final component = getComponent();
+    if (component == null) {
+      pendingStampTool.value = data;
+      return;
+    }
+    final state = context.getState();
+    if (state == null) return;
+    final transform = context.getCameraTransform();
+    final world = transform.localToGlobal(
+      PointerManipulationHandler.calculatePointerPosition(
+        context.getToolState(),
+        details.localPosition,
+        context.viewportSize,
+        transform,
+      ),
+    );
+    final elements = placeComponentAt(component, world);
+    if (elements.isEmpty) return;
+    context.getDocumentBloc().add(
+      ElementsCreated(
+        elements,
+        pageName: state.pageName,
+        layer: state.currentLayer,
+      ),
+    );
+    await context.refresh();
+  }
 
   Future<void> _loadComponent(
     TransformCubit transformCubit,
@@ -55,23 +126,16 @@ class StampHandler extends PastingHandler<StampTool> {
   );
   @override
   MouseCursor get cursor => SystemMouseCursors.click;
+
+  /// The ghost under the pointer before the tap.
   @override
   bool get showHoverPreview => true;
   @override
   bool get shouldNormalize => false;
 
   @visibleForTesting
-  static (double, double) calculateScale(Rect sourceRect, Rect targetRect) {
-    if (sourceRect.isEmpty ||
-        (targetRect.width.abs() < precisionErrorTolerance &&
-            targetRect.height.abs() < precisionErrorTolerance)) {
-      return (1, 1);
-    }
-    return (
-      targetRect.width / sourceRect.width,
-      targetRect.height / sourceRect.height,
-    );
-  }
+  static (double, double) calculateScale(Rect sourceRect, Rect targetRect) =>
+      calculateComponentScale(sourceRect, targetRect);
 
   @override
   List<PadElement> transformElements(
@@ -81,31 +145,6 @@ class StampHandler extends PastingHandler<StampTool> {
   ) {
     final elements = _elements;
     if (elements == null || elements.isEmpty) return [];
-
-    final sourceRect = this.rect;
-    final (scaleX, scaleY) = calculateScale(sourceRect, rect);
-
-    Offset applyScaleAndTranslate(Offset original) {
-      final relative = original - sourceRect.topLeft;
-      return Offset(relative.dx * scaleX, relative.dy * scaleY) + rect.topLeft;
-    }
-
-    return elements
-        .map((renderer) {
-          // Map every element's pivot through the same group transform. Stroke
-          // padding and existing rotation must not shift individual elements.
-          final center = (renderer.rect ?? Rect.zero).center;
-          return renderer
-                  .transform(
-                    center: applyScaleAndTranslate(center),
-                    scaleX: scaleX,
-                    scaleY: scaleY,
-                    relative: true,
-                  )
-                  ?.element ??
-              renderer.element;
-        })
-        .map((element) => element.copyWith(id: createUniqueId()))
-        .toList();
+    return transformComponentElements(elements, this.rect, rect);
   }
 }

@@ -16,6 +16,9 @@ _PathPoint _$PathPointFromJson(Map json) => _PathPoint(
   (json['x'] as num).toDouble(),
   (json['y'] as num).toDouble(),
   (json['pressure'] as num?)?.toDouble() ?? 1,
+  (json['tilt'] as num?)?.toDouble(),
+  (json['azimuth'] as num?)?.toDouble(),
+  (json['time'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$PathPointToJson(_PathPoint instance) =>
@@ -23,6 +26,9 @@ Map<String, dynamic> _$PathPointToJson(_PathPoint instance) =>
       'x': instance.x,
       'y': instance.y,
       'pressure': instance.pressure,
+      'tilt': ?instance.tilt,
+      'azimuth': ?instance.azimuth,
+      'time': ?instance.time,
     };
 
 _PolygonPoint _$PolygonPointFromJson(Map json) => _PolygonPoint(

@@ -33,6 +33,52 @@ class SelectToolSelection extends ToolSelection<SelectTool> {
           },
         ),
       ),
+      SwitchListTile(
+        title: Text(loc.proportionalResizing),
+        value: tool.proportionalResizing,
+        onChanged: (value) {
+          update(
+            context,
+            selected
+                .map((e) => e.copyWith(proportionalResizing: value))
+                .toList(),
+          );
+        },
+      ),
+      // The two everyday modes as chips; "touch edges" stays below.
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final (mode, label) in [
+                  (HitElementMode.touchAnywhere, loc.amazeHitTouching),
+                  (HitElementMode.full, loc.amazeHitEnclosed),
+                ])
+                  ChoiceChip(
+                    key: ValueKey(('amaze-select-setting-hit', mode.name)),
+                    label: Text(label),
+                    selected: currentMode == mode,
+                    onSelected: (_) => update(
+                      context,
+                      selected
+                          .map((e) => e.copyWith(hitElementMode: mode))
+                          .toList(),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${selectHitModeInfo(loc, currentMode)} ${loc.amazeLassoNoCut}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
       ExpansionTile(
         leading: const PhosphorIcon(PhosphorIconsLight.selectionAll),
         title: Text(AppLocalizations.of(context).selectElements),

@@ -1,5 +1,7 @@
 import 'package:butterfly/cubits/editor_controller.dart';
 import 'package:butterfly/cubits/settings.dart';
+import 'package:butterfly/services/display_calibration.dart';
+import 'package:butterfly/views/zoom.dart' show stepZoomPercent;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -41,6 +43,9 @@ class ZoomAction extends Action<ZoomIntent> {
 
   static double step(ButterflySettings settings) => settings.zoomStep;
 
+  /// Factor of one Ctrl+ or Ctrl− step.
+  static const shortcutFactor = 1.25;
+
   @override
   void invoke(ZoomIntent intent) {
     final cubit = context.read<EditorController>();
@@ -49,13 +54,17 @@ class ZoomAction extends Action<ZoomIntent> {
       Offset.zero,
     );
     final transformCubit = cubit.transformCubit;
-    final step = ZoomAction.step(cubit.settingsCubit.state);
-    cubit.transformCubit.sizeConstrained(
-      intent.reset
-          ? 1
-          : transformCubit.state.size + (intent.reverse ? -step : step),
-      cursor: center,
-      runtime: cubit,
-    );
+    final reference = displayZoom(context);
+    final range = cameraZoomRange(context);
+    final percent = transformCubit.state.size / reference * 100;
+    final size = intent.reset
+        ? reference
+        : transformCubit.toCameraScale(
+            stepZoomPercent(percent, shortcutFactor, intent.reverse ? -1 : 1),
+            reference,
+            min: range.min,
+            max: range.max,
+          );
+    transformCubit.sizeConstrained(size, cursor: center, runtime: cubit);
   }
 }

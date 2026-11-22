@@ -160,7 +160,7 @@ as double,
 /// @nodoc
 mixin _$PathPoint {
 
- double get x; double get y; double get pressure;
+ double get x; double get y; double get pressure;@JsonKey(includeIfNull: false) double? get tilt;@JsonKey(includeIfNull: false) double? get azimuth;@JsonKey(includeIfNull: false) int? get time;
 /// Create a copy of PathPoint
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -174,20 +174,20 @@ $PathPointCopyWith<PathPoint> get copyWith => _$PathPointCopyWithImpl<PathPoint>
 @override
 bool operator ==(Object other) {
   final _this = this as PathPoint;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PathPoint&&(identical(other.x, _this.x) || other.x == _this.x)&&(identical(other.y, _this.y) || other.y == _this.y)&&(identical(other.pressure, _this.pressure) || other.pressure == _this.pressure));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PathPoint&&(identical(other.x, _this.x) || other.x == _this.x)&&(identical(other.y, _this.y) || other.y == _this.y)&&(identical(other.pressure, _this.pressure) || other.pressure == _this.pressure)&&(identical(other.tilt, _this.tilt) || other.tilt == _this.tilt)&&(identical(other.azimuth, _this.azimuth) || other.azimuth == _this.azimuth)&&(identical(other.time, _this.time) || other.time == _this.time));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as PathPoint;
-  return Object.hash(runtimeType,_this.x,_this.y,_this.pressure);
+  return Object.hash(runtimeType,_this.x,_this.y,_this.pressure,_this.tilt,_this.azimuth,_this.time);
 }
 
 @override
 String toString() {
   final _this = this as PathPoint;
-  return 'PathPoint(x: ${_this.x}, y: ${_this.y}, pressure: ${_this.pressure})';
+  return 'PathPoint(x: ${_this.x}, y: ${_this.y}, pressure: ${_this.pressure}, tilt: ${_this.tilt}, azimuth: ${_this.azimuth}, time: ${_this.time})';
 }
 
 
@@ -198,7 +198,7 @@ abstract mixin class $PathPointCopyWith<$Res> implements $SimplePointCopyWith<$R
   factory $PathPointCopyWith(PathPoint value, $Res Function(PathPoint) _then) = _$PathPointCopyWithImpl;
 @useResult
 $Res call({
- double x, double y, double pressure
+ double x, double y, double pressure,@JsonKey(includeIfNull: false) double? tilt,@JsonKey(includeIfNull: false) double? azimuth,@JsonKey(includeIfNull: false) int? time
 });
 
 
@@ -215,12 +215,15 @@ class _$PathPointCopyWithImpl<$Res>
 
 /// Create a copy of PathPoint
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? x = null,Object? y = null,Object? pressure = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? x = null,Object? y = null,Object? pressure = null,Object? tilt = freezed,Object? azimuth = freezed,Object? time = freezed,}) {
   return _then(PathPoint(
 null == x ? _self.x : x // ignore: cast_nullable_to_non_nullable
 as double,null == y ? _self.y : y // ignore: cast_nullable_to_non_nullable
 as double,null == pressure ? _self.pressure : pressure // ignore: cast_nullable_to_non_nullable
-as double,
+as double,freezed == tilt ? _self.tilt : tilt // ignore: cast_nullable_to_non_nullable
+as double?,freezed == azimuth ? _self.azimuth : azimuth // ignore: cast_nullable_to_non_nullable
+as double?,freezed == time ? _self.time : time // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 
@@ -232,12 +235,15 @@ as double,
 @JsonSerializable()
 
 class _PathPoint extends PathPoint {
-  const _PathPoint(this.x, this.y, [this.pressure = 1]): super._();
+  const _PathPoint(this.x, this.y, [this.pressure = 1, @JsonKey(includeIfNull: false) this.tilt, @JsonKey(includeIfNull: false) this.azimuth, @JsonKey(includeIfNull: false) this.time]): super._();
   factory _PathPoint.fromJson(Map<String, dynamic> json) => _$PathPointFromJson(json);
 
 @override final  double x;
 @override final  double y;
 @override@JsonKey() final  double pressure;
+@override@JsonKey(includeIfNull: false) final  double? tilt;
+@override@JsonKey(includeIfNull: false) final  double? azimuth;
+@override@JsonKey(includeIfNull: false) final  int? time;
 
 /// Create a copy of PathPoint
 /// with the given fields replaced by the non-null parameter values.
@@ -252,18 +258,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PathPoint&&(identical(other.x, x) || other.x == x)&&(identical(other.y, y) || other.y == y)&&(identical(other.pressure, pressure) || other.pressure == pressure));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PathPoint&&(identical(other.x, x) || other.x == x)&&(identical(other.y, y) || other.y == y)&&(identical(other.pressure, pressure) || other.pressure == pressure)&&(identical(other.tilt, tilt) || other.tilt == tilt)&&(identical(other.azimuth, azimuth) || other.azimuth == azimuth)&&(identical(other.time, time) || other.time == time));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,x,y,pressure);
+    return Object.hash(runtimeType,x,y,pressure,tilt,azimuth,time);
 }
 
 @override
 String toString() {
-    return 'PathPoint(x: $x, y: $y, pressure: $pressure)';
+    return 'PathPoint(x: $x, y: $y, pressure: $pressure, tilt: $tilt, azimuth: $azimuth, time: $time)';
 }
 
 
@@ -274,7 +280,7 @@ abstract mixin class _$PathPointCopyWith<$Res> implements $PathPointCopyWith<$Re
   factory _$PathPointCopyWith(_PathPoint value, $Res Function(_PathPoint) _then) = __$PathPointCopyWithImpl;
 @override @useResult
 $Res call({
- double x, double y, double pressure
+ double x, double y, double pressure,@JsonKey(includeIfNull: false) double? tilt,@JsonKey(includeIfNull: false) double? azimuth,@JsonKey(includeIfNull: false) int? time
 });
 
 
@@ -291,12 +297,15 @@ class __$PathPointCopyWithImpl<$Res>
 
 /// Create a copy of PathPoint
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? x = null,Object? y = null,Object? pressure = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? x = null,Object? y = null,Object? pressure = null,Object? tilt = freezed,Object? azimuth = freezed,Object? time = freezed,}) {
   return _then(_PathPoint(
 null == x ? _self.x : x // ignore: cast_nullable_to_non_nullable
 as double,null == y ? _self.y : y // ignore: cast_nullable_to_non_nullable
 as double,null == pressure ? _self.pressure : pressure // ignore: cast_nullable_to_non_nullable
-as double,
+as double,freezed == tilt ? _self.tilt : tilt // ignore: cast_nullable_to_non_nullable
+as double?,freezed == azimuth ? _self.azimuth : azimuth // ignore: cast_nullable_to_non_nullable
+as double?,freezed == time ? _self.time : time // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 

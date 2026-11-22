@@ -174,6 +174,14 @@ PenProperty _$PenPropertyFromJson(Map json) => PenProperty(
         ),
   smoothing: (json['smoothing'] as num?)?.toDouble() ?? 0.5,
   streamline: (json['streamline'] as num?)?.toDouble() ?? 0.3,
+  brush: json['brush'] == null
+      ? ''
+      : const EmptyStringAsNullConverter().fromJson(json['brush'] as String?),
+  brushVersion: json['brushVersion'] == null
+      ? 1
+      : const DefaultOneAsNullConverter().fromJson(
+          (json['brushVersion'] as num?)?.toInt(),
+        ),
   $type: json['type'] as String?,
 );
 
@@ -185,6 +193,10 @@ Map<String, dynamic> _$PenPropertyToJson(PenProperty instance) =>
       'fillPaint': instance.fillPaint.toJson(),
       'smoothing': instance.smoothing,
       'streamline': instance.streamline,
+      'brush': ?const EmptyStringAsNullConverter().toJson(instance.brush),
+      'brushVersion': ?const DefaultOneAsNullConverter().toJson(
+        instance.brushVersion,
+      ),
       'type': instance.$type,
     };
 
