@@ -1,0 +1,1 @@
+{"id":"amaze.waterful.bleed","version":1,"name":"Bleed","engine":"stamp","texture":"bleed","spacing":0.12,"scatter":0.2,"sizeJitter":0.2,"angleMode":"random","flow":0.3,"buildUp":false,"blend":"multiply","defaultOpacity":0.6,"defaultSize":30}

@@ -1,0 +1,1 @@
+{"id":"amaze.ink.dripPen","version":1,"name":"Drip pen","engine":"outline","width":{"pressureGamma":1.0,"minRatio":0.25,"speed":0.6},"taper":{"start":1,"end":4},"endStamp":{"texture":"ink-drop","size":1.8},"defaultSize":6}
